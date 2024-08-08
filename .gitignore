@@ -1,0 +1,4 @@
+/target/
+/.idea/
+/phoenix-ddb-shim/target/
+/phoenix-ddb-shim/dynamodb-local-metadata.json
