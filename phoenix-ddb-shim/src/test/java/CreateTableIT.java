@@ -51,21 +51,25 @@ import java.util.List;
 
 import static org.apache.phoenix.query.BaseTest.setUpConfigForMiniCluster;
 
+/**
+ * Tests for CreateTable API. Brings up local DynamoDB server and HBase miniCluster, and tests
+ * CreateTable API with same request against both DDB and HBase/Phoenix servers and
+ * compares the response.
+ */
 public class CreateTableIT {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CreateTableIT.class);
 
-    private AmazonDynamoDB amazonDynamoDB =
-            LocalDynamoDbTestBase.localDynamoDb().createV1Client();
+    private final AmazonDynamoDB amazonDynamoDB =
+        LocalDynamoDbTestBase.localDynamoDb().createV1Client();
 
-    private static HBaseTestingUtility utility;
     private static String url;
 
     @BeforeClass
     public static void initialize() throws Exception {
         LocalDynamoDbTestBase.localDynamoDb().start();
         Configuration conf = HBaseConfiguration.create();
-        utility = new HBaseTestingUtility(conf);
+        HBaseTestingUtility utility = new HBaseTestingUtility(conf);
         setUpConfigForMiniCluster(conf);
 
         utility.startMiniCluster();
@@ -79,7 +83,7 @@ public class CreateTableIT {
     }
 
     @Test
-    public void createTableTest() throws Exception {
+    public void createTableTest1() throws Exception {
         CreateTableRequest createTableRequest = new CreateTableRequest();
         createTableRequest.setTableName("TABLE1");
         List<KeySchemaElement> keySchemaElements = new ArrayList<>();
@@ -189,6 +193,216 @@ public class CreateTableIT {
                     indexDescriptions2.get(i).getKeySchema().get(j).getKeyType());
             }
         }
+
+        List<LocalSecondaryIndexDescription> localIndexDescriptions1 =
+            tableDescription1.getLocalSecondaryIndexes();
+        List<LocalSecondaryIndexDescription> localIndexDescriptions2 =
+            tableDescription2.getLocalSecondaryIndexes();
+
+        for (int i = 0; i < localIndexDescriptions1.size(); i++) {
+            Assert.assertEquals(localIndexDescriptions1.get(i).getIndexName(),
+                localIndexDescriptions2.get(i).getIndexName());
+            Assert.assertEquals(localIndexDescriptions1.get(i).getKeySchema().size(),
+                localIndexDescriptions2.get(i).getKeySchema().size());
+            for (int j = 0; j < localIndexDescriptions1.get(i).getKeySchema().size(); j++) {
+                Assert.assertEquals(
+                    localIndexDescriptions1.get(i).getKeySchema().get(j).getAttributeName(),
+                    localIndexDescriptions2.get(i).getKeySchema().get(j).getAttributeName());
+                Assert.assertEquals(
+                    localIndexDescriptions1.get(i).getKeySchema().get(j).getKeyType(),
+                    localIndexDescriptions2.get(i).getKeySchema().get(j).getKeyType());
+            }
+        }
+
+        Thread.sleep(1000);
+
+        Assert.assertTrue("DDB table should have been created before Phoenix table",
+            tableDescription1.getCreationDateTime()
+                .before(tableDescription2.getCreationDateTime()));
+        Assert.assertTrue(
+            tableDescription2.getCreationDateTime()
+                .before(new Date(System.currentTimeMillis())));
+
+        Assert.assertNull(tableDescription2.getTableArn());
+    }
+
+    @Test
+    public void createTableTest2() throws Exception {
+        CreateTableRequest createTableRequest = new CreateTableRequest();
+        createTableRequest.setTableName("TABLE2");
+        List<KeySchemaElement> keySchemaElements = new ArrayList<>();
+        keySchemaElements.add(new KeySchemaElement("HASH_KEY", KeyType.HASH));
+        createTableRequest.setKeySchema(keySchemaElements);
+        createTableRequest.withAttributeDefinitions(
+            new AttributeDefinition("HASH_KEY", ScalarAttributeType.S));
+        createTableRequest.setProvisionedThroughput(new ProvisionedThroughput(50L, 50L));
+
+        List<KeySchemaElement> idx1KeySchemaElements = new ArrayList<>();
+        idx1KeySchemaElements.add(new KeySchemaElement("idx_key1", KeyType.HASH));
+        createTableRequest.withAttributeDefinitions(
+            new AttributeDefinition("idx_key1", ScalarAttributeType.B));
+
+        List<GlobalSecondaryIndex> globalSecondaryIndexes = new ArrayList<>();
+        globalSecondaryIndexes.add(
+            new GlobalSecondaryIndex().withIndexName("G_IDX").withKeySchema()
+                .withKeySchema(idx1KeySchemaElements)
+                .withProvisionedThroughput(new ProvisionedThroughput(50L, 50L))
+                .withProjection(new Projection().withProjectionType(
+                    ProjectionType.ALL)));
+        createTableRequest.setGlobalSecondaryIndexes(globalSecondaryIndexes);
+
+        CreateTableResult createTableResult1 = amazonDynamoDB.createTable(createTableRequest);
+
+        PhoenixDBClient phoenixDBClient = new PhoenixDBClient(url);
+        CreateTableResult createTableResult2 = phoenixDBClient.createTable(createTableRequest);
+
+        LOGGER.info("Create Table response from DynamoDB: {}",
+            JacksonUtil.getObjectWriterPretty().writeValueAsString(createTableResult1));
+        LOGGER.info("Create Table response from Phoenix: {}",
+            JacksonUtil.getObjectWriterPretty().writeValueAsString(createTableResult2));
+
+        TableDescription tableDescription1 = createTableResult1.getTableDescription();
+        TableDescription tableDescription2 = createTableResult2.getTableDescription();
+
+        Assert.assertEquals(tableDescription1.getTableName(), tableDescription2.getTableName());
+        Assert.assertEquals(tableDescription1.getTableStatus(), tableDescription2.getTableStatus());
+
+        List<KeySchemaElement> keySchemaElements1 = tableDescription1.getKeySchema();
+        List<KeySchemaElement> keySchemaElements2 = tableDescription2.getKeySchema();
+
+        Assert.assertEquals(keySchemaElements1.size(), keySchemaElements2.size());
+        for (int i = 0; i < keySchemaElements1.size(); i++) {
+            Assert.assertEquals(keySchemaElements1.get(i).getAttributeName(),
+                keySchemaElements2.get(i).getAttributeName());
+            Assert.assertEquals(keySchemaElements1.get(i).getKeyType(),
+                keySchemaElements2.get(i).getKeyType());
+        }
+
+        List<AttributeDefinition> attributeDefinitions1 =
+            tableDescription1.getAttributeDefinitions();
+        List<AttributeDefinition> attributeDefinitions2 =
+            tableDescription2.getAttributeDefinitions();
+
+        Assert.assertEquals(attributeDefinitions1.size(), attributeDefinitions2.size());
+        for (int i = 0; i < attributeDefinitions1.size(); i++) {
+            Assert.assertEquals(attributeDefinitions1.get(i).getAttributeName(),
+                attributeDefinitions2.get(i).getAttributeName());
+            Assert.assertEquals(attributeDefinitions1.get(i).getAttributeType(),
+                attributeDefinitions2.get(i).getAttributeType());
+        }
+
+        Assert.assertEquals(tableDescription1.getGlobalSecondaryIndexes().size(),
+            tableDescription2.getGlobalSecondaryIndexes().size());
+        Assert.assertNull(tableDescription1.getLocalSecondaryIndexes());
+        Assert.assertNull(tableDescription2.getLocalSecondaryIndexes());
+
+        List<GlobalSecondaryIndexDescription> indexDescriptions1 =
+            tableDescription1.getGlobalSecondaryIndexes();
+        List<GlobalSecondaryIndexDescription> indexDescriptions2 =
+            tableDescription2.getGlobalSecondaryIndexes();
+
+        for (int i = 0; i < indexDescriptions1.size(); i++) {
+            Assert.assertEquals(indexDescriptions1.get(i).getIndexName(),
+                indexDescriptions2.get(i).getIndexName());
+            Assert.assertEquals(indexDescriptions1.get(i).getIndexStatus(),
+                indexDescriptions2.get(i).getIndexStatus());
+            Assert.assertEquals(indexDescriptions1.get(i).getKeySchema().size(),
+                indexDescriptions2.get(i).getKeySchema().size());
+            for (int j = 0; j < indexDescriptions1.get(i).getKeySchema().size(); j++) {
+                Assert.assertEquals(
+                    indexDescriptions1.get(i).getKeySchema().get(j).getAttributeName(),
+                    indexDescriptions2.get(i).getKeySchema().get(j).getAttributeName());
+                Assert.assertEquals(
+                    indexDescriptions1.get(i).getKeySchema().get(j).getKeyType(),
+                    indexDescriptions2.get(i).getKeySchema().get(j).getKeyType());
+            }
+        }
+
+        Thread.sleep(1000);
+
+        Assert.assertTrue("DDB table should have been created before Phoenix table",
+            tableDescription1.getCreationDateTime()
+                .before(tableDescription2.getCreationDateTime()));
+        Assert.assertTrue(
+            tableDescription2.getCreationDateTime()
+                .before(new Date(System.currentTimeMillis())));
+
+        Assert.assertNull(tableDescription2.getTableArn());
+    }
+
+    @Test
+    public void createTableTest3() throws Exception {
+        CreateTableRequest createTableRequest = new CreateTableRequest();
+        createTableRequest.setTableName("TABLE3");
+        List<KeySchemaElement> keySchemaElements = new ArrayList<>();
+        keySchemaElements.add(new KeySchemaElement("PK1", KeyType.HASH));
+        keySchemaElements.add(new KeySchemaElement("SORT_KEY", KeyType.RANGE));
+        createTableRequest.setKeySchema(keySchemaElements);
+        createTableRequest.withAttributeDefinitions(
+            new AttributeDefinition("PK1", ScalarAttributeType.B));
+        createTableRequest.withAttributeDefinitions(
+            new AttributeDefinition("SORT_KEY", ScalarAttributeType.N));
+        createTableRequest.setProvisionedThroughput(new ProvisionedThroughput(50L, 50L));
+
+        List<KeySchemaElement> idx2KeySchemaElements = new ArrayList<>();
+        idx2KeySchemaElements.add(new KeySchemaElement("PK1", KeyType.HASH));
+        idx2KeySchemaElements.add(new KeySchemaElement("LCOL2", KeyType.RANGE));
+        createTableRequest.withAttributeDefinitions(
+            new AttributeDefinition("LCOL2", ScalarAttributeType.B));
+
+        List<LocalSecondaryIndex> localSecondaryIndexes = new ArrayList<>();
+        localSecondaryIndexes.add(
+            new LocalSecondaryIndex().withIndexName("L_IDX").withKeySchema()
+                .withKeySchema(idx2KeySchemaElements)
+                .withProjection(new Projection().withProjectionType(
+                    ProjectionType.ALL)));
+        createTableRequest.setLocalSecondaryIndexes(localSecondaryIndexes);
+
+        CreateTableResult createTableResult1 = amazonDynamoDB.createTable(createTableRequest);
+
+        PhoenixDBClient phoenixDBClient = new PhoenixDBClient(url);
+        CreateTableResult createTableResult2 = phoenixDBClient.createTable(createTableRequest);
+
+        LOGGER.info("Create Table response from DynamoDB: {}",
+            JacksonUtil.getObjectWriterPretty().writeValueAsString(createTableResult1));
+        LOGGER.info("Create Table response from Phoenix: {}",
+            JacksonUtil.getObjectWriterPretty().writeValueAsString(createTableResult2));
+
+        TableDescription tableDescription1 = createTableResult1.getTableDescription();
+        TableDescription tableDescription2 = createTableResult2.getTableDescription();
+
+        Assert.assertEquals(tableDescription1.getTableName(), tableDescription2.getTableName());
+        Assert.assertEquals(tableDescription1.getTableStatus(), tableDescription2.getTableStatus());
+
+        List<KeySchemaElement> keySchemaElements1 = tableDescription1.getKeySchema();
+        List<KeySchemaElement> keySchemaElements2 = tableDescription2.getKeySchema();
+
+        Assert.assertEquals(keySchemaElements1.size(), keySchemaElements2.size());
+        for (int i = 0; i < keySchemaElements1.size(); i++) {
+            Assert.assertEquals(keySchemaElements1.get(i).getAttributeName(),
+                keySchemaElements2.get(i).getAttributeName());
+            Assert.assertEquals(keySchemaElements1.get(i).getKeyType(),
+                keySchemaElements2.get(i).getKeyType());
+        }
+
+        List<AttributeDefinition> attributeDefinitions1 =
+            tableDescription1.getAttributeDefinitions();
+        List<AttributeDefinition> attributeDefinitions2 =
+            tableDescription2.getAttributeDefinitions();
+
+        Assert.assertEquals(attributeDefinitions1.size(), attributeDefinitions2.size());
+        for (int i = 0; i < attributeDefinitions1.size(); i++) {
+            Assert.assertEquals(attributeDefinitions1.get(i).getAttributeName(),
+                attributeDefinitions2.get(i).getAttributeName());
+            Assert.assertEquals(attributeDefinitions1.get(i).getAttributeType(),
+                attributeDefinitions2.get(i).getAttributeType());
+        }
+
+        Assert.assertNull(tableDescription1.getGlobalSecondaryIndexes());
+        Assert.assertNull(tableDescription2.getGlobalSecondaryIndexes());
+
+        Assert.assertEquals(tableDescription1.getLocalSecondaryIndexes().size(),
+            tableDescription2.getLocalSecondaryIndexes().size());
 
         List<LocalSecondaryIndexDescription> localIndexDescriptions1 =
             tableDescription1.getLocalSecondaryIndexes();

@@ -198,13 +198,13 @@ public class CreateTableUtils {
       pkColsSet.add(hashKey.getAttributeName());
       switch (hashKeyType) {
           case "S":
-              cols.append("VARCHAR");
+              cols.append("VARCHAR NOT NULL");
               break;
           case "N":
-              cols.append("DOUBLE");
+              cols.append("DOUBLE NOT NULL");
               break;
           case "B":
-              cols.append("VARBINARY_ENCODED");
+              cols.append("VARBINARY_ENCODED NOT NULL");
               break;
           default:
               throw new IllegalArgumentException("Attribute Type " + hashKeyType + " is not " +
@@ -228,13 +228,13 @@ public class CreateTableUtils {
           pkColsSet.add(rangeKey.getAttributeName());
           switch (rangeKeyType) {
               case "S":
-                  cols.append("VARCHAR");
+                  cols.append("VARCHAR NOT NULL");
                   break;
               case "N":
-                  cols.append("DOUBLE");
+                  cols.append("DOUBLE NOT NULL");
                   break;
               case "B":
-                  cols.append("VARBINARY_ENCODED");
+                  cols.append("VARBINARY_ENCODED NOT NULL");
                   break;
               default:
                   throw new IllegalArgumentException("Attribute Type " + rangeKeyType + " is " +

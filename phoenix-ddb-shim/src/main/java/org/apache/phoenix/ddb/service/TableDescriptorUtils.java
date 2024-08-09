@@ -41,6 +41,9 @@ import org.apache.phoenix.schema.PColumn;
 import org.apache.phoenix.schema.PTable;
 import org.apache.phoenix.schema.PTableKey;
 
+/**
+ * Utilities to build TableDescriptor object for the given Phoenix table object.
+ */
 public class TableDescriptorUtils {
 
   public static void updateTableDescriptorForIndexes(PTable table,

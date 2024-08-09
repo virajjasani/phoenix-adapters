@@ -26,6 +26,9 @@ import org.apache.phoenix.schema.types.PDouble;
 import org.apache.phoenix.schema.types.PVarbinaryEncoded;
 import org.apache.phoenix.schema.types.PVarchar;
 
+/**
+ * Common utilities to be used by PhoenixDBClient APIs.
+ */
 public class CommonServiceUtils {
 
     public static ScalarAttributeType getScalarAttributeFromPDataType(PDataType<?> pDataType) {

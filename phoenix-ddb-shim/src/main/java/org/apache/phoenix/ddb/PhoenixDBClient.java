@@ -66,6 +66,9 @@ public class PhoenixDBClient extends AbstractAmazonDynamoDB {
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public CreateTableResult createTable(CreateTableRequest request) {
         return CreateTableUtils.createTable(request, connectionUrl);
