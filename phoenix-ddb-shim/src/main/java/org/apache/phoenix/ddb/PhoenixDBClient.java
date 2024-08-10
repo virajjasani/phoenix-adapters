@@ -22,7 +22,11 @@ import com.amazonaws.services.dynamodbv2.AbstractAmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
 import com.amazonaws.services.dynamodbv2.model.CreateTableResult;
 
+import com.amazonaws.services.dynamodbv2.model.DescribeTableRequest;
+import com.amazonaws.services.dynamodbv2.model.DescribeTableResult;
+import com.amazonaws.services.dynamodbv2.model.TableDescription;
 import org.apache.phoenix.ddb.service.CreateTableUtils;
+import org.apache.phoenix.ddb.service.TableDescriptorUtils;
 import org.apache.phoenix.jdbc.PhoenixDriver;
 import org.apache.phoenix.thirdparty.com.google.common.base.Preconditions;
 import org.apache.phoenix.util.PhoenixRuntime;
@@ -74,4 +78,21 @@ public class PhoenixDBClient extends AbstractAmazonDynamoDB {
         return CreateTableUtils.createTable(request, connectionUrl);
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public DescribeTableResult describeTable(DescribeTableRequest request) {
+        return this.describeTable(request.getTableName());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public DescribeTableResult describeTable(String tableName) {
+        TableDescription tableDescription
+                = TableDescriptorUtils.getTableDescription(tableName, connectionUrl);
+        return new DescribeTableResult().withTable(tableDescription);
+    }
 }
