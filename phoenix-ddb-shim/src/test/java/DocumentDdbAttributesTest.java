@@ -71,7 +71,7 @@ public class DocumentDdbAttributesTest {
     Assert.assertEquals(item1, item2);
   }
 
-  private static Map<String, AttributeValue> getItem1() {
+  public static Map<String, AttributeValue> getItem1() {
     Map<String, AttributeValue> item = new HashMap<>();
     item.put("attr_0", new AttributeValue().withS("str_val_0"));
     item.put("attr_1", new AttributeValue().withN("1295.03"));
@@ -98,16 +98,16 @@ public class DocumentDdbAttributesTest {
     item.put("RelatedItems",
         new AttributeValue().withNS("1234", "-485.45582904", "123.0948", "0.111"));
     item.put("Pictures", new AttributeValue().withSS(
-        "http://example.com/products/123_rear.jpg",
-        "http://example.com/products/xyz_rear.jpg",
-        "http://example.com/products/123_front.jpg",
-        "http://example.com/products/123_front.jpg"
+        "http://example1.com/products/123_rear.jpg",
+        "http://example2.com/products/xyz_rear.jpg",
+        "http://example3.com/products/123_front.jpg",
+        "http://example4.com/products/123_front.jpg"
     ));
     item.put("PictureBinarySet", new AttributeValue().withBS(
-        ByteBuffer.wrap(Bytes.toBytes("http://example.com/products/123_rear.jpg")),
-        ByteBuffer.wrap(Bytes.toBytes("http://example.com/products/xyz_rear.jpg")),
-        ByteBuffer.wrap(Bytes.toBytes("http://example.com/products/123_front.jpg")),
-        ByteBuffer.wrap(Bytes.toBytes("http://example.com/products/123_front.jpg"))
+        ByteBuffer.wrap(Bytes.toBytes("http://example1.com/products/123_rear.jpg")),
+        ByteBuffer.wrap(Bytes.toBytes("http://example2.com/products/xyz_rear.jpg")),
+        ByteBuffer.wrap(Bytes.toBytes("http://example3.com/products/123_front.jpg")),
+        ByteBuffer.wrap(Bytes.toBytes("http://example4.com/products/123_front.jpg"))
     ));
     item.put("Title", new AttributeValue().withS("Book 101 Title"));
     item.put("ISBN", new AttributeValue().withS("111-1111111111"));
@@ -175,18 +175,18 @@ public class DocumentDdbAttributesTest {
     item.put("RelatedItems",
         new AttributeValue().withNS("1234", "-485.45582904", "123.0948", "0.111"));
     item.put("Pictures", new AttributeValue().withSS(
-        "123_rear.jpg",
-        "xyz_rear.jpg",
-        "123_front.jpg",
-        "xyz_front.jpg"
+        "1123_rear.jpg",
+        "2xyz_rear.jpg",
+        "3123_front.jpg",
+        "4xyz_front.jpg"
     ));
     item.put("PictureBinarySet", new AttributeValue().withBS(
-        ByteBuffer.wrap(Bytes.toBytes("123_rear.jpg")),
-        ByteBuffer.wrap(Bytes.toBytes("xyz_rear.jpg")),
-        ByteBuffer.wrap(Bytes.toBytes("123_front.jpg")),
-        ByteBuffer.wrap(Bytes.toBytes("xyz_front.jpg")),
-        ByteBuffer.wrap(Bytes.toBytes("123abc_rear.jpg")),
-        ByteBuffer.wrap(Bytes.toBytes("xyzabc_rear.jpg"))
+        ByteBuffer.wrap(Bytes.toBytes("1123_rear.jpg")),
+        ByteBuffer.wrap(Bytes.toBytes("2xyz_rear.jpg")),
+        ByteBuffer.wrap(Bytes.toBytes("3123_front.jpg")),
+        ByteBuffer.wrap(Bytes.toBytes("4xyz_front.jpg")),
+        ByteBuffer.wrap(Bytes.toBytes("5123abc_rear.jpg")),
+        ByteBuffer.wrap(Bytes.toBytes("6xyzabc_rear.jpg"))
     ));
     item.put("Title", new AttributeValue().withS("Book 101 Title"));
     item.put("ISBN", new AttributeValue().withS("111-1111111111"));
