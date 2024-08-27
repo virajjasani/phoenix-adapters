@@ -71,7 +71,7 @@ public class DocumentDdbAttributesTest {
     Assert.assertEquals(item1, item2);
   }
 
-  public static Map<String, AttributeValue> getItem1() {
+  protected static Map<String, AttributeValue> getItem1() {
     Map<String, AttributeValue> item = new HashMap<>();
     item.put("attr_0", new AttributeValue().withS("str_val_0"));
     item.put("attr_1", new AttributeValue().withN("1295.03"));
@@ -148,7 +148,7 @@ public class DocumentDdbAttributesTest {
     return item;
   }
 
-  private static Map<String, AttributeValue> getItem2() {
+  protected static Map<String, AttributeValue> getItem2() {
     Map<String, AttributeValue> item = new HashMap<>();
     item.put("attr_0", new AttributeValue().withS("str_val_0"));
     item.put("attr_1", new AttributeValue().withN("1295.03"));

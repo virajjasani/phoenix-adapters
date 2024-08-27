@@ -1,8 +1,10 @@
 package org.apache.phoenix.ddb.service;
 
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
+import com.amazonaws.services.dynamodbv2.model.ConditionalCheckFailedException;
 import com.amazonaws.services.dynamodbv2.model.PutItemRequest;
 import com.amazonaws.services.dynamodbv2.model.PutItemResult;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.phoenix.ddb.bson.DdbAttributesToBsonDocument;
 import org.apache.phoenix.jdbc.PhoenixConnection;
 import org.apache.phoenix.schema.PColumn;
@@ -13,6 +15,9 @@ import org.apache.phoenix.schema.types.PDouble;
 import org.apache.phoenix.schema.types.PVarbinaryEncoded;
 import org.apache.phoenix.schema.types.PVarchar;
 import org.bson.BsonDocument;
+import org.bson.BsonString;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -23,55 +28,132 @@ import java.util.Map;
 
 public class PutItemUtils {
 
-    private static final String UPSERT_WITH_HASH_KEY = "UPSERT INTO %s VALUES (?,?)";
-    private static final String UPSERT_WITH_HASH_SORT_KEY = "UPSERT INTO %s VALUES (?,?,?)";
+    private static final Logger LOGGER = LoggerFactory.getLogger(PutItemUtils.class);
+
+    private static final String PUT_WITH_HASH_KEY = "UPSERT INTO %s VALUES (?,?)";
+    private static final String PUT_WITH_HASH_SORT_KEY = "UPSERT INTO %s VALUES (?,?,?)";
+
+    private static final String CONDITIONAL_PUT_WITH_HASH_KEY = "UPSERT INTO %s VALUES (?) " +
+            " ON DUPLICATE KEY UPDATE\n" +
+            " COL = CASE WHEN BSON_CONDITION_EXPRESSION(COL,'%s') THEN ? \n" +
+            " ELSE COL END";
+
+    private static final String CONDITIONAL_PUT_WITH_HASH_SORT_KEY
+            = "UPSERT INTO %s VALUES (?, ?) " + " ON DUPLICATE KEY UPDATE\n" +
+            " COL = CASE WHEN BSON_CONDITION_EXPRESSION(COL,'%s') THEN ? \n" +
+            " ELSE COL END";
 
     public static PutItemResult putItem(PutItemRequest request, String connectionUrl) {
-        // get tableName, item and convert item to bson
-        String tableName = request.getTableName();
+        // get tableName, item, conditional expr and convert item to bson
         Map<String, AttributeValue> item = request.getItem();
         BsonDocument bsonDoc = DdbAttributesToBsonDocument.getBsonDocument(item);
+
+        // TODO: implement ReturnValues and ReturnValuesOnConditionCheckFailure for phoenix
+        String returnValuesOnConditionCheckFailure =
+                request.getReturnValuesOnConditionCheckFailure();
+        String returnValues = request.getReturnValues();
 
         try (Connection connection = DriverManager.getConnection(connectionUrl)) {
             connection.setAutoCommit(true);
             // get PTable and PK PColumns
             PhoenixConnection phoenixConnection = connection.unwrap(PhoenixConnection.class);
             PTable table = phoenixConnection.getTable(
-                    new PTableKey(phoenixConnection.getTenantId(), tableName));
+                    new PTableKey(phoenixConnection.getTenantId(), request.getTableName()));
             List<PColumn> pkCols = table.getPKColumns();
-            PreparedStatement stmt = connection.prepareStatement(String.format(UPSERT_WITH_HASH_KEY, tableName));
-            if (pkCols.size() == 2) {
-                stmt = connection.prepareStatement(String.format(UPSERT_WITH_HASH_SORT_KEY, tableName));
-            }
 
-            // extract values for keys from the item and set them on the PreparedStatement
-            for (int i=0; i<pkCols.size(); i++) {
-                PColumn pkCol = pkCols.get(i);
-                String colName = pkCol.getName().toString().toLowerCase();
-                PDataType type = pkCol.getDataType();
-                if (type.equals(PDouble.INSTANCE)) {
-                    Double value = Double.parseDouble(item.get(colName).getN());
-                    stmt.setDouble(i+1, value);
-                } else if (type.equals(PVarchar.INSTANCE)) {
-                    String value = item.get(colName).getS();
-                    stmt.setString(i+1, value);
-                } else if (type.equals(PVarbinaryEncoded.INSTANCE)) {
-                    byte[] b = item.get(colName).getB().array();
-                    stmt.setBytes(i+1, b);
-                } else {
-                    throw new IllegalArgumentException("Primary Key column type "
-                            + type + " is not " + "correct type");
-                }
-            }
+            //create statement based on PKs and conditional expression
+            PreparedStatement stmt
+                    = getPreparedStatement(connection, request, pkCols.size());
+            // extract PKs from item
+            setKeysOnStatement(stmt, pkCols, item);
 
             // set bson document of entire item
             stmt.setObject(pkCols.size()+1, bsonDoc);
 
             //execute, auto commit is on
-            stmt.execute();
+            LOGGER.info("Upsert Query for PutItem: " + stmt);
+            int returnStatus = stmt.executeUpdate();
+            if (returnStatus == 0 && StringUtils.isEmpty(returnValuesOnConditionCheckFailure)) {
+                throw new ConditionalCheckFailedException("Conditional request failed: "
+                        + request.getConditionExpression());
+            }
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
         return new PutItemResult();
+    }
+
+    /**
+     * Extract values for keys from the item and set them on the PreparedStatement.
+     */
+    private static void setKeysOnStatement(PreparedStatement stmt, List<PColumn> pkCols, Map<String,
+            AttributeValue> item) throws SQLException {
+        for (int i=0; i<pkCols.size(); i++) {
+            PColumn pkCol = pkCols.get(i);
+            String colName = pkCol.getName().toString().toLowerCase();
+            PDataType type = pkCol.getDataType();
+            if (type.equals(PDouble.INSTANCE)) {
+                Double value = Double.parseDouble(item.get(colName).getN());
+                stmt.setDouble(i+1, value);
+            } else if (type.equals(PVarchar.INSTANCE)) {
+                String value = item.get(colName).getS();
+                stmt.setString(i+1, value);
+            } else if (type.equals(PVarbinaryEncoded.INSTANCE)) {
+                byte[] b = item.get(colName).getB().array();
+                stmt.setBytes(i+1, b);
+            } else {
+                throw new IllegalArgumentException("Primary Key column type "
+                        + type + " is not " + "correct type");
+            }
+        }
+    }
+
+    /**
+     * Return the corresponding PreparedStatement based on number of
+     * Primary Key columns and conditional expression.
+     */
+    private static PreparedStatement getPreparedStatement(Connection conn, PutItemRequest request,
+                                                      int numPKs) throws SQLException {
+        PreparedStatement stmt;
+        String tableName = request.getTableName();
+        String condExpr = request.getConditionExpression();
+        Map<String, String> exprAttrNames =  request.getExpressionAttributeNames();
+        Map<String, AttributeValue> exprAttrVals =  request.getExpressionAttributeValues();
+        if (!StringUtils.isEmpty(condExpr)) {
+            String bsonCondExpr = getBsonConditionExpression(condExpr, exprAttrNames, exprAttrVals);
+            String QUERY_FORMAT = (numPKs == 1)
+                    ? CONDITIONAL_PUT_WITH_HASH_KEY : CONDITIONAL_PUT_WITH_HASH_SORT_KEY;
+            stmt = conn.prepareStatement(
+                    String.format(QUERY_FORMAT, tableName, bsonCondExpr));
+        } else {
+            String QUERY_FORMAT = (numPKs == 1)
+                    ? PUT_WITH_HASH_KEY : PUT_WITH_HASH_SORT_KEY;
+            stmt = conn.prepareStatement(String.format(QUERY_FORMAT, tableName));
+        }
+        return stmt;
+    }
+
+    /**
+     * Create BSON Condition Expression based on dynamo condition expression,
+     * expression attribute names and expression attribute values.
+     */
+    private static String getBsonConditionExpression(String condExpr,
+                                                     Map<String, String> exprAttrNames,
+                                                     Map<String, AttributeValue> exprAttrVals) {
+
+        // TODO: remove this when phoenix can support attribute_ prefix
+        condExpr = condExpr.replaceAll("attribute_exists", "field_exists");
+        condExpr = condExpr.replaceAll("attribute_not_exists", "field_not_exists");
+
+        // plug expression attribute names in $EXPR
+        for (String k : exprAttrNames.keySet()) {
+            condExpr = condExpr.replaceAll(k, exprAttrNames.get(k));
+        }
+        // BSON_CONDITION_EXPRESSION
+        BsonDocument conditionDoc = new BsonDocument();
+        conditionDoc.put("$EXPR", new BsonString(condExpr));
+        conditionDoc.put("$VAL", DdbAttributesToBsonDocument.getBsonDocument(exprAttrVals));
+
+        return conditionDoc.toJson();
     }
 }

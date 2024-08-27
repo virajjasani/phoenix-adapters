@@ -2,6 +2,8 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
 import com.amazonaws.services.dynamodbv2.model.PutItemRequest;
+import com.amazonaws.services.dynamodbv2.model.QueryRequest;
+import com.amazonaws.services.dynamodbv2.model.QueryResult;
 import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
@@ -64,11 +66,24 @@ public class PutItemIT {
                         ScalarAttributeType.S, null, null);
         PhoenixDBClient phoenixDBClient = new PhoenixDBClient(url);
         phoenixDBClient.createTable(createTableRequest);
+        amazonDynamoDB.createTable(createTableRequest);
 
         //put item
         Map<String, AttributeValue> item = DocumentDdbAttributesTest.getItem1();
         PutItemRequest putItemRequest = new PutItemRequest(tableName, item);
         phoenixDBClient.putItem(putItemRequest);
+        amazonDynamoDB.putItem(putItemRequest);
+
+        //query from dynamo
+        QueryRequest qr = new QueryRequest(tableName);
+        qr.setKeyConditionExpression("attr_0 = :val");
+        Map<String, AttributeValue> exprAttrVal = new HashMap<>();
+        exprAttrVal.put(":val", new AttributeValue().withS("str_val_0"));
+        qr.setExpressionAttributeValues(exprAttrVal);
+        QueryResult result = amazonDynamoDB.query(qr);
+        Assert.assertEquals(1, result.getItems().size());
+        Map<String, AttributeValue> dynamoItem = result.getItems().get(0);
+
 
         // query phoenix and compare row to item
         try (Connection connection = DriverManager.getConnection(url)) {
@@ -76,8 +91,13 @@ public class PutItemIT {
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getString(1), item.get("attr_0").getS());
             BsonDocument bsonDoc = (BsonDocument) rs.getObject(2);
-            Map<String, AttributeValue> item2 = BsonDocumentToDdbAttributes.getFullItem(bsonDoc);
-            Assert.assertEquals(item, item2);
+            Map<String, AttributeValue> phoenixItem = BsonDocumentToDdbAttributes.getFullItem(bsonDoc);
+            Assert.assertEquals(item, phoenixItem);
+
+            //TODO: uncomment when we have utility to compare sets,
+            // dynamo represents sets as Lists and this assert will
+            // fail because of order of elements
+            //Assert.assertEquals(dynamoItem, phoenixItem);
         }
     }
 
@@ -90,11 +110,24 @@ public class PutItemIT {
                         ScalarAttributeType.S, "attr_1", ScalarAttributeType.N);
         PhoenixDBClient phoenixDBClient = new PhoenixDBClient(url);
         phoenixDBClient.createTable(createTableRequest);
+        amazonDynamoDB.createTable(createTableRequest);
 
         //put item
         Map<String, AttributeValue> item = DocumentDdbAttributesTest.getItem1();
         PutItemRequest putItemRequest = new PutItemRequest(tableName, item);
         phoenixDBClient.putItem(putItemRequest);
+        amazonDynamoDB.putItem(putItemRequest);
+
+        //query from dynamo
+        QueryRequest qr = new QueryRequest(tableName);
+        qr.setKeyConditionExpression("attr_0 = :val1 AND attr_1 = :val2");
+        Map<String, AttributeValue> exprAttrVal = new HashMap<>();
+        exprAttrVal.put(":val1", new AttributeValue().withS("str_val_0"));
+        exprAttrVal.put(":val2", new AttributeValue().withN("1295.03"));
+        qr.setExpressionAttributeValues(exprAttrVal);
+        QueryResult result = amazonDynamoDB.query(qr);
+        Assert.assertEquals(1, result.getItems().size());
+        Map<String, AttributeValue> dynamoItem = result.getItems().get(0);
 
         // query phoenix and compare row to item
         try (Connection connection = DriverManager.getConnection(url)) {
@@ -103,8 +136,11 @@ public class PutItemIT {
             Assert.assertEquals(rs.getString(1), item.get("attr_0").getS());
             Assert.assertEquals(rs.getDouble(2), Double.parseDouble(item.get("attr_1").getN()), 0.0);
             BsonDocument bsonDoc = (BsonDocument) rs.getObject(3);
-            Map<String, AttributeValue> item2 = BsonDocumentToDdbAttributes.getFullItem(bsonDoc);
-            Assert.assertEquals(item, item2);
+            Map<String, AttributeValue> phoenixItem = BsonDocumentToDdbAttributes.getFullItem(bsonDoc);
+            Assert.assertEquals(item, phoenixItem);
+
+            //TODO: uncomment when we have utility to compare sets
+            //Assert.assertEquals(dynamoItem, item2);
         }
     }
 
@@ -120,11 +156,24 @@ public class PutItemIT {
                 ScalarAttributeType.S, null, null);
         PhoenixDBClient phoenixDBClient = new PhoenixDBClient(url);
         phoenixDBClient.createTable(createTableRequest);
+        amazonDynamoDB.createTable(createTableRequest);
 
         //put item
         Map<String, AttributeValue> item = DocumentDdbAttributesTest.getItem1();
         PutItemRequest putItemRequest = new PutItemRequest(tableName, item);
         phoenixDBClient.putItem(putItemRequest);
+        amazonDynamoDB.putItem(putItemRequest);
+
+        //query from dynamo
+        QueryRequest qr = new QueryRequest(tableName);
+        qr.setKeyConditionExpression("attr_0 = :val1 AND attr_1 = :val2");
+        Map<String, AttributeValue> exprAttrVal = new HashMap<>();
+        exprAttrVal.put(":val1", new AttributeValue().withS("str_val_0"));
+        exprAttrVal.put(":val2", new AttributeValue().withN("1295.03"));
+        qr.setExpressionAttributeValues(exprAttrVal);
+        QueryResult result = amazonDynamoDB.query(qr);
+        Assert.assertEquals(1, result.getItems().size());
+        Map<String, AttributeValue> dynamoItem = result.getItems().get(0);
 
         // query phoenix and compare row to item
         try (Connection connection = DriverManager.getConnection(url)) {
@@ -133,8 +182,11 @@ public class PutItemIT {
             Assert.assertEquals(rs.getString(1), item.get("attr_0").getS());
             Assert.assertEquals(rs.getDouble(2), Double.parseDouble(item.get("attr_1").getN()), 0.0);
             BsonDocument bsonDoc = (BsonDocument) rs.getObject(3);
-            Map<String, AttributeValue> item2 = BsonDocumentToDdbAttributes.getFullItem(bsonDoc);
-            Assert.assertEquals(item, item2);
+            Map<String, AttributeValue> phoenixItem = BsonDocumentToDdbAttributes.getFullItem(bsonDoc);
+            Assert.assertEquals(item, phoenixItem);
+
+            //TODO: uncomment when we have utility to compare sets
+            //Assert.assertEquals(dynamoItem, phoenixItem);
 
             // check index row (Title, attr_0, attr1, COL)
             rs = connection.createStatement().executeQuery("SELECT * FROM G_IDX_" + tableName);
@@ -143,8 +195,11 @@ public class PutItemIT {
             Assert.assertEquals(rs.getString(2), item.get("attr_0").getS());
             Assert.assertEquals(rs.getDouble(3), Double.parseDouble(item.get("attr_1").getN()), 0.0);
             bsonDoc = (BsonDocument) rs.getObject(4);
-            Map<String, AttributeValue> item3 = BsonDocumentToDdbAttributes.getFullItem(bsonDoc);
-            Assert.assertEquals(item, item3);
+            Map<String, AttributeValue> indexItem = BsonDocumentToDdbAttributes.getFullItem(bsonDoc);
+            Assert.assertEquals(item, indexItem);
+
+            //TODO: uncomment when we have utility to compare sets
+            //Assert.assertEquals(dynamoItem, indexItem);
         }
     }
 
