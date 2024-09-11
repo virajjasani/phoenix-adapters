@@ -61,84 +61,60 @@ public class CreateTableUtils {
       String indexSortKey = null;
 
       KeySchemaElement hashKey = keySchemaElements.get(0);
-      if (pkCols.contains(hashKey.getAttributeName())) {
-          indexOn.append(hashKey.getAttributeName());
-          indexHashKey = hashKey.getAttributeName();
-      } else {
-          Optional<AttributeDefinition> hashKeyAttr =
-                  attributeDefinitions.stream()
-                          .filter(attributeDefinition -> hashKey.getAttributeName()
-                                  .equals(attributeDefinition.getAttributeName()))
-                          .findFirst();
-          Preconditions.checkArgument(hashKeyAttr.isPresent(),
-                  "Hash key attribute should be " +
-                          "defined");
-          AttributeDefinition hashKeyAttribute = hashKeyAttr.get();
-          String hashKeyType = hashKeyAttribute.getAttributeType();
-          switch (hashKeyType) {
-              case "S":
-                  indexOn.append("BSON_VALUE(COL,'")
-                          .append(hashKey.getAttributeName())
-                          .append("','VARCHAR')");
-                  break;
-              case "N":
-                  indexOn.append("BSON_VALUE(COL,'")
-                          .append(hashKey.getAttributeName())
-                          .append("','DOUBLE')");
-                  break;
-              case "B":
-                  indexOn.append("BSON_VALUE(COL,'")
-                          .append(hashKey.getAttributeName())
-                          .append("','VARBINARY_ENCODED')");
-                  break;
-              default:
-                  throw new IllegalArgumentException(
-                          "Attribute Type " + hashKeyType + " is not " +
-                                  "correct type");
-          }
-          indexHashKey = "BSON_VALUE(COL,'" + hashKey.getAttributeName() + "','VARCHAR')";
+      Optional<AttributeDefinition> hashKeyAttr = attributeDefinitions.stream().filter(
+          attributeDefinition -> hashKey.getAttributeName()
+              .equals(attributeDefinition.getAttributeName())).findFirst();
+      Preconditions.checkArgument(hashKeyAttr.isPresent(),
+          "Hash key attribute should be " + "defined");
+      AttributeDefinition hashKeyAttribute = hashKeyAttr.get();
+      String hashKeyType = hashKeyAttribute.getAttributeType();
+      switch (hashKeyType) {
+      case "S":
+          indexOn.append("BSON_VALUE(COL,'").append(hashKey.getAttributeName())
+              .append("','VARCHAR')");
+          break;
+      case "N":
+          indexOn.append("BSON_VALUE(COL,'").append(hashKey.getAttributeName())
+              .append("','DOUBLE')");
+          break;
+      case "B":
+          indexOn.append("BSON_VALUE(COL,'").append(hashKey.getAttributeName())
+              .append("','VARBINARY_ENCODED')");
+          break;
+      default:
+          throw new IllegalArgumentException(
+              "Attribute Type " + hashKeyType + " is not " + "correct type");
       }
+      indexHashKey = "BSON_VALUE(COL,'" + hashKey.getAttributeName() + "','VARCHAR')";
 
       if (keySchemaElements.size() == 2) {
           KeySchemaElement rangeKey = keySchemaElements.get(1);
           indexOn.append(",");
-          if (pkCols.contains(rangeKey.getAttributeName())) {
-              indexOn.append(rangeKey.getAttributeName());
-              indexSortKey = rangeKey.getAttributeName();
-          } else {
-              Optional<AttributeDefinition> rangeKeyAttr =
-                      attributeDefinitions.stream()
-                              .filter(attributeDefinition -> rangeKey.getAttributeName()
-                                      .equals(attributeDefinition.getAttributeName()))
-                              .findFirst();
-              Preconditions.checkArgument(rangeKeyAttr.isPresent(),
-                      "Range key attribute should be " +
-                              "defined");
-              AttributeDefinition rangeKeyAttribute = rangeKeyAttr.get();
-              String rangeKeyType = rangeKeyAttribute.getAttributeType();
-              switch (rangeKeyType) {
-                  case "S":
-                      indexOn.append("BSON_VALUE(COL,'")
-                          .append(rangeKey.getAttributeName())
-                          .append("','VARCHAR')");
-                      break;
-                  case "N":
-                      indexOn.append("BSON_VALUE(COL,'")
-                          .append(rangeKey.getAttributeName())
-                          .append("','DOUBLE')");
-                      break;
-                  case "B":
-                      indexOn.append("BSON_VALUE(COL,'")
-                          .append(rangeKey.getAttributeName())
-                          .append("','VARBINARY_ENCODED')");
-                      break;
-                  default:
-                      throw new IllegalArgumentException(
-                              "Attribute Type " + rangeKeyType + " is not " +
-                                      "correct type");
-              }
-              indexSortKey = "BSON_VALUE(COL,'" + rangeKey.getAttributeName() + "','VARCHAR')";
+          Optional<AttributeDefinition> rangeKeyAttr = attributeDefinitions.stream().filter(
+              attributeDefinition -> rangeKey.getAttributeName()
+                  .equals(attributeDefinition.getAttributeName())).findFirst();
+          Preconditions.checkArgument(rangeKeyAttr.isPresent(),
+              "Range key attribute should be " + "defined");
+          AttributeDefinition rangeKeyAttribute = rangeKeyAttr.get();
+          String rangeKeyType = rangeKeyAttribute.getAttributeType();
+          switch (rangeKeyType) {
+          case "S":
+              indexOn.append("BSON_VALUE(COL,'").append(rangeKey.getAttributeName())
+                  .append("','VARCHAR')");
+              break;
+          case "N":
+              indexOn.append("BSON_VALUE(COL,'").append(rangeKey.getAttributeName())
+                  .append("','DOUBLE')");
+              break;
+          case "B":
+              indexOn.append("BSON_VALUE(COL,'").append(rangeKey.getAttributeName())
+                  .append("','VARBINARY_ENCODED')");
+              break;
+          default:
+              throw new IllegalArgumentException(
+                  "Attribute Type " + rangeKeyType + " is not " + "correct type");
           }
+          indexSortKey = "BSON_VALUE(COL,'" + rangeKey.getAttributeName() + "','VARCHAR')";
       }
 
       indexDDLs.add(
