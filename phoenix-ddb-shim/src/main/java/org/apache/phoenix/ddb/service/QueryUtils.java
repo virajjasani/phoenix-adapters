@@ -12,6 +12,7 @@ import org.apache.phoenix.schema.PColumn;
 import org.apache.phoenix.schema.PTable;
 import org.apache.phoenix.schema.PTableKey;
 import org.bson.BsonDocument;
+import org.bson.RawBsonDocument;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,9 +28,9 @@ import java.util.Map;
 public class QueryUtils {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(QueryUtils.class);
-    private static final String SELECT_QUERY = "SELECT * FROM %s WHERE ";
+    private static final String SELECT_QUERY = "SELECT COL FROM %s WHERE ";
     private static final String SELECT_QUERY_WITH_INDEX_HINT
-            = "select /*+ INDEX(%s %s) */ * FROM %s WHERE ";
+            = "SELECT /*+ INDEX(%s %s) */ COL FROM %s WHERE ";
 
     private static final int MAX_LIMIT = 500;
 
@@ -38,7 +39,7 @@ public class QueryUtils {
         List<Map<String, AttributeValue>> items = new ArrayList<>();
 
         PTable table;
-        BsonDocument lastBsonDoc = null;
+        RawBsonDocument lastBsonDoc = null;
         try (Connection connection = DriverManager.getConnection(connectionUrl)) {
             // get PKs from phoenix
             PhoenixConnection phoenixConnection = connection.unwrap(PhoenixConnection.class);
@@ -51,7 +52,7 @@ public class QueryUtils {
             LOGGER.info("SELECT Query: " + stmt);
             ResultSet rs  = stmt.executeQuery();
             while (rs.next()) {
-                lastBsonDoc = (BsonDocument) rs.getObject(isSortKeyPresent ? 3 : 2);
+                lastBsonDoc = (RawBsonDocument) rs.getObject(1);
                 Map<String, AttributeValue> item = BsonDocumentToDdbAttributes.getProjectedItem(
                         lastBsonDoc, getProjectionAttributes(request));
                 items.add(item);
@@ -227,14 +228,14 @@ public class QueryUtils {
      */
     private static List<String> getProjectionAttributes(QueryRequest request) {
         String projExpr = request.getProjectionExpression();
-        List<String> projectionList = new ArrayList<>();
         if (StringUtils.isEmpty(projExpr)) {
-            return projectionList;
+            return null;
         }
-        Map<String, String> exprAttrNames =  request.getExpressionAttributeNames();
+        List<String> projectionList = new ArrayList<>();
+        Map<String, String> exprAttrNames = request.getExpressionAttributeNames();
         String[] projectionArray = projExpr.split("\\s*,\\s*");
-        for (int i=0; i<projectionArray.length; i++) {
-            projectionList.add(exprAttrNames.getOrDefault(projectionArray[i], projectionArray[i]));
+        for (String s : projectionArray) {
+            projectionList.add(exprAttrNames.getOrDefault(s, s));
         }
         return projectionList;
     }
