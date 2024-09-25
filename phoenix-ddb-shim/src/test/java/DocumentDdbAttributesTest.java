@@ -35,7 +35,7 @@ public class DocumentDdbAttributesTest {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(DocumentDdbAttributesTest.class);
 
-  @Test
+  @Test(timeout = 120000)
   public void test1() {
     Map<String, AttributeValue> item1 = getItem1();
     BsonDocument bsonDocument = DdbAttributesToBsonDocument.getBsonDocument(item1);
@@ -44,7 +44,7 @@ public class DocumentDdbAttributesTest {
     Assert.assertEquals(item1, item2);
   }
 
-  @Test
+  @Test(timeout = 120000)
   public void test2() {
     Map<String, AttributeValue> item1 = getItem2();
     BsonDocument bsonDocument = DdbAttributesToBsonDocument.getBsonDocument(item1);
@@ -53,7 +53,7 @@ public class DocumentDdbAttributesTest {
     Assert.assertEquals(item1, item2);
   }
 
-  @Test
+  @Test(timeout = 120000)
   public void test3() {
     Map<String, AttributeValue> item1 = getItem3();
     BsonDocument bsonDocument = DdbAttributesToBsonDocument.getBsonDocument(item1);
@@ -62,7 +62,7 @@ public class DocumentDdbAttributesTest {
     Assert.assertEquals(item1, item2);
   }
 
-  @Test
+  @Test(timeout = 120000)
   public void test4() {
     Map<String, AttributeValue> item1 = getItem4();
     BsonDocument bsonDocument = DdbAttributesToBsonDocument.getBsonDocument(item1);

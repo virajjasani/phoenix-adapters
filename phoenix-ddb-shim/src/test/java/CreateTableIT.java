@@ -25,9 +25,12 @@ import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.phoenix.ddb.PhoenixDBClient;
 import org.apache.phoenix.ddb.utils.PhoenixUtils;
+import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
+import org.apache.phoenix.jdbc.PhoenixDriver;
 import org.apache.phoenix.schema.PColumn;
 import org.apache.phoenix.util.JacksonUtil;
 import org.apache.phoenix.util.PhoenixRuntime;
+import org.apache.phoenix.util.ServerUtil;
 
 import com.amazonaws.services.dynamodbv2.model.TableDescription;
 import org.junit.AfterClass;
@@ -39,8 +42,10 @@ import org.junit.rules.TestName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.util.List;
 
 import static org.apache.phoenix.query.BaseTest.setUpConfigForMiniCluster;
@@ -58,15 +63,18 @@ public class CreateTableIT {
         LocalDynamoDbTestBase.localDynamoDb().createV1Client();
 
     private static String url;
+    private static HBaseTestingUtility utility = null;
+    private static String tmpDir;
 
     @Rule
     public final TestName testName = new TestName();
 
     @BeforeClass
     public static void initialize() throws Exception {
+        tmpDir = System.getProperty("java.io.tmpdir");
         LocalDynamoDbTestBase.localDynamoDb().start();
         Configuration conf = HBaseConfiguration.create();
-        HBaseTestingUtility utility = new HBaseTestingUtility(conf);
+        utility = new HBaseTestingUtility(conf);
         setUpConfigForMiniCluster(conf);
 
         utility.startMiniCluster();
@@ -75,11 +83,21 @@ public class CreateTableIT {
     }
 
     @AfterClass
-    public static void stopLocalDynamoDb() {
+    public static void stopLocalDynamoDb() throws IOException, SQLException {
         LocalDynamoDbTestBase.localDynamoDb().stop();
+        ServerUtil.ConnectionFactory.shutdown();
+        try {
+            DriverManager.deregisterDriver(PhoenixDriver.INSTANCE);
+        } finally {
+            if (utility != null) {
+                utility.shutdownMiniCluster();
+            }
+            ServerMetadataCacheTestImpl.resetCache();
+        }
+        System.setProperty("java.io.tmpdir", tmpDir);
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void createTableTest1() throws Exception {
         final String tableName = testName.getMethodName().toUpperCase();
         // create table request
@@ -110,7 +128,7 @@ public class CreateTableIT {
         DDLTestUtils.assertTableDescriptions(tableDescription1, tableDescription2);
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void createTableTest2() throws Exception {
         final String tableName = testName.getMethodName().toUpperCase();
 
@@ -138,7 +156,7 @@ public class CreateTableIT {
         DDLTestUtils.assertTableDescriptions(tableDescription1, tableDescription2);
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void createTableTest3() throws Exception {
         // create table request
         CreateTableRequest createTableRequest =
@@ -165,7 +183,7 @@ public class CreateTableIT {
     }
 
 
-    @Test
+    @Test(timeout = 120000)
     public void createTableTest4() throws Exception {
         String tableName = testName.getMethodName().toUpperCase();
         // create table request
@@ -184,7 +202,7 @@ public class CreateTableIT {
         }
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void createTableTest5() throws Exception {
         String tableName = testName.getMethodName().toUpperCase();
         // create table request

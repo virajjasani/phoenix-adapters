@@ -9,7 +9,11 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.phoenix.ddb.PhoenixDBClient;
+import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
+import org.apache.phoenix.jdbc.PhoenixDriver;
 import org.apache.phoenix.util.PhoenixRuntime;
+import org.apache.phoenix.util.ServerUtil;
+
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -19,6 +23,9 @@ import org.junit.rules.TestName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -28,6 +35,9 @@ import static org.apache.phoenix.query.BaseTest.setUpConfigForMiniCluster;
 
 public class ScanTableIT {
     private static final Logger LOGGER = LoggerFactory.getLogger(ScanTableIT.class);
+
+    private static HBaseTestingUtility utility = null;
+    private static String tmpDir;
 
     private final AmazonDynamoDB amazonDynamoDB =
             LocalDynamoDbTestBase.localDynamoDb().createV1Client();
@@ -39,9 +49,10 @@ public class ScanTableIT {
 
     @BeforeClass
     public static void initialize() throws Exception {
+        tmpDir = System.getProperty("java.io.tmpdir");
         LocalDynamoDbTestBase.localDynamoDb().start();
         Configuration conf = HBaseConfiguration.create();
-        HBaseTestingUtility utility = new HBaseTestingUtility(conf);
+        utility = new HBaseTestingUtility(conf);
         setUpConfigForMiniCluster(conf);
 
         utility.startMiniCluster();
@@ -50,11 +61,21 @@ public class ScanTableIT {
     }
 
     @AfterClass
-    public static void stopLocalDynamoDb() {
+    public static void stopLocalDynamoDb() throws IOException, SQLException {
         LocalDynamoDbTestBase.localDynamoDb().stop();
+        ServerUtil.ConnectionFactory.shutdown();
+        try {
+            DriverManager.deregisterDriver(PhoenixDriver.INSTANCE);
+        } finally {
+            if (utility != null) {
+                utility.shutdownMiniCluster();
+            }
+            ServerMetadataCacheTestImpl.resetCache();
+        }
+        System.setProperty("java.io.tmpdir", tmpDir);
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void testScanAllRowsNoSortKey() {
         //create table
         final String tableName = testName.getMethodName().toUpperCase();
@@ -96,7 +117,7 @@ public class ScanTableIT {
         }
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void testScanAllRowsWithProjection() {
         //create table
         final String tableName = testName.getMethodName().toUpperCase();
@@ -153,7 +174,7 @@ public class ScanTableIT {
         }
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void testScanWithTopLevelAttributeFilter() {
         //create table
         final String tableName = testName.getMethodName().toUpperCase();
@@ -191,7 +212,7 @@ public class ScanTableIT {
         Assert.assertEquals(dynamoResult.getItems(), phoenixResult.getItems());
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void testScanWithNestedAttributeFilter() {
         //create table
         final String tableName = testName.getMethodName().toUpperCase();
@@ -237,7 +258,7 @@ public class ScanTableIT {
      * To test pagination, use a filter expression where the results satisfying the conditions
      * in order are also ordered by the keys.
      */
-    @Test
+    @Test(timeout = 120000)
     public void testScanWithPagination() {
         //create table
         final String tableName = testName.getMethodName().toUpperCase();

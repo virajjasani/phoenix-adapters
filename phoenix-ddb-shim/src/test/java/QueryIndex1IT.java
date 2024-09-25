@@ -9,7 +9,11 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.phoenix.ddb.PhoenixDBClient;
+import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
+import org.apache.phoenix.jdbc.PhoenixDriver;
 import org.apache.phoenix.util.PhoenixRuntime;
+import org.apache.phoenix.util.ServerUtil;
+
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -19,6 +23,8 @@ import org.junit.rules.TestName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
@@ -31,6 +37,9 @@ import static org.apache.phoenix.query.BaseTest.setUpConfigForMiniCluster;
 public class QueryIndex1IT {
     private static final Logger LOGGER = LoggerFactory.getLogger(QueryIndex1IT.class);
 
+    private static HBaseTestingUtility utility = null;
+    private static String tmpDir;
+
     private final AmazonDynamoDB amazonDynamoDB =
             LocalDynamoDbTestBase.localDynamoDb().createV1Client();
 
@@ -41,9 +50,10 @@ public class QueryIndex1IT {
 
     @BeforeClass
     public static void initialize() throws Exception {
+        tmpDir = System.getProperty("java.io.tmpdir");
         LocalDynamoDbTestBase.localDynamoDb().start();
         Configuration conf = HBaseConfiguration.create();
-        HBaseTestingUtility utility = new HBaseTestingUtility(conf);
+        utility = new HBaseTestingUtility(conf);
         setUpConfigForMiniCluster(conf);
 
         utility.startMiniCluster();
@@ -52,11 +62,21 @@ public class QueryIndex1IT {
     }
 
     @AfterClass
-    public static void stopLocalDynamoDb() {
+    public static void stopLocalDynamoDb() throws IOException, SQLException {
         LocalDynamoDbTestBase.localDynamoDb().stop();
+        ServerUtil.ConnectionFactory.shutdown();
+        try {
+            DriverManager.deregisterDriver(PhoenixDriver.INSTANCE);
+        } finally {
+            if (utility != null) {
+                utility.shutdownMiniCluster();
+            }
+            ServerMetadataCacheTestImpl.resetCache();
+        }
+        System.setProperty("java.io.tmpdir", tmpDir);
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void testGlobalIndexNoSortKey1() throws SQLException {
         // create table with keys [attr_0]
         final String tableName = testName.getMethodName().toUpperCase();
@@ -110,7 +130,7 @@ public class QueryIndex1IT {
         TestUtils.validateIndexUsed(qr, url);
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void testGlobalIndexNoSortKey2() throws SQLException {
         // create table with keys [attr_0, attr_1]
         final String tableName = testName.getMethodName().toUpperCase();
@@ -164,7 +184,7 @@ public class QueryIndex1IT {
         TestUtils.validateIndexUsed(qr, url);
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void testGlobalIndexWithSortKey1() throws SQLException {
         // create table with keys [attr_0]
         final String tableName = testName.getMethodName().toUpperCase();
@@ -221,7 +241,7 @@ public class QueryIndex1IT {
         TestUtils.validateIndexUsed(qr, url);
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void testGlobalIndexWithSortKey2() throws SQLException {
         // create table with keys [attr_0, attr_1]
         final String tableName = testName.getMethodName().toUpperCase();
@@ -278,7 +298,7 @@ public class QueryIndex1IT {
         TestUtils.validateIndexUsed(qr, url);
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void testLocalIndex() throws SQLException {
         // create table with keys [attr_0, attr_1]
         final String tableName = testName.getMethodName().toUpperCase();

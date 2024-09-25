@@ -1,3 +1,7 @@
+import java.io.IOException;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
 import com.amazonaws.services.dynamodbv2.model.CreateTableResult;
@@ -8,8 +12,11 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.phoenix.ddb.PhoenixDBClient;
+import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
+import org.apache.phoenix.jdbc.PhoenixDriver;
 import org.apache.phoenix.util.JacksonUtil;
 import org.apache.phoenix.util.PhoenixRuntime;
+import org.apache.phoenix.util.ServerUtil;
 
 import com.amazonaws.services.dynamodbv2.model.TableDescription;
 import org.junit.AfterClass;
@@ -25,6 +32,9 @@ import static org.apache.phoenix.query.BaseTest.setUpConfigForMiniCluster;
 public class DeleteTableIT {
     private static final Logger LOGGER = LoggerFactory.getLogger(DeleteTableIT.class);
 
+    private static HBaseTestingUtility utility = null;
+    private static String tmpDir;
+
     @Rule
     public final TestName testName = new TestName();
 
@@ -35,9 +45,10 @@ public class DeleteTableIT {
 
     @BeforeClass
     public static void initialize() throws Exception {
+        tmpDir = System.getProperty("java.io.tmpdir");
         LocalDynamoDbTestBase.localDynamoDb().start();
         Configuration conf = HBaseConfiguration.create();
-        HBaseTestingUtility utility = new HBaseTestingUtility(conf);
+        utility = new HBaseTestingUtility(conf);
         setUpConfigForMiniCluster(conf);
 
         utility.startMiniCluster();
@@ -46,11 +57,21 @@ public class DeleteTableIT {
     }
 
     @AfterClass
-    public static void stopLocalDynamoDb() {
+    public static void stopLocalDynamoDb() throws IOException, SQLException {
         LocalDynamoDbTestBase.localDynamoDb().stop();
+        ServerUtil.ConnectionFactory.shutdown();
+        try {
+            DriverManager.deregisterDriver(PhoenixDriver.INSTANCE);
+        } finally {
+            if (utility != null) {
+                utility.shutdownMiniCluster();
+            }
+            ServerMetadataCacheTestImpl.resetCache();
+        }
+        System.setProperty("java.io.tmpdir", tmpDir);
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void deleteTableTestWithDeleteTableRequest() throws Exception {
         final String tableName = testName.getMethodName().toUpperCase();
         //create table request
@@ -87,7 +108,7 @@ public class DeleteTableIT {
 
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void deleteTableTestWithStringName() throws Exception {
         final String tableName = testName.getMethodName().toUpperCase();
         // create table request

@@ -10,7 +10,11 @@ import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.phoenix.ddb.PhoenixDBClient;
 import org.apache.phoenix.ddb.bson.BsonDocumentToDdbAttributes;
+import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
+import org.apache.phoenix.jdbc.PhoenixDriver;
 import org.apache.phoenix.util.PhoenixRuntime;
+import org.apache.phoenix.util.ServerUtil;
+
 import org.bson.BsonDocument;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -21,9 +25,11 @@ import org.junit.rules.TestName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -31,6 +37,9 @@ import static org.apache.phoenix.query.BaseTest.setUpConfigForMiniCluster;
 
 public class PutItemIT {
     private static final Logger LOGGER = LoggerFactory.getLogger(PutItemIT.class);
+
+    private static HBaseTestingUtility utility = null;
+    private static String tmpDir;
 
     private final AmazonDynamoDB amazonDynamoDB =
             LocalDynamoDbTestBase.localDynamoDb().createV1Client();
@@ -42,9 +51,10 @@ public class PutItemIT {
 
     @BeforeClass
     public static void initialize() throws Exception {
+        tmpDir = System.getProperty("java.io.tmpdir");
         LocalDynamoDbTestBase.localDynamoDb().start();
         Configuration conf = HBaseConfiguration.create();
-        HBaseTestingUtility utility = new HBaseTestingUtility(conf);
+        utility = new HBaseTestingUtility(conf);
         setUpConfigForMiniCluster(conf);
 
         utility.startMiniCluster();
@@ -53,11 +63,21 @@ public class PutItemIT {
     }
 
     @AfterClass
-    public static void stopLocalDynamoDb() {
+    public static void stopLocalDynamoDb() throws IOException, SQLException {
         LocalDynamoDbTestBase.localDynamoDb().stop();
+        ServerUtil.ConnectionFactory.shutdown();
+        try {
+            DriverManager.deregisterDriver(PhoenixDriver.INSTANCE);
+        } finally {
+            if (utility != null) {
+                utility.shutdownMiniCluster();
+            }
+            ServerMetadataCacheTestImpl.resetCache();
+        }
+        System.setProperty("java.io.tmpdir", tmpDir);
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void putItemHashKeyTest() throws Exception {
         //create table
         final String tableName = testName.getMethodName().toUpperCase();
@@ -101,7 +121,7 @@ public class PutItemIT {
         }
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void putItemHashRangeKeyTest() throws Exception {
         //create table
         final String tableName = testName.getMethodName().toUpperCase();
@@ -144,7 +164,7 @@ public class PutItemIT {
         }
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void putItemWithGlobalIndexWithHashKeyTest() throws Exception {
         // create table
         final String tableName = testName.getMethodName().toUpperCase();
@@ -203,7 +223,7 @@ public class PutItemIT {
         }
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void putItemIndexSortedTest() throws Exception {
         // create table [attr_0, idx_attr]
         final String tableName = testName.getMethodName().toUpperCase();

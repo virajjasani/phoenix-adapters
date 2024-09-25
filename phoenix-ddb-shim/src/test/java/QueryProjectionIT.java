@@ -11,12 +11,19 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.phoenix.ddb.PhoenixDBClient;
+import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
+import org.apache.phoenix.jdbc.PhoenixDriver;
 import org.apache.phoenix.util.PhoenixRuntime;
+import org.apache.phoenix.util.ServerUtil;
+
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import java.io.IOException;
+import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -27,6 +34,9 @@ public class QueryProjectionIT {
     private final AmazonDynamoDB amazonDynamoDB =
             LocalDynamoDbTestBase.localDynamoDb().createV1Client();
 
+    private static HBaseTestingUtility utility = null;
+    private static String tmpDir;
+
     private static PhoenixDBClient phoenixDBClient = null;
 
     private static String url;
@@ -35,9 +45,10 @@ public class QueryProjectionIT {
 
     @BeforeClass
     public static void initialize() throws Exception {
+        tmpDir = System.getProperty("java.io.tmpdir");
         LocalDynamoDbTestBase.localDynamoDb().start();
         Configuration conf = HBaseConfiguration.create();
-        HBaseTestingUtility utility = new HBaseTestingUtility(conf);
+        utility = new HBaseTestingUtility(conf);
         setUpConfigForMiniCluster(conf);
 
         utility.startMiniCluster();
@@ -64,8 +75,18 @@ public class QueryProjectionIT {
     }
 
     @AfterClass
-    public static void stopLocalDynamoDb() {
+    public static void stopLocalDynamoDb() throws IOException, SQLException {
         LocalDynamoDbTestBase.localDynamoDb().stop();
+        ServerUtil.ConnectionFactory.shutdown();
+        try {
+            DriverManager.deregisterDriver(PhoenixDriver.INSTANCE);
+        } finally {
+            if (utility != null) {
+                utility.shutdownMiniCluster();
+            }
+            ServerMetadataCacheTestImpl.resetCache();
+        }
+        System.setProperty("java.io.tmpdir", tmpDir);
     }
 
     /* Item Schema */
@@ -157,92 +178,92 @@ public class QueryProjectionIT {
 
     /* TESTS */
 
-    @Test
+    @Test(timeout = 120000)
     public void test1() {
         test("Id2, title, Reviews");
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test2() {
         test("Id2, title, Reviews.FiveStar");
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test3() {
         test("Id2, title, Reviews.FiveStar[0]");
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test4() {
         test("Id2, title, Reviews.FiveStar[2]");
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test5() {
         test("Id2, title, Reviews.FiveStar[1].reviewer");
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test6() {
         test("Id2, title, Reviews.FiveStar[1].reviewer,Reviews.FiveStar[2].reviewer,Reviews.FiveStar[3].reviewer");
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test7() {
         test("Id2, title, Reviews.FiveStar[3].reviewer,Reviews.FiveStar[2].reviewer,Reviews.FiveStar[1].reviewer");
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test8() {
         test("Id2, title, Reviews.FiveStar[3].reviewer,Reviews.FiveStar[1].reviewer,Reviews.FiveStar[2].reviewer");
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test9() {
         test("Id2, title, map3");
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test10() {
         test("Id2, title, map3.map2");
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test11() {
         test("map3.map2.val2,Id2, title, map3.map2.val1");
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test12() {
         test("Id2, title, nestedList");
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test13() {
         test("Id2, title, nestedList[0]");
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test14() {
         test("nestedList[0][1], Id2, title");
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test15() {
         test("nestedList[0][1], Id2, nestedList[2][0], title, nestedList[0][0]");
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test16() {
         test("nestedList[0][0], nestedList[2][1], nestedList[1][0][0], nestedList[2][0]");
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test17() {
         test("track[0].shot[2][0].city.standard[1],track[0].shot[2][0].city.standard[2], track[0].shot[2][0].city.standard[0]");
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test18() {
         Map<String, String> exprAttrNames = new HashMap<>();
         exprAttrNames.put("#0", "track");

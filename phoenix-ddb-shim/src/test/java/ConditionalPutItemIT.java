@@ -12,7 +12,11 @@ import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.phoenix.ddb.PhoenixDBClient;
 import org.apache.phoenix.ddb.bson.BsonDocumentToDdbAttributes;
+import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
+import org.apache.phoenix.jdbc.PhoenixDriver;
 import org.apache.phoenix.util.PhoenixRuntime;
+import org.apache.phoenix.util.ServerUtil;
+
 import org.bson.BsonDocument;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -23,10 +27,12 @@ import org.junit.rules.TestName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -39,15 +45,18 @@ public class ConditionalPutItemIT {
             LocalDynamoDbTestBase.localDynamoDb().createV1Client();
 
     private static String url;
+    private static HBaseTestingUtility utility = null;
+    private static String tmpDir;
 
     @Rule
     public final TestName testName = new TestName();
 
     @BeforeClass
     public static void initialize() throws Exception {
+        tmpDir = System.getProperty("java.io.tmpdir");
         LocalDynamoDbTestBase.localDynamoDb().start();
         Configuration conf = HBaseConfiguration.create();
-        HBaseTestingUtility utility = new HBaseTestingUtility(conf);
+        utility = new HBaseTestingUtility(conf);
         setUpConfigForMiniCluster(conf);
 
         utility.startMiniCluster();
@@ -56,11 +65,21 @@ public class ConditionalPutItemIT {
     }
 
     @AfterClass
-    public static void stopLocalDynamoDb() {
+    public static void stopLocalDynamoDb() throws IOException, SQLException {
         LocalDynamoDbTestBase.localDynamoDb().stop();
+        ServerUtil.ConnectionFactory.shutdown();
+        try {
+            DriverManager.deregisterDriver(PhoenixDriver.INSTANCE);
+        } finally {
+            if (utility != null) {
+                utility.shutdownMiniCluster();
+            }
+            ServerMetadataCacheTestImpl.resetCache();
+        }
+        System.setProperty("java.io.tmpdir", tmpDir);
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void simpleConditionalPutFailureTest() throws Exception {
         // create table [attr_0, attr_1]
         final String tableName = testName.getMethodName().toUpperCase();
@@ -142,7 +161,7 @@ public class ConditionalPutItemIT {
         }
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void simpleConditionalPutSuccessTest() throws Exception {
         // create table [attr_0, idx_attr]
         final String tableName = testName.getMethodName().toUpperCase();
@@ -206,7 +225,7 @@ public class ConditionalPutItemIT {
         }
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void compositeConditionalPutFailureTest() throws Exception {
         //create table
         final String tableName = testName.getMethodName().toUpperCase();
@@ -282,7 +301,7 @@ public class ConditionalPutItemIT {
         }
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void compositeConditionalPutSuccessTest() throws Exception {
         //create table
         final String tableName = testName.getMethodName().toUpperCase();

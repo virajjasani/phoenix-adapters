@@ -9,7 +9,7 @@ public class KeyConditionsHolderTest {
 
     private Map<String, String> exprAttrNames = new HashMap<>();
 
-    @Test
+    @Test(timeout = 120000)
     public void test1() {
         String keyCondExpr = "#0 = :0";
         exprAttrNames.put("#0", "hashKey");
@@ -18,7 +18,7 @@ public class KeyConditionsHolderTest {
         Assert.assertFalse(keyConditions.hasSortKey());
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test2() {
         String keyCondExpr = "#0 = :0 AND #1 = :1";
         exprAttrNames.put("#0", "hashKey");
@@ -31,7 +31,7 @@ public class KeyConditionsHolderTest {
         Assert.assertEquals(":1", keyConditions.getSortKeyValue1());
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test3() {
         String keyCondExpr = "#0 = :0 AND #1 > :1";
         exprAttrNames.put("#0", "hashKey");
@@ -44,7 +44,7 @@ public class KeyConditionsHolderTest {
         Assert.assertEquals(":1", keyConditions.getSortKeyValue1());
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test4() {
         String keyCondExpr = "#0 = :0 AND #1 < :1";
         exprAttrNames.put("#0", "hashKey");
@@ -57,7 +57,7 @@ public class KeyConditionsHolderTest {
         Assert.assertEquals(":1", keyConditions.getSortKeyValue1());
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test5() {
         String keyCondExpr = "#0 = :0 AND #1 >= :1";
         exprAttrNames.put("#0", "hashKey");
@@ -70,7 +70,7 @@ public class KeyConditionsHolderTest {
         Assert.assertEquals(":1", keyConditions.getSortKeyValue1());
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test6() {
         String keyCondExpr = "#0 = :0 AND #1 <= :1";
         exprAttrNames.put("#0", "hashKey");
@@ -83,7 +83,7 @@ public class KeyConditionsHolderTest {
         Assert.assertEquals(":1", keyConditions.getSortKeyValue1());
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test7() {
         String keyCondExpr1 = "#0 = :0 AND #1 BETWEEN :1 AND :2";
         exprAttrNames.put("#0", "hashKey");
@@ -110,7 +110,7 @@ public class KeyConditionsHolderTest {
         Assert.assertEquals(":sortKeyTo", keyConditions.getSortKeyValue2());
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test8() {
         String keyCondExpr = "#0 = :0 AND begins_with(#1, :1)";
         exprAttrNames.put("#0", "hashKey");
@@ -123,7 +123,7 @@ public class KeyConditionsHolderTest {
         Assert.assertEquals(":1", keyConditions.getBeginsWithSortKeyVal());
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void test9() {
         exprAttrNames = null;
         String keyCondExpr1 = "hashKey=:0 AND sortKey>:1";
