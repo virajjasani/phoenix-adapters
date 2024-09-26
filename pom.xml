@@ -51,6 +51,7 @@
     <zookeeper.version>3.8.4</zookeeper.version>
     <hadoop.version>3.3.6</hadoop.version>
     <mockito.version>4.11.0</mockito.version>
+    <test.output.tofile>true</test.output.tofile>
   </properties>
 
   <build>
@@ -73,6 +74,7 @@
               <include>*IT.java</include>
               <include>*Test.java</include>
             </includes>
+            <redirectTestOutputToFile>${test.output.tofile}</redirectTestOutputToFile>
           </configuration>
         </plugin>
       </plugins>
