@@ -33,15 +33,10 @@ public class GetItemService {
         try (Connection connection = DriverManager.getConnection(connectionUrl)) {
             // get PKs from phoenix
             tablePKCols = PhoenixUtils.getPKColumns(connection, tableName);
-            String partitionKeyPKCol = tablePKCols.get(0).toString();
-            String sortKeyPKCol = null;
-            if(tablePKCols.size() > 1){
-                sortKeyPKCol = tablePKCols.get(1).toString();
-            }
 
             //build prepared statement and execute
             PreparedStatement stmt =
-                    getPreparedStatement(connection, request, partitionKeyPKCol, sortKeyPKCol);
+                    getPreparedStatement(connection, request, tablePKCols);
             return executeQuery(stmt, request);
         } catch (SQLException e) {
             throw new RuntimeException(e);
@@ -53,18 +48,21 @@ public class GetItemService {
      * Return a PreparedStatement with values set.
      */
     public static PreparedStatement getPreparedStatement(Connection conn, GetItemRequest request,
-                                                         String partitionKeyPKCol, String sortKeyPKCol)
+                                                         List<PColumn> tablePKCols)
             throws SQLException{
         String tableName = request.getTableName();
+        String partitionKeyPKCol = tablePKCols.get(0).toString();
+
         StringBuilder queryBuilder = new StringBuilder(String.format(SELECT_QUERY, tableName,
                 CommonServiceUtils.getEscapedArgument(partitionKeyPKCol)));
-        if(sortKeyPKCol != null){
+        if(tablePKCols.size() > 1){
+            String sortKeyPKCol = tablePKCols.get(1).toString();
             queryBuilder.append(String.format(CLAUSE_FOR_SORT_COL,
                     CommonServiceUtils.getEscapedArgument(sortKeyPKCol)));
         }
         LOGGER.info("SELECT Query: " + queryBuilder);
         PreparedStatement stmt = conn.prepareStatement(queryBuilder.toString());
-        setPreparedStatementValues(stmt, request, partitionKeyPKCol, sortKeyPKCol);
+        setPreparedStatementValues(stmt, request, tablePKCols);
         return stmt;
     }
 
@@ -74,11 +72,13 @@ public class GetItemService {
      * - 1 or 2 values for sortKey, if present
      */
     private static void setPreparedStatementValues(PreparedStatement stmt, GetItemRequest request,
-                                                   String partitionKeyPKCol, String sortKeyPKCol)
+                                                   List<PColumn> tablePKCols)
             throws SQLException {
+        String partitionKeyPKCol = tablePKCols.get(0).toString();
         DQLUtils.setKeyValueOnStatement(stmt, 1,
                 request.getKey().get(partitionKeyPKCol), false);
-        if (sortKeyPKCol != null) {
+        if(tablePKCols.size() > 1){
+            String sortKeyPKCol = tablePKCols.get(1).toString();
             DQLUtils.setKeyValueOnStatement(stmt, 2,
                     request.getKey().get(sortKeyPKCol), false);
         }

@@ -39,20 +39,15 @@ public class BatchGetItemService {
             //iterates over each table and executes SQL for all items to query per table
             for (String tableName : request.getRequestItems().keySet()) {
                 tablePKCols = PhoenixUtils.getPKColumns(connection, tableName);
-                String partitionKeyPKCol = tablePKCols.get(0).toString();
-                String sortKeyPKCol = null;
-                if(tablePKCols.size() > 1){
-                    sortKeyPKCol = tablePKCols.get(1).toString();
-                }
 
                 //map which contains all keys to get extract values of
                 KeysAndAttributes requestItemMap = request.getRequestItems().get(tableName);
                 int numKeysToQuery = requestItemMap.getKeys().size();
                 //creating PreparedStatement and setting values on it
                 PreparedStatement stmt =
-                        getPreparedStatement(connection, tableName, partitionKeyPKCol, sortKeyPKCol,
+                        getPreparedStatement(connection, tableName, tablePKCols,
                                 Integer.min(numKeysToQuery,QUERY_LIMIT));
-                setPreparedStatementValues(stmt, partitionKeyPKCol, sortKeyPKCol, requestItemMap,
+                setPreparedStatementValues(stmt, tablePKCols, requestItemMap,
                         Integer.min(numKeysToQuery,QUERY_LIMIT));
                 //executing the sql query to get response
                 executeQueryAndPopulateResponses(stmt, requestItemMap, finalResult, tableName);
@@ -84,14 +79,16 @@ public class BatchGetItemService {
      * Return a PreparedStatement with values set.
      */
     public static PreparedStatement getPreparedStatement(Connection connection, String tableName,
-                                                         String partitionKeyPKCol, String sortKeyPKCol,
-                                                         int numKeysToQuery)
+                                                         List<PColumn> tablePKCols, int numKeysToQuery)
             throws SQLException{
 
         StringBuilder queryBuilder;
+        String partitionKeyPKCol = tablePKCols.get(0).toString();
+
         Boolean isSortKeyPresent = false;
-        if(sortKeyPKCol != null){
+        if(tablePKCols.size() > 1){
             isSortKeyPresent = true;
+            String sortKeyPKCol = tablePKCols.get(1).toString();
             queryBuilder = new StringBuilder(String.format(SELECT_QUERY_WITH_SORT_COL, tableName,
                     CommonServiceUtils.getEscapedArgument(partitionKeyPKCol),
                     CommonServiceUtils.getEscapedArgument(sortKeyPKCol),
@@ -136,15 +133,17 @@ public class BatchGetItemService {
      * - 1 or 2 values for sortKey, if present
      */
     private static void setPreparedStatementValues(PreparedStatement stmt,
-                                                   String partitionKeyPKCol, String sortKeyPKCol,
+                                                   List<PColumn> tablePKCols,
                                                    KeysAndAttributes requestItemMap, int numKeysToQuery)
             throws SQLException {
         int index = 1;
+        String partitionKeyPKCol = tablePKCols.get(0).toString();
         //iterates over the request map to get all the keys to query
         for(int j = 0; j < numKeysToQuery; j++){
             AttributeValue valueForPartitionCol = requestItemMap.getKeys().get(j).get(partitionKeyPKCol);
             DQLUtils.setKeyValueOnStatement(stmt, index++, valueForPartitionCol, false);
-            if(sortKeyPKCol != null){
+            if(tablePKCols.size() > 1){
+                String sortKeyPKCol = tablePKCols.get(1).toString();
                 AttributeValue valueForSortCol = requestItemMap.getKeys().get(j).get(sortKeyPKCol);
                 DQLUtils.setKeyValueOnStatement(stmt, index++, valueForSortCol, false);
             }

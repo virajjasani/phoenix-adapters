@@ -23,6 +23,8 @@ import com.amazonaws.services.dynamodbv2.model.BatchGetItemRequest;
 import com.amazonaws.services.dynamodbv2.model.BatchGetItemResult;
 import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
 import com.amazonaws.services.dynamodbv2.model.CreateTableResult;
+import com.amazonaws.services.dynamodbv2.model.DeleteItemRequest;
+import com.amazonaws.services.dynamodbv2.model.DeleteItemResult;
 import com.amazonaws.services.dynamodbv2.model.DeleteTableRequest;
 import com.amazonaws.services.dynamodbv2.model.DeleteTableResult;
 import com.amazonaws.services.dynamodbv2.model.DescribeTableRequest;
@@ -40,6 +42,7 @@ import com.amazonaws.services.dynamodbv2.model.UpdateItemRequest;
 import com.amazonaws.services.dynamodbv2.model.UpdateItemResult;
 import org.apache.phoenix.ddb.service.BatchGetItemService;
 import org.apache.phoenix.ddb.service.CreateTableService;
+import org.apache.phoenix.ddb.service.DeleteItemService;
 import org.apache.phoenix.ddb.service.DeleteTableService;
 import org.apache.phoenix.ddb.service.GetItemService;
 import org.apache.phoenix.ddb.service.PutItemService;
@@ -105,6 +108,14 @@ public class PhoenixDBClient extends AbstractAmazonDynamoDB {
     @Override
     public CreateTableResult createTable(CreateTableRequest request) {
         return CreateTableService.createTable(request, connectionUrl);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public DeleteItemResult deleteItem(DeleteItemRequest request) {
+        return DeleteItemService.deleteItem(request, connectionUrl);
     }
 
     /**
