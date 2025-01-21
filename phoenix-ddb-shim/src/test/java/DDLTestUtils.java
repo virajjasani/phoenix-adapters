@@ -204,8 +204,8 @@ public class DDLTestUtils {
                                          String streamType)
             throws SQLException {
         String tableName = td.getTableName();
-        Assert.assertTrue(td
-                .getLatestStreamArn().startsWith("stream-"+ tableName + "-" + streamType+ "-"));
+        Assert.assertTrue(td.getLatestStreamArn().startsWith("phoenix-cdc-stream-"));
+        Assert.assertTrue(td.getLatestStreamArn().contains(tableName));
 
         PTable dataTable = pconn.getTable(tableName);
         Assert.assertEquals(streamType, dataTable.getSchemaVersion());
@@ -218,10 +218,8 @@ public class DDLTestUtils {
             }
         }
         Assert.assertTrue(cdcIndexPresent);
-        Assert.assertEquals(String.valueOf(cdcIndex.getTimeStamp()+1),
-                td.getLatestStreamLabel());
-        Assert.assertTrue(td
-                .getLatestStreamArn().contains(String.valueOf(cdcIndex.getTimeStamp()+1)));
+        Assert.assertEquals(String.valueOf(cdcIndex.getTimeStamp()), td.getLatestStreamLabel());
+        Assert.assertTrue(td.getLatestStreamArn().contains(String.valueOf(cdcIndex.getTimeStamp())));
     }
 
     private static void addGlobalIndexToRequest(CreateTableRequest request, String indexName,

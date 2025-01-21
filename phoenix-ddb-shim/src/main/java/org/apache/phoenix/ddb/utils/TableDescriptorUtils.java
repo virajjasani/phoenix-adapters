@@ -167,12 +167,13 @@ public class TableDescriptorUtils {
      */
   private static void updateStreamSpecification(PTable table, TableDescription tableDescription,
                                                 PhoenixConnection pconn) throws SQLException {
-      if (table.getSchemaVersion() != null) {
+      String streamName =  DDBShimCDCUtils.getEnabledStreamName(pconn, table.getName().getString());
+      if (streamName != null && table.getSchemaVersion() != null) {
           StreamSpecification streamSpec = new StreamSpecification();
           streamSpec.setStreamEnabled(true);
           streamSpec.setStreamViewType(table.getSchemaVersion());
-          tableDescription.setLatestStreamArn(DDBShimCDCUtils.getLatestStreamARN(pconn, table));
-          tableDescription.setLatestStreamLabel(DDBShimCDCUtils.getLatestStreamLabel(pconn, table));
+          tableDescription.setLatestStreamArn(streamName);
+          tableDescription.setLatestStreamLabel(DDBShimCDCUtils.getCDCIndexTimestampFromStreamName(streamName));
           tableDescription.setStreamSpecification(streamSpec);
       }
   }
