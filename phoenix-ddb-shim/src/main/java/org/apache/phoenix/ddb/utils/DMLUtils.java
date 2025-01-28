@@ -66,7 +66,7 @@ public class DMLUtils {
         Map<String, AttributeValue> returnAttrs = null;
         if (!needReturnRow(returnValue, returnValuesOnConditionCheckFailure)) {
             int returnStatus = stmt.executeUpdate();
-            if (returnStatus == 0) {
+            if (returnStatus == 0 && !StringUtils.isEmpty(condExpr)) {
                 throw new ConditionalCheckFailedException("Conditional request failed: " + condExpr);
             }
             return null;
@@ -88,8 +88,6 @@ public class DMLUtils {
                             BsonDocumentToDdbAttributes.getFullItem(rawBsonDocument));
                 }
                 throw conditionalCheckFailedException;
-            } else if (ReturnValue.ALL_OLD.toString().equals(returnValue)) {
-                returnAttrs = BsonDocumentToDdbAttributes.getFullItem(rawBsonDocument);
             }
         } else {
             if (ReturnValue.ALL_NEW.toString().equals(returnValue)) {
