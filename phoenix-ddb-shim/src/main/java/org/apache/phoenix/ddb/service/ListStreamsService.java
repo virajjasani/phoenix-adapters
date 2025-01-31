@@ -8,7 +8,6 @@ import org.apache.phoenix.jdbc.PhoenixConnection;
 import org.apache.phoenix.schema.PTable;
 import org.apache.phoenix.schema.PTableKey;
 import org.apache.phoenix.thirdparty.com.google.common.base.Preconditions;
-import org.apache.phoenix.util.EnvironmentEdgeManager;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -16,7 +15,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class StreamsService {
+public class ListStreamsService {
 
     public static ListStreamsResult listStreams(ListStreamsRequest request, String connectionUrl) {
         String tableName = request.getTableName();
@@ -33,10 +32,11 @@ public class StreamsService {
             String streamName
                     = DDBShimCDCUtils.getEnabledStreamName(pconn, table.getName().getString());
             if (streamName != null && table.getSchemaVersion() != null) {
+                long creationTS = DDBShimCDCUtils.getCDCIndexTimestampFromStreamName(streamName);
                 streams.add(new Stream()
                         .withTableName(table.getName().getString())
                         .withStreamArn(streamName)
-                        .withStreamLabel(DDBShimCDCUtils.getStreamLabel(streamName)));
+                        .withStreamLabel(DDBShimCDCUtils.getStreamLabel(creationTS)));
             }
             result.setStreams(streams);
         } catch (SQLException e) {

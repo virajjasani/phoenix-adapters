@@ -1,9 +1,12 @@
 package org.apache.phoenix.ddb;
 
 import com.amazonaws.services.dynamodbv2.AbstractAmazonDynamoDBStreams;
+import com.amazonaws.services.dynamodbv2.model.DescribeStreamRequest;
+import com.amazonaws.services.dynamodbv2.model.DescribeStreamResult;
 import com.amazonaws.services.dynamodbv2.model.ListStreamsRequest;
 import com.amazonaws.services.dynamodbv2.model.ListStreamsResult;
-import org.apache.phoenix.ddb.service.StreamsService;
+import org.apache.phoenix.ddb.service.DescribeStreamService;
+import org.apache.phoenix.ddb.service.ListStreamsService;
 import org.apache.phoenix.ddb.utils.PhoenixUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +30,13 @@ public class PhoenixDBStreamsClient extends AbstractAmazonDynamoDBStreams {
      * {@inheritDoc}
      */
     public ListStreamsResult listStreams(ListStreamsRequest request) {
-        return StreamsService.listStreams(request, connectionUrl);
+        return ListStreamsService.listStreams(request, connectionUrl);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public DescribeStreamResult describeStream(DescribeStreamRequest request) {
+        return DescribeStreamService.describeStream(request, connectionUrl);
     }
 }

@@ -173,7 +173,8 @@ public class TableDescriptorUtils {
           streamSpec.setStreamEnabled(true);
           streamSpec.setStreamViewType(table.getSchemaVersion());
           tableDescription.setLatestStreamArn(streamName);
-          tableDescription.setLatestStreamLabel(DDBShimCDCUtils.getStreamLabel(streamName));
+          long creationTS = DDBShimCDCUtils.getCDCIndexTimestampFromStreamName(streamName);
+          tableDescription.setLatestStreamLabel(DDBShimCDCUtils.getStreamLabel(creationTS));
           tableDescription.setStreamSpecification(streamSpec);
       }
   }
