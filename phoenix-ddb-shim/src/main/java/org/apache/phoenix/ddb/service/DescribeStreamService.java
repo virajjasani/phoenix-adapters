@@ -106,10 +106,10 @@ public class DescribeStreamService {
         }
         // start sequence number
         SequenceNumberRange seqNumRange = new SequenceNumberRange();
-        seqNumRange.setStartingSequenceNumber(String.valueOf(rs.getLong(3) * MAX_NUM_CHANGES_AT_TIMESTAMP + 1));
+        seqNumRange.setStartingSequenceNumber(String.valueOf(rs.getLong(3) * MAX_NUM_CHANGES_AT_TIMESTAMP));
         // end sequence number
         if (rs.getLong(4) > 0) {
-            seqNumRange.setEndingSequenceNumber(String.valueOf(rs.getLong(4) * MAX_NUM_CHANGES_AT_TIMESTAMP));
+            seqNumRange.setEndingSequenceNumber(String.valueOf(((rs.getLong(4)+1) * MAX_NUM_CHANGES_AT_TIMESTAMP) - 1));
         }
         shard.setSequenceNumberRange(seqNumRange);
         return shard;

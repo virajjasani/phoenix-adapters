@@ -2,6 +2,8 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBStreams;
 import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
 import com.amazonaws.services.dynamodbv2.model.DescribeStreamRequest;
+import com.amazonaws.services.dynamodbv2.model.GetShardIteratorRequest;
+import com.amazonaws.services.dynamodbv2.model.GetShardIteratorResult;
 import com.amazonaws.services.dynamodbv2.model.ListStreamsRequest;
 import com.amazonaws.services.dynamodbv2.model.ListStreamsResult;
 import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType;
@@ -10,22 +12,17 @@ import com.amazonaws.services.dynamodbv2.model.StreamDescription;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
-import org.apache.hadoop.hbase.TableName;
-import org.apache.hadoop.hbase.client.Admin;
-import org.apache.hadoop.hbase.client.ConnectionFactory;
-import org.apache.hadoop.hbase.client.RegionLocator;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.phoenix.coprocessor.PhoenixMasterObserver;
 import org.apache.phoenix.ddb.PhoenixDBClient;
 import org.apache.phoenix.ddb.PhoenixDBStreamsClient;
 import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
-import org.apache.phoenix.jdbc.PhoenixConnection;
 import org.apache.phoenix.jdbc.PhoenixDriver;
 import org.apache.phoenix.jdbc.PhoenixTestDriver;
-import org.apache.phoenix.query.ConnectionQueryServices;
 import org.apache.phoenix.query.QueryServices;
 import org.apache.phoenix.thirdparty.com.google.common.collect.Maps;
 import org.apache.phoenix.util.CDCUtil;
+import org.apache.phoenix.util.EnvironmentEdgeManager;
 import org.apache.phoenix.util.PhoenixRuntime;
 import org.apache.phoenix.util.ReadOnlyProps;
 import org.apache.phoenix.util.ServerUtil;
@@ -44,11 +41,15 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Map;
 
+import static com.amazonaws.services.dynamodbv2.model.ShardIteratorType.AFTER_SEQUENCE_NUMBER;
+import static com.amazonaws.services.dynamodbv2.model.ShardIteratorType.AT_SEQUENCE_NUMBER;
+import static com.amazonaws.services.dynamodbv2.model.ShardIteratorType.LATEST;
+import static com.amazonaws.services.dynamodbv2.model.ShardIteratorType.TRIM_HORIZON;
+import static org.apache.phoenix.ddb.utils.DDBShimCDCUtils.MAX_NUM_CHANGES_AT_TIMESTAMP;
 import static org.apache.phoenix.query.BaseTest.setUpConfigForMiniCluster;
 
-public class DescribeStreamIT {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(DescribeStreamIT.class);
+public class GetShardIteratorIT {
+    private static final Logger LOGGER = LoggerFactory.getLogger(GetShardIteratorIT.class);
 
     private static HBaseTestingUtility utility = null;
     private static String tmpDir;
@@ -101,7 +102,7 @@ public class DescribeStreamIT {
     }
 
     @Test(timeout = 120000)
-    public void testDescribeStreamWithSplit() throws Exception {
+    public void testGetShardIterator() throws Exception {
         String tableName = testName.getMethodName().toUpperCase();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "hashKey",
@@ -131,7 +132,7 @@ public class DescribeStreamIT {
         Assert.assertNull(phoenixStreamDesc.getShards());
 
         int i=0;
-        while (i < 10 && CDCUtil.CdcStreamStatus.ENABLING.getSerializedValue().equals(phoenixStreamDesc.getStreamStatus())) {
+        while (i < 20 && CDCUtil.CdcStreamStatus.ENABLING.getSerializedValue().equals(phoenixStreamDesc.getStreamStatus())) {
             phoenixStreamDesc = phoenixDBStreamsClient.describeStream(phoenixRequest).getStreamDescription();
             i++;
             Thread.sleep(1000);
@@ -139,64 +140,65 @@ public class DescribeStreamIT {
 
         // stream would be in ENABLED state and api should return shards
         Assert.assertEquals(CDCUtil.CdcStreamStatus.ENABLED.getSerializedValue(), phoenixStreamDesc.getStreamStatus());
+        Assert.assertEquals(1, phoenixStreamDesc.getShards().size());
+
+        //print dynamo shard iterator for info
         StreamDescription dynamoStreamDesc = amazonDynamoDBStreams.describeStream(
                 new DescribeStreamRequest().withStreamArn(dynamoStreamArn)).getStreamDescription();
-        LOGGER.info("DescribeStream in Phoenix: " + phoenixStreamDesc);
-        LOGGER.info("DescribeStream in DDB: " + dynamoStreamDesc);
-        Assert.assertNotNull(phoenixStreamDesc.getShards());
-        Assert.assertEquals(1, phoenixStreamDesc.getShards().size());
-        Assert.assertEquals(dynamoStreamDesc.getStreamViewType(), phoenixStreamDesc.getStreamViewType());
-        Assert.assertEquals(dynamoStreamDesc.getKeySchema(), phoenixStreamDesc.getKeySchema());
-        Assert.assertEquals(dynamoStreamDesc.getTableName(), phoenixStreamDesc.getTableName());
-        Assert.assertEquals(dynamoStreamDesc.getStreamStatus(), phoenixStreamDesc.getStreamStatus());
+        GetShardIteratorRequest request = new GetShardIteratorRequest();
+        request.setStreamArn(dynamoStreamDesc.getStreamArn());
+        request.setShardId(dynamoStreamDesc.getShards().get(0).getShardId());
+        request.setShardIteratorType(TRIM_HORIZON);
+        LOGGER.info("Dynamo Shard Iterator with trim horizon: " + amazonDynamoDBStreams.getShardIterator(request).getShardIterator());
+        request.setShardIteratorType(LATEST);
+        LOGGER.info("Dynamo Shard Iterator with latest: " + amazonDynamoDBStreams.getShardIterator(request).getShardIterator());
 
-        // split table
-        try (Connection connection = DriverManager.getConnection(url)) {
-            splitTable(connection, tableName, Bytes.toBytes("foo"));
-        }
+        // test phoenix shard iterator
+        String shardStartSeqNum = phoenixStreamDesc.getShards().get(0).getSequenceNumberRange().getStartingSequenceNumber();
+        String shardId = phoenixStreamDesc.getShards().get(0).getShardId();
+        request = new GetShardIteratorRequest();
+        request.setStreamArn(phoenixStreamDesc.getStreamArn());
+        request.setShardId(shardId);
 
-        //local dynamodb does not support multiple shards so we will only verify phoenix here
-        phoenixStreamDesc = phoenixDBStreamsClient.describeStream(phoenixRequest).getStreamDescription();
-        LOGGER.info("DescribeStream in Phoenix after Split: " + phoenixStreamDesc);
-        Assert.assertEquals(dynamoStreamDesc.getStreamViewType(), phoenixStreamDesc.getStreamViewType());
-        Assert.assertEquals(dynamoStreamDesc.getKeySchema(), phoenixStreamDesc.getKeySchema());
-        Assert.assertEquals(dynamoStreamDesc.getTableName(), phoenixStreamDesc.getTableName());
-        Assert.assertEquals(dynamoStreamDesc.getStreamStatus(), phoenixStreamDesc.getStreamStatus());
+        String testSeqNum = "173837205000000420"; // 1738372050000+00420
+        String testSeqNumPlusOne = String.valueOf(Long.parseLong(testSeqNum) + 1); // 1738372050000+00421
+        //AT_SEQUENCE_NUMBER
+        request.setSequenceNumber(testSeqNum);
+        request.setShardIteratorType(AT_SEQUENCE_NUMBER);
+        GetShardIteratorResult result = phoenixDBStreamsClient.getShardIterator(request);
+        validateShardIterator(result.getShardIterator(), tableName, "CDC_"+tableName, "OLD_IMAGE", shardId);
+        Assert.assertTrue(result.getShardIterator().contains(testSeqNum));
 
-        Assert.assertNotNull(phoenixStreamDesc.getShards());
-        Assert.assertEquals(3, phoenixStreamDesc.getShards().size());
-        String parentId = null;
-        for (Shard shard : phoenixStreamDesc.getShards()) {
-            Assert.assertNotNull(shard.getSequenceNumberRange());
-            Assert.assertTrue(shard.getSequenceNumberRange().getStartingSequenceNumber().endsWith("00000"));
-            // parent which split, should have end sequence number
-            if (shard.getParentShardId() == null) {
-                parentId = shard.getShardId();
-                Assert.assertTrue(shard.getSequenceNumberRange().getEndingSequenceNumber().endsWith("99999"));
-            }
-        }
-        for (Shard shard : phoenixStreamDesc.getShards()) {
-            if (shard.getParentShardId() != null) {
-                Assert.assertEquals(parentId, shard.getParentShardId());
-            }
-        }
+        //AFTER_SEQUENCE_NUMBER
+        request.setShardIteratorType(AFTER_SEQUENCE_NUMBER);
+        result = phoenixDBStreamsClient.getShardIterator(request);
+        validateShardIterator(result.getShardIterator(), tableName, "CDC_"+tableName, "OLD_IMAGE", shardId);
+        Assert.assertTrue(result.getShardIterator().contains(testSeqNumPlusOne));
+
+        //TRIM_HORIZON
+        request.setSequenceNumber(null);
+        request.setShardIteratorType(TRIM_HORIZON);
+        result = phoenixDBStreamsClient.getShardIterator(request);
+        validateShardIterator(result.getShardIterator(), tableName, "CDC_"+tableName, "OLD_IMAGE", shardId);
+        Assert.assertTrue(result.getShardIterator().contains(shardStartSeqNum));
+
+        //LATEST
+        request.setSequenceNumber(null);
+        long currentTime = EnvironmentEdgeManager.currentTimeMillis() - 1000;
+        request.setShardIteratorType(LATEST);
+        result = phoenixDBStreamsClient.getShardIterator(request);
+        validateShardIterator(result.getShardIterator(), tableName, "CDC_"+tableName, "OLD_IMAGE", shardId);
+        String shardIter[] = result.getShardIterator().split("-");
+        // shard iterator would be created after the current time we recorded here
+        Assert.assertTrue(Long.parseLong(shardIter[shardIter.length-1]) > currentTime * MAX_NUM_CHANGES_AT_TIMESTAMP);
     }
 
-    private static void splitTable(Connection conn, String tableName, byte[] splitPoint) throws Exception {
-        ConnectionQueryServices services = conn.unwrap(PhoenixConnection.class).getQueryServices();
-        Configuration configuration = services.getConfiguration();
-        org.apache.hadoop.hbase.client.Connection hbaseConn
-                = ConnectionFactory.createConnection(configuration);
-        Admin admin = services.getAdmin();
-        RegionLocator regionLocator = hbaseConn.getRegionLocator(TableName.valueOf(tableName));
-        int nRegions = regionLocator.getAllRegionLocations().size();
-        admin.split(TableName.valueOf(tableName), splitPoint);
-        int retryCount = 0;
-        while (retryCount < 20
-                && regionLocator.getAllRegionLocations().size() == nRegions) {
-            Thread.sleep(5000);
-            retryCount++;
-        }
-        Assert.assertNotEquals(regionLocator.getAllRegionLocations().size(), nRegions);
+    private void validateShardIterator(String shardIter, String tableName, String cdcObj,
+                                       String streamType, String shardId) {
+        LOGGER.info("Shard Iterator: " + shardIter);
+        Assert.assertTrue(shardIter.contains(tableName));
+        Assert.assertTrue(shardIter.contains(cdcObj));
+        Assert.assertTrue(shardIter.contains(streamType));
+        Assert.assertTrue(shardIter.contains(shardId));
     }
 }

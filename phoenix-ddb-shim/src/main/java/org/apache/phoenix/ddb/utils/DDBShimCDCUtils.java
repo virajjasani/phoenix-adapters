@@ -2,8 +2,10 @@ package org.apache.phoenix.ddb.utils;
 
 import com.amazonaws.services.dynamodbv2.model.KeySchemaElement;
 import com.amazonaws.services.dynamodbv2.model.KeyType;
+import org.apache.phoenix.jdbc.PhoenixConnection;
 import org.apache.phoenix.schema.PColumn;
 import org.apache.phoenix.schema.PTable;
+import org.apache.phoenix.schema.PTableKey;
 import org.apache.phoenix.util.CDCUtil;
 
 import java.sql.Connection;
@@ -16,6 +18,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.TimeZone;
 
+import static org.apache.phoenix.jdbc.PhoenixDatabaseMetaData.SYSTEM_CDC_STREAM_NAME;
 import static org.apache.phoenix.jdbc.PhoenixDatabaseMetaData.SYSTEM_CDC_STREAM_STATUS_NAME;
 
 /**
@@ -29,6 +32,9 @@ public class DDBShimCDCUtils {
      */
     public static final int MAX_NUM_CHANGES_AT_TIMESTAMP = 100000;
 
+    // shardIterator-<tableName>-<cdcObject>-<streamType>-<partitionID>-<startSeqNum>
+    public static String SHARD_ITERATOR_FORMAT = "shardIterator-%s-%s-%s-%s-%s";
+
     private static final String STREAM_NAME_QUERY
             = "SELECT STREAM_NAME FROM " + SYSTEM_CDC_STREAM_STATUS_NAME
             + " WHERE TABLE_NAME = '%s' AND STREAM_STATUS IN ('"
@@ -38,6 +44,10 @@ public class DDBShimCDCUtils {
     private static final String STREAM_STATUS_QUERY
             = "SELECT STREAM_STATUS FROM " + SYSTEM_CDC_STREAM_STATUS_NAME
             + " WHERE TABLE_NAME = '%s' AND STREAM_NAME = '%s'";
+
+    private static final String PARTITION_START_TIME_QUERY
+            = "SELECT PARTITION_START_TIME FROM " + SYSTEM_CDC_STREAM_NAME
+            + " WHERE TABLE_NAME = '%s' AND STREAM_NAME = '%s' AND PARTITION_ID = '%s'";
 
     /**
      * Return the KeySchema for the given PTable.
@@ -102,10 +112,47 @@ public class DDBShimCDCUtils {
     }
 
     /**
+     * Parse CDC Object name from streamName.
+     */
+    public static String getCDCObjectNameFromStreamName(String streamName) {
+        // phoenix-cdc-stream-{tableName}-{cdc object name}-{cdc index timestamp}
+        String[] parts = streamName.split("-");
+        if (parts.length != 6) {
+            throw new IllegalArgumentException("Stream Name format is not correct.");
+        }
+        return parts[4];
+    }
+
+    /**
      * Parse CDC index creation time from streamName.
      */
     public static long getCDCIndexTimestampFromStreamName(String streamName) {
         // phoenix-cdc-stream-{tableName}-{cdc object name}-{cdc index timestamp}
         return Long.parseLong(streamName.substring(streamName.lastIndexOf("-")+1));
+    }
+
+    /**
+     * Return the stream type for the given table stored in the SCHEMA_VERSION column of the ptable.
+     */
+    public static String getStreamType(Connection conn, String tableName) throws SQLException {
+        PhoenixConnection phoenixConnection = conn.unwrap(PhoenixConnection.class);
+        PTable table = phoenixConnection.getTable(
+                new PTableKey(phoenixConnection.getTenantId(), tableName));
+        return table.getSchemaVersion();
+    }
+
+    /**
+     * Get the start time for the given partition from SYSTEM.CDC_STREAM
+     */
+    public static long getPartitionStartTime(Connection conn, String tableName,
+                                             String streamName, String partitionId)
+            throws SQLException {
+        String query = String.format(PARTITION_START_TIME_QUERY, tableName, streamName, partitionId);
+        ResultSet rs = conn.createStatement().executeQuery(query);
+        if (rs.next()) {
+            return rs.getLong(1);
+        } else {
+            throw new SQLException("Could not find partition for id: " + partitionId);
+        }
     }
 }
