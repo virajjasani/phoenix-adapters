@@ -246,7 +246,7 @@ public class CreateTableService {
               .append(pkCols)
               .append(")");
 
-      String createTableDDL = "CREATE TABLE " + tableName + " (" + cols + ")";
+      String createTableDDL = "CREATE TABLE " + tableName + " (" + cols + ") MERGE_ENABLED = false";
       LOGGER.info("Create Table Query: " + createTableDDL);
 
       List<String> createIndexDDLs = getIndexDDLs(request, pkColsSet);
