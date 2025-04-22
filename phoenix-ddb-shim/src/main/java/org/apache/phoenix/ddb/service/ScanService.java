@@ -29,6 +29,11 @@ public class ScanService {
     private static final int MAX_SCAN_LIMIT = 500;
 
     public static ScanResponse scan(ScanRequest request, String connectionUrl) {
+        // phoenix does not support parallel scans from the client so
+        // we will return all items in the first segment and no items in all other segments
+        if (request.segment() != null && request.segment() > 0) {
+            return ScanResponse.builder().build();
+        }
         String tableName = request.tableName();
         String indexName = request.indexName();
         boolean useIndex = !StringUtils.isEmpty(indexName);

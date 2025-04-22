@@ -424,6 +424,35 @@ public class ScanTableIT {
         Assert.assertEquals(10, count);
     }
 
+    @Test(timeout = 120000)
+    public void testScanWithSegments() {
+        //create table
+        final String tableName = testName.getMethodName().toUpperCase();
+        CreateTableRequest createTableRequest =
+                DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
+                        ScalarAttributeType.S, null, null);
+        PhoenixDBClientV2 phoenixDBClientV2 = new PhoenixDBClientV2(url);
+        phoenixDBClientV2.createTable(createTableRequest);
+
+        //put
+        PutItemRequest putItemRequest1 = PutItemRequest.builder().tableName(tableName).item(getItem1()).build();
+        PutItemRequest putItemRequest2 = PutItemRequest.builder().tableName(tableName).item(getItem2()).build();
+        PutItemRequest putItemRequest3 = PutItemRequest.builder().tableName(tableName).item(getItem3()).build();
+        PutItemRequest putItemRequest4 = PutItemRequest.builder().tableName(tableName).item(getItem4()).build();
+        phoenixDBClientV2.putItem(putItemRequest1);
+        phoenixDBClientV2.putItem(putItemRequest2);
+        phoenixDBClientV2.putItem(putItemRequest3);
+        phoenixDBClientV2.putItem(putItemRequest4);
+
+        ScanRequest.Builder sr = ScanRequest.builder().tableName(tableName).segment(0).totalSegments(2);
+        ScanResponse phoenixResult = phoenixDBClientV2.scan(sr.build());
+        Assert.assertEquals(4, phoenixResult.items().size());
+
+        sr = ScanRequest.builder().tableName(tableName).segment(1).totalSegments(2);
+        phoenixResult = phoenixDBClientV2.scan(sr.build());
+        Assert.assertEquals(0, phoenixResult.items().size());
+    }
+
     private static Map<String, AttributeValue> getItem1() {
         Map<String, AttributeValue> item = new HashMap<>();
         item.put("attr_0", AttributeValue.builder().s("A").build());
