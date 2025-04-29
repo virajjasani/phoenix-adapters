@@ -16,12 +16,10 @@ import software.amazon.awssdk.services.dynamodb.model.UpdateTimeToLiveResponse;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.regex.Pattern;
 
 public class TTLService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TTLService.class);
-    private static final String TTL_EXPRESSION = "TO_NUMBER(CURRENT_TIME()) > BSON_VALUE(COL, ''%s'', ''BIGINT'')";
     private static final String ALTER_TTL_STMT = "ALTER TABLE %s SET TTL = '%s'";
 
     public static UpdateTimeToLiveResponse updateTimeToLive(UpdateTimeToLiveRequest request,
@@ -30,7 +28,7 @@ public class TTLService {
         String colName = request.timeToLiveSpecification().attributeName();
         String alterStmt;
         if (request.timeToLiveSpecification().enabled()) {
-            String ttlExpression = String.format(TTL_EXPRESSION, colName);
+            String ttlExpression = String.format(PhoenixUtils.TTL_EXPRESSION, colName, colName);
             alterStmt = String.format(ALTER_TTL_STMT, tableName, ttlExpression);
         } else {
             alterStmt = String.format(ALTER_TTL_STMT, tableName, HConstants.FOREVER);
@@ -52,7 +50,7 @@ public class TTLService {
         try (Connection connection = DriverManager.getConnection(connectionUrl)) {
             PTable pTable = connection.unwrap(PhoenixConnection.class).getTable(tableName);
             String ttlExpression = pTable.getTTLExpression().toString().trim();
-            if (ttlExpression.startsWith("TO_NUMBER(CURRENT_TIME())")) {
+            if (ttlExpression.contains("BSON_VALUE")) {
                 desc.timeToLiveStatus(TimeToLiveStatus.ENABLED);
                 desc.attributeName(PhoenixUtils.extractAttributeFromTTLExpression(ttlExpression));
             } else {

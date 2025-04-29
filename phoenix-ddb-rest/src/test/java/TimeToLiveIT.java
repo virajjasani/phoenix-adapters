@@ -173,14 +173,28 @@ public class TimeToLiveIT {
         Assert.assertEquals("pk11", scanResponse.items().get(0).get("PK1").s());
         Assert.assertEquals("pk22", scanResponse.items().get(0).get("PK2").s());
 
+        //put item without the ttl attribute
+        Map<String, AttributeValue> item3 = new HashMap<>();
+        item3.put("PK1", AttributeValue.builder().s("pk111").build());
+        item3.put("PK2", AttributeValue.builder().s("pk222").build());
+        item3.put("otherAttr", AttributeValue.builder().n(Long.toString(System.currentTimeMillis())).build());
+        pir = PutItemRequest.builder().tableName(tableName).item(item3).build();
+        phoenixDBClientV2.putItem(pir);
+
+        //scan should show second and third item only
+        scanRequest = ScanRequest.builder().tableName(tableName).build();
+        scanResponse = phoenixDBClientV2.scan(scanRequest);
+        Assert.assertEquals(2, scanResponse.items().size());
+        Assert.assertFalse(scanResponse.items().contains(item));
+
         // disable TTL
         uTtlReq = UpdateTimeToLiveRequest.builder().tableName(tableName);
         spec = TimeToLiveSpecification.builder().attributeName("ttlAttr").enabled(false).build();
         phoenixDBClientV2.updateTimeToLive(uTtlReq.timeToLiveSpecification(spec).build());
 
-        //scan should show both items since we did not run compaction
+        //scan should show all items since we did not run compaction
         scanRequest = ScanRequest.builder().tableName(tableName).build();
         scanResponse = phoenixDBClientV2.scan(scanRequest);
-        Assert.assertEquals(2, scanResponse.items().size());
+        Assert.assertEquals(3, scanResponse.items().size());
     }
 }

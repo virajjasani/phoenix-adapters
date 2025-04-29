@@ -38,8 +38,8 @@ public class PhoenixUtils {
             PhoenixRuntime.JDBC_PROTOCOL_MASTER + PhoenixRuntime.JDBC_PROTOCOL_SEPARATOR;
     public static final String URL_RPC_PREFIX =
             PhoenixRuntime.JDBC_PROTOCOL_RPC + PhoenixRuntime.JDBC_PROTOCOL_SEPARATOR;
-    private static final Pattern BSON_VALUE_PATTERN_FOR_TTL = Pattern.compile(
-            "BSON_VALUE\\(\\s*COL\\s*,\\s*'([^']+)'\\s*,\\s*'BIGINT'\\s*\\)");
+    public static final String TTL_EXPRESSION = "BSON_VALUE(COL, ''%s'', ''BIGINT'') IS NOT NULL " +
+            "AND TO_NUMBER(CURRENT_TIME()) > BSON_VALUE(COL, ''%s'', ''BIGINT'')";
 
     /**
      * Check whether the connection url provided has the right format.
@@ -127,14 +127,13 @@ public class PhoenixUtils {
 
     /**
      * Extract the attribute name from the given conditional TTL Expression
-     * of the form {@code BSON_VALUE_PATTERN_FOR_DDL}.
+     * of the form {@code TTL_EXPRESSION}.
      */
     public static String extractAttributeFromTTLExpression(String ttlExpression) {
-        Matcher ttlAttrMatcher = BSON_VALUE_PATTERN_FOR_TTL.matcher(ttlExpression);
-        if (ttlAttrMatcher.find()) {
-            return ttlAttrMatcher.group(1);
-        } else {
-            throw new RuntimeException("Found invalid phoenix ttl expression: " + ttlExpression);
-        }
+        // ttlExpression -> null check AND timestamp check
+        return CommonServiceUtils
+                .getKeyNameFromBsonValueFunc(ttlExpression.split("IS NOT NULL")[0]) // pass bson_value part
+                .replaceAll("'", "") // remove single quotes
+                .trim();
     }
 }
