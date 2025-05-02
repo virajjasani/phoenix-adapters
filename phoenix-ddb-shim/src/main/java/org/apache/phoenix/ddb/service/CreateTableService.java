@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import org.apache.phoenix.ddb.utils.PhoenixUtils;
 import software.amazon.awssdk.services.dynamodb.model.AttributeDefinition;
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
 import software.amazon.awssdk.services.dynamodb.model.CreateTableResponse;
@@ -246,7 +247,8 @@ public class CreateTableService {
               .append(pkCols)
               .append(")");
 
-      String createTableDDL = "CREATE TABLE " + tableName + " (" + cols + ") MERGE_ENABLED = false";
+      String createTableDDL
+              = "CREATE TABLE " + tableName + " (" + cols + ") " + PhoenixUtils.getTableOptions();
       LOGGER.info("Create Table Query: " + createTableDDL);
 
       List<String> createIndexDDLs = getIndexDDLs(request, pkColsSet);

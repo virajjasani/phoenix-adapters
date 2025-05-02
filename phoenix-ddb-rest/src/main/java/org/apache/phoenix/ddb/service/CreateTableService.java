@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import org.apache.phoenix.ddb.utils.PhoenixUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -303,7 +304,7 @@ public class CreateTableService {
             cols.append(", COL BSON CONSTRAINT pk PRIMARY KEY (").append(pkCols).append(")");
 
             String createTableDDL =
-                    "CREATE TABLE " + tableName + " (" + cols + ") MERGE_ENABLED = false";
+                    "CREATE TABLE " + tableName + " (" + cols + ") " + PhoenixUtils.getTableOptions();
             LOGGER.info("Create Table Query: {}", createTableDDL);
 
             List<String> createIndexDDLs = getIndexDDLs(request, pkColsSet);
