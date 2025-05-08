@@ -20,24 +20,23 @@ package org.apache.phoenix.ddb.service;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.Map;
 
-import software.amazon.awssdk.services.dynamodb.model.DeleteTableRequest;
-import software.amazon.awssdk.services.dynamodb.model.DeleteTableResponse;
-import software.amazon.awssdk.services.dynamodb.model.TableDescription;
-
-import org.apache.phoenix.ddb.utils.TableDescriptorUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.phoenix.ddb.service.utils.TableDescriptorUtils;
 
 public class DeleteTableService {
+
     private static final Logger LOGGER = LoggerFactory.getLogger(DeleteTableService.class);
 
-    public static DeleteTableResponse deleteTable(DeleteTableRequest deleteTableRequest,
-                                                  final String connectionUrl) {
-        String tableName = deleteTableRequest.tableName();
-        TableDescription
-                tableDescription = TableDescriptorUtils.getTableDescription(tableName, connectionUrl);
+    public static Map<String, Object> deleteTable(Map<String, Object> deleteTableRequest,
+            final String connectionUrl) {
+        String tableName = (String) deleteTableRequest.get("TableName");
+        Map<String, Object> tableDescription =
+                TableDescriptorUtils.getTableDescription(tableName, connectionUrl,
+                        "TableDescription");
         String deleteTableDDL = "DROP TABLE " + tableName + " CASCADE";
         LOGGER.info("Delete Table Query: {}", deleteTableDDL);
 
@@ -47,7 +46,7 @@ public class DeleteTableService {
             throw new RuntimeException(e);
         }
 
-        return DeleteTableResponse.builder().tableDescription(tableDescription).build();
+        return tableDescription;
     }
 }
 

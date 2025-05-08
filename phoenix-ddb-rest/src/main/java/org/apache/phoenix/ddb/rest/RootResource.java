@@ -22,6 +22,7 @@ import javax.ws.rs.Consumes;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.phoenix.ddb.rest.util.Constants;
 import org.apache.phoenix.ddb.service.CreateTableService;
+import org.apache.phoenix.ddb.service.DeleteTableService;
 import org.apache.phoenix.ddb.service.PutItemService;
 import org.apache.phoenix.ddb.service.QueryService;
 import org.apache.phoenix.ddb.service.ScanService;
@@ -69,6 +70,10 @@ public class RootResource {
                 case "DynamoDB_20120810.CreateTable": {
                     servlet.getMetrics().incrementCreateTableSuccessRequests(1);
                     responseObject = CreateTableService.createTable(request, jdbcConnectionUrl);
+                    break;
+                }
+                case "DynamoDB_20120810.DeleteTable": {
+                    responseObject = DeleteTableService.deleteTable(request, jdbcConnectionUrl);
                     break;
                 }
                 case "DynamoDB_20120810.DescribeTable": {
@@ -121,6 +126,9 @@ public class RootResource {
             switch (api) {
                 case "DynamoDB_20120810.CreateTable": {
                     servlet.getMetrics().incrementCreateTableFailedRequests(1);
+                    break;
+                }
+                case "DynamoDB_20120810.DeleteTable": {
                     break;
                 }
                 case "DynamoDB_20120810.DescribeTable": {
