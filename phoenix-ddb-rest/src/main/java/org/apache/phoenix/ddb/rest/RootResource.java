@@ -22,7 +22,9 @@ import javax.ws.rs.Consumes;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.phoenix.ddb.rest.util.Constants;
 import org.apache.phoenix.ddb.service.CreateTableService;
+import org.apache.phoenix.ddb.service.DeleteItemService;
 import org.apache.phoenix.ddb.service.DeleteTableService;
+import org.apache.phoenix.ddb.service.GetItemService;
 import org.apache.phoenix.ddb.service.PutItemService;
 import org.apache.phoenix.ddb.service.QueryService;
 import org.apache.phoenix.ddb.service.ScanService;
@@ -85,16 +87,20 @@ public class RootResource {
                     try {
                         responseObject = PutItemService.putItem(request, jdbcConnectionUrl);
                     } catch (ConditionCheckFailedException e) {
-                        Map<String, Object> item = e.getItem();
-                        Map<String, Object> respObj = new HashMap<>();
-                        respObj.put("__type",
-                                "com.amazonaws.dynamodb.v20120810#ConditionalCheckFailedException");
-                        respObj.put("Message", "The conditional request failed");
-                        if (item != null) {
-                            respObj.put("Item", item);
-                        }
-                        return Response.status(Response.Status.BAD_REQUEST).entity(respObj).build();
+                        return getResponseForConditionCheckFailure(e);
                     }
+                    break;
+                }
+                case "DynamoDB_20120810.DeleteItem": {
+                    try {
+                        responseObject = DeleteItemService.deleteItem(request, jdbcConnectionUrl);
+                    } catch (ConditionCheckFailedException e) {
+                        return getResponseForConditionCheckFailure(e);
+                    }
+                    break;
+                }
+                case "DynamoDB_20120810.GetItem": {
+                    responseObject = GetItemService.getItem(request, jdbcConnectionUrl);
                     break;
                 }
                 case "DynamoDB_20120810.Query": {
@@ -137,6 +143,12 @@ public class RootResource {
                 case "DynamoDB_20120810.PutItem": {
                     break;
                 }
+                case "DynamoDB_20120810.DeleteItem": {
+                    break;
+                }
+                case "DynamoDB_20120810.GetItem": {
+                    break;
+                }
                 case "DynamoDB_20120810.Query": {
                     break;
                 }
@@ -148,6 +160,18 @@ public class RootResource {
             }
             throw e;
         }
+    }
+
+    private static Response getResponseForConditionCheckFailure(ConditionCheckFailedException e) {
+        Map<String, Object> item = e.getItem();
+        Map<String, Object> respObj = new HashMap<>();
+        respObj.put("__type",
+                "com.amazonaws.dynamodb.v20120810#ConditionalCheckFailedException");
+        respObj.put("Message", "The conditional request failed");
+        if (item != null) {
+            respObj.put("Item", item);
+        }
+        return Response.status(Response.Status.BAD_REQUEST).entity(respObj).build();
     }
 
 }

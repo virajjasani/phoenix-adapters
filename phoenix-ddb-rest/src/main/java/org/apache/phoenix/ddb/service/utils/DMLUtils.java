@@ -5,6 +5,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -83,7 +84,8 @@ public class DMLUtils {
             if (!StringUtils.isEmpty(condExpr)) {
                 ConditionCheckFailedException conditionalCheckFailedException =
                         new ConditionCheckFailedException();
-                if (returnValuesOnConditionCheckFailure.equals("ALL_OLD") && !isDelete) {
+                if (returnValuesOnConditionCheckFailure != null
+                        && returnValuesOnConditionCheckFailure.equals("ALL_OLD") && !isDelete) {
                     conditionalCheckFailedException.setItem(
                             BsonDocumentToMap.getFullItem(rawBsonDocument));
                 }
@@ -92,6 +94,11 @@ public class DMLUtils {
         } else {
             if (returnValue.equals("ALL_NEW") || returnValue.equals("ALL_OLD")) {
                 returnAttrs = BsonDocumentToMap.getFullItem(rawBsonDocument);
+                if (isDelete) {
+                    Map<String, Object> tmpReturnAttrs = returnAttrs;
+                    returnAttrs = new HashMap<>();
+                    returnAttrs.put("Attributes", tmpReturnAttrs);
+                }
             }
         }
         return returnAttrs;
