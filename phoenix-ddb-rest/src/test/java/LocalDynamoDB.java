@@ -85,6 +85,10 @@ class LocalDynamoDB {
      */
     DynamoDbStreamsClient createV2StreamsClient() {
         String endpoint = String.format("http://localhost:%d", port);
+        return createV2StreamsClient(endpoint);
+    }
+
+    static DynamoDbStreamsClient createV2StreamsClient(String endpoint) {
         return DynamoDbStreamsClient.builder()
                 .endpointOverride(URI.create(endpoint))
                 .region(Region.US_EAST_1)

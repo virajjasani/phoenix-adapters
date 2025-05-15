@@ -15,7 +15,9 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.TimeZone;
 
 import static org.apache.phoenix.jdbc.PhoenixDatabaseMetaData.SYSTEM_CDC_STREAM_NAME;
@@ -68,6 +70,23 @@ public class DDBShimCDCUtils {
         }
         return keySchema;
     }
+
+    public static List<Map<String, Object>> getKeySchemaForRest(PTable table) {
+        List<Map<String, Object>> keySchemaList = new ArrayList<>();
+        List<PColumn> pkCols = table.getPKColumns();
+        Map<String, Object> hashKeyMap = new HashMap<>();
+        hashKeyMap.put("AttributeName", pkCols.get(0).getName().getString());
+        hashKeyMap.put("KeyType", KeyType.HASH);
+        keySchemaList.add(hashKeyMap);
+        if (pkCols.size() == 2) {
+            Map<String, Object> sortKeyMap = new HashMap<>();
+            sortKeyMap.put("AttributeName", pkCols.get(1).getName().getString());
+            sortKeyMap.put("KeyType", KeyType.RANGE);
+            keySchemaList.add(sortKeyMap);
+        }
+        return keySchemaList;
+    }
+
 
     /**
      * Get the STREAM_STATUS from SYSTEM.CDC_STREAM_STATUS for the given tableName and streamName.

@@ -7,6 +7,10 @@ import org.apache.hbase.thirdparty.javax.ws.rs.HeaderParam;
 import org.apache.hbase.thirdparty.javax.ws.rs.POST;
 import org.apache.hbase.thirdparty.javax.ws.rs.Path;
 import org.apache.hbase.thirdparty.javax.ws.rs.Produces;
+import org.apache.phoenix.ddb.service.DescribeStreamService;
+import org.apache.phoenix.ddb.service.GetRecordsService;
+import org.apache.phoenix.ddb.service.GetShardIteratorService;
+import org.apache.phoenix.ddb.service.ListStreamsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -117,6 +121,22 @@ public class RootResource {
                 }
                 case "DynamoDB_20120810.DescribeTimeToLive": {
                     responseObject = TTLService.describeTimeToLive(request, jdbcConnectionUrl);
+                    break;
+                }
+                case "DynamoDBStreams_20120810.ListStreams": {
+                    responseObject = ListStreamsService.listStreams(request, jdbcConnectionUrl);
+                    break;
+                }
+                case "DynamoDBStreams_20120810.DescribeStream": {
+                    responseObject = DescribeStreamService.describeStream(request, jdbcConnectionUrl);
+                    break;
+                }
+                case "DynamoDBStreams_20120810.GetShardIterator": {
+                    responseObject = GetShardIteratorService.getShardIterator(request, jdbcConnectionUrl);
+                    break;
+                }
+                case "DynamoDBStreams_20120810.GetRecords": {
+                    responseObject = GetRecordsService.getRecords(request, jdbcConnectionUrl);
                     break;
                 }
                 default: {
