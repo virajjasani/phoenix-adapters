@@ -123,7 +123,7 @@ public class CommonServiceUtils {
     }
 
     /**
-     * Enclose given argument within double quotes. This is used to escape column names in queries.
+     * Enclose given argument within double quotes. This is used to escape column/table names in queries.
      */
     public static String getEscapedArgument(String argument) {
         return DOUBLE_QUOTE + argument + DOUBLE_QUOTE;

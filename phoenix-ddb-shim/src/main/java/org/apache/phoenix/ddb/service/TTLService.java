@@ -20,7 +20,7 @@ import java.sql.SQLException;
 public class TTLService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TTLService.class);
-    private static final String ALTER_TTL_STMT = "ALTER TABLE %s SET TTL = '%s'";
+    private static final String ALTER_TTL_STMT = "ALTER TABLE \"%s\" SET TTL = '%s'";
 
     public static UpdateTimeToLiveResponse updateTimeToLive(UpdateTimeToLiveRequest request,
                                                             String connectionUrl) {

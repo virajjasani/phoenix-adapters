@@ -18,7 +18,6 @@ import org.apache.phoenix.jdbc.PhoenixDriver;
 import org.apache.phoenix.jdbc.PhoenixTestDriver;
 import org.apache.phoenix.query.QueryServices;
 import org.apache.phoenix.thirdparty.com.google.common.collect.Maps;
-import org.apache.phoenix.util.CDCUtil;
 import org.apache.phoenix.util.EnvironmentEdgeManager;
 import org.apache.phoenix.util.PhoenixRuntime;
 import org.apache.phoenix.util.ReadOnlyProps;
@@ -101,7 +100,7 @@ public class GetShardIteratorIT {
 
     @Test(timeout = 120000)
     public void testGetShardIterator() throws Exception {
-        String tableName = testName.getMethodName().toUpperCase();
+        String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "hashKey",
                         ScalarAttributeType.S, "sortKey", ScalarAttributeType.N);

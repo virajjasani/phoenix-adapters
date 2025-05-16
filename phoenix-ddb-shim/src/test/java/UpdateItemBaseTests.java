@@ -111,7 +111,7 @@ public class UpdateItemBaseTests {
      */
     @Test(timeout = 120000)
     public void testSet() {
-        final String tableName = testName.getMethodName().toUpperCase().replaceAll("[\\[\\]]", "");
+        final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
         createTableAndPutItem(tableName);
 
         // update item
@@ -139,7 +139,7 @@ public class UpdateItemBaseTests {
      */
     @Test(timeout = 120000)
     public void testRemove() {
-        final String tableName = testName.getMethodName().toUpperCase().replaceAll("[\\[\\]]", "");
+        final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
         createTableAndPutItem(tableName);
 
         // update item
@@ -168,7 +168,7 @@ public class UpdateItemBaseTests {
      */
     @Test(timeout = 120000)
     public void testAdd() {
-        final String tableName = testName.getMethodName().toUpperCase().replaceAll("[\\[\\]]", "");
+        final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
         createTableAndPutItem(tableName);
 
         // update item
@@ -197,7 +197,7 @@ public class UpdateItemBaseTests {
      */
     @Test(timeout = 120000)
     public void testDelete() {
-        final String tableName = testName.getMethodName().toUpperCase().replaceAll("[\\[\\]]", "");
+        final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
         createTableAndPutItem(tableName);
 
         // update item
@@ -218,7 +218,7 @@ public class UpdateItemBaseTests {
 
     @Test(timeout = 120000)
     public void testSetDelete() {
-        final String tableName = testName.getMethodName().toUpperCase().replaceAll("[\\[\\]]", "");
+        final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
         createTableAndPutItem(tableName);
 
         // update item
@@ -243,7 +243,7 @@ public class UpdateItemBaseTests {
 
     @Test(timeout = 120000)
     public void testRemoveAdd() {
-        final String tableName = testName.getMethodName().toUpperCase().replaceAll("[\\[\\]]", "");
+        final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
         createTableAndPutItem(tableName);
 
         // update item
@@ -269,7 +269,7 @@ public class UpdateItemBaseTests {
 
     @Test(timeout = 120000)
     public void testAddSetRemove() {
-        final String tableName = testName.getMethodName().toUpperCase().replaceAll("[\\[\\]]", "");
+        final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
         createTableAndPutItem(tableName);
 
         // update item
@@ -297,7 +297,7 @@ public class UpdateItemBaseTests {
 
     @Test(timeout = 120000)
     public void testDeleteRemoveSetAdd() {
-        final String tableName = testName.getMethodName().toUpperCase().replaceAll("[\\[\\]]", "");
+        final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
         createTableAndPutItem(tableName);
 
         // update item

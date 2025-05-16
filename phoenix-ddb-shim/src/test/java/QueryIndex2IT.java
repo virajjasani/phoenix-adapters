@@ -80,8 +80,8 @@ public class QueryIndex2IT {
     @Test(timeout = 120000)
     public void testPaginationWithLastKey() throws SQLException {
         // create table with keys [title, num]
-        final String tableName = testName.getMethodName().toUpperCase();
-        final String indexName = "G_IDX_" + tableName;
+        final String tableName = testName.getMethodName();
+        final String indexName = "G_iDX_" + tableName;
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "Title",
                         ScalarAttributeType.S, "num", ScalarAttributeType.N);
@@ -140,8 +140,8 @@ public class QueryIndex2IT {
     @Test(timeout = 120000)
     public void testFilterExpressionWithIndex() throws SQLException {
         // create table with keys [title, num]
-        final String tableName = testName.getMethodName().toUpperCase();
-        final String indexName = "G_IDX_" + tableName;
+        final String tableName = testName.getMethodName();
+        final String indexName = "G_IdX_" + tableName;
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "Title",
                         ScalarAttributeType.S, "num", ScalarAttributeType.N);
@@ -195,7 +195,7 @@ public class QueryIndex2IT {
     @Test(timeout = 120000)
     public void testScanIndexForward() throws SQLException {
         // create table with keys [title, num]
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         final String indexName = "G_IDX_" + tableName;
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "Title",
@@ -250,8 +250,8 @@ public class QueryIndex2IT {
     @Test(timeout = 120000)
     public void testIndexBeginsWith() throws SQLException {
         // create table with keys [title, num]
-        final String tableName = testName.getMethodName().toUpperCase();
-        final String indexName = "G_IDX_" + tableName;
+        final String tableName = testName.getMethodName();
+        final String indexName = "g_IDX_" + tableName;
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_1",
                         ScalarAttributeType.N, null, null);
@@ -302,7 +302,7 @@ public class QueryIndex2IT {
     @Test(timeout = 120000)
     public void testIndexBetween() throws SQLException {
         // create table with keys [title, num]
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         final String indexName = "G_IDX_" + tableName;
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "Title",
@@ -355,8 +355,8 @@ public class QueryIndex2IT {
     @Test(timeout = 120000)
     public void testProjectionScanIndexForwardFilterLimit() throws SQLException {
         // create table with keys [title, num]
-        final String tableName = testName.getMethodName().toUpperCase();
-        final String indexName = "G_IDX_" + tableName;
+        final String tableName = testName.getMethodName();
+        final String indexName = "G_iDX_" + tableName;
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "Title",
                         ScalarAttributeType.S, "num", ScalarAttributeType.N);

@@ -79,7 +79,7 @@ public class ScanTableIT {
     @Test(timeout = 120000)
     public void testScanAllRowsNoSortKey() {
         //create table
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, null, null);
@@ -122,7 +122,7 @@ public class ScanTableIT {
     @Test(timeout = 120000)
     public void testScanAllRowsWithProjection() {
         //create table
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, "attr_1", ScalarAttributeType.N);
@@ -180,7 +180,7 @@ public class ScanTableIT {
     @Test(timeout = 120000)
     public void testScanWithTopLevelAttributeFilter() {
         //create table
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, "attr_1", ScalarAttributeType.N);
@@ -219,7 +219,7 @@ public class ScanTableIT {
     @Test(timeout = 120000)
     public void testScanWithNestedAttributeFilter() {
         //create table
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, "attr_1", ScalarAttributeType.N);
@@ -266,7 +266,7 @@ public class ScanTableIT {
     @Test(timeout = 120000)
     public void testScanWithFilterAndPagination() {
         //create table
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, "attr_1", ScalarAttributeType.N);
@@ -320,7 +320,7 @@ public class ScanTableIT {
     @Test(timeout = 120000)
     public void testScanWithPaginationNoFilter() {
         //create table
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, "attr_1", ScalarAttributeType.N);
@@ -357,7 +357,7 @@ public class ScanTableIT {
     @Test(timeout = 120000)
     public void testScanWithPaginationNoSortKeyNoFilter() {
         //create table
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, null, null);
@@ -393,7 +393,7 @@ public class ScanTableIT {
 
     @Test(timeout = 120000)
     public void testScanFullTable() {
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "PK1",
                         ScalarAttributeType.S, "PK2", ScalarAttributeType.N);
@@ -427,7 +427,7 @@ public class ScanTableIT {
     @Test(timeout = 120000)
     public void testScanWithSegments() {
         //create table
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, null, null);

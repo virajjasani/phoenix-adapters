@@ -22,9 +22,9 @@ import java.util.Map;
 public class QueryService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(QueryService.class);
-    private static final String SELECT_QUERY = "SELECT COL FROM %s WHERE ";
+    private static final String SELECT_QUERY = "SELECT COL FROM \"%s\" WHERE ";
     private static final String SELECT_QUERY_WITH_INDEX_HINT
-            = "SELECT /*+ INDEX(%s %s) */ COL FROM %s WHERE ";
+            = "SELECT /*+ INDEX(\"%s\" \"%s\") */ COL FROM \"%s\" WHERE ";
 
     private static final int MAX_QUERY_LIMIT = 500;
 

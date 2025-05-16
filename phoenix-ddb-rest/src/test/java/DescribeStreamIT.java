@@ -102,7 +102,7 @@ public class DescribeStreamIT {
 
     @Test(timeout = 120000)
     public void testDescribeStreamWithSplit() throws Exception {
-        String tableName = testName.getMethodName().toUpperCase();
+        String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "hashKey",
                         ScalarAttributeType.S, "sortKey", ScalarAttributeType.N);

@@ -1,3 +1,22 @@
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.hbase.HBaseTestingUtility;
+import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.phoenix.ddb.bson.BsonDocumentToDdbAttributes;
+import org.apache.phoenix.ddb.rest.RESTServer;
+import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
+import org.apache.phoenix.jdbc.PhoenixDriver;
+import org.apache.phoenix.util.PhoenixRuntime;
+import org.apache.phoenix.util.ServerUtil;
+import org.bson.BsonDocument;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
@@ -8,28 +27,7 @@ import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 import software.amazon.awssdk.services.dynamodb.model.ReturnValuesOnConditionCheckFailure;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
-import org.apache.hadoop.hbase.HBaseTestingUtility;
-import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.phoenix.ddb.PhoenixDBClientV2;
-import org.apache.phoenix.ddb.bson.BsonDocumentToDdbAttributes;
-import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
-import org.apache.phoenix.jdbc.PhoenixDriver;
-import org.apache.phoenix.util.PhoenixRuntime;
-import org.apache.phoenix.util.ServerUtil;
 
-import org.bson.BsonDocument;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TestName;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -44,10 +42,12 @@ public class ConditionalPutItemIT {
 
     private final DynamoDbClient dynamoDbClient =
             LocalDynamoDbTestBase.localDynamoDb().createV2Client();
+    private static DynamoDbClient phoenixDBClientV2;
 
     private static String url;
     private static HBaseTestingUtility utility = null;
     private static String tmpDir;
+    private static RESTServer restServer = null;
 
     @Rule
     public final TestName testName = new TestName();
@@ -63,11 +63,20 @@ public class ConditionalPutItemIT {
         utility.startMiniCluster();
         String zkQuorum = "localhost:" + utility.getZkCluster().getClientPort();
         url = PhoenixRuntime.JDBC_PROTOCOL + PhoenixRuntime.JDBC_PROTOCOL_SEPARATOR + zkQuorum;
+
+        restServer = new RESTServer(utility.getConfiguration());
+        restServer.run();
+
+        LOGGER.info("started {} on port {}", restServer.getClass().getName(), restServer.getPort());
+        phoenixDBClientV2 = LocalDynamoDB.createV2Client("http://" + restServer.getServerAddress());
     }
 
     @AfterClass
-    public static void stopLocalDynamoDb() throws IOException, SQLException {
+    public static void stopLocalDynamoDb() throws Exception {
         LocalDynamoDbTestBase.localDynamoDb().stop();
+        if (restServer != null) {
+            restServer.stop();
+        }
         ServerUtil.ConnectionFactory.shutdown();
         try {
             DriverManager.deregisterDriver(PhoenixDriver.INSTANCE);
@@ -91,7 +100,6 @@ public class ConditionalPutItemIT {
         // add index on attr_1
         createTableRequest = DDLTestUtils.addIndexToRequest(true, createTableRequest, "G_IDX_" + tableName, "attr_1",
                 ScalarAttributeType.N, null, null);
-        PhoenixDBClientV2 phoenixDBClientV2 = new PhoenixDBClientV2(url);
         phoenixDBClientV2.createTable(createTableRequest);
         dynamoDbClient.createTable(createTableRequest);
 
@@ -142,13 +150,12 @@ public class ConditionalPutItemIT {
         // create table [attr_0, attr_1]
         final String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
-            DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
-                ScalarAttributeType.S, null, null);
+                DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
+                        ScalarAttributeType.S, null, null);
 
         // add index on attr_1
         createTableRequest = DDLTestUtils.addIndexToRequest(true, createTableRequest, "G_IDX_" + tableName, "attr_1",
-            ScalarAttributeType.N, null, null);
-        PhoenixDBClientV2 phoenixDBClientV2 = new PhoenixDBClientV2(url);
+                ScalarAttributeType.N, null, null);
         phoenixDBClientV2.createTable(createTableRequest);
         dynamoDbClient.createTable(createTableRequest);
 
@@ -177,12 +184,12 @@ public class ConditionalPutItemIT {
         exprAttrVals.put(":0", AttributeValue.builder().n("200").build());
         condPutRequest.expressionAttributeValues(exprAttrVals);
         condPutRequest.returnValuesOnConditionCheckFailure(
-            ReturnValuesOnConditionCheckFailure.ALL_OLD);
+                ReturnValuesOnConditionCheckFailure.ALL_OLD);
 
         try {
             phoenixDBClientV2.putItem(condPutRequest.build());
             Assert.fail(
-                "PutItem should throw exception when condition check fails.");
+                    "PutItem should throw exception when condition check fails.");
         } catch (ConditionalCheckFailedException e) {
             Assert.assertEquals(item1, e.item());
         }
@@ -196,7 +203,7 @@ public class ConditionalPutItemIT {
     }
 
     private void verifyResult1(String tableName, Map<String, AttributeValue> item1)
-        throws SQLException {
+            throws SQLException {
         //query from dynamo
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
         qr.keyConditionExpression("attr_0 = :v");
@@ -210,12 +217,12 @@ public class ConditionalPutItemIT {
         // check phoenix row, there should be no update
         try (Connection connection = DriverManager.getConnection(url)) {
             ResultSet rs = connection.createStatement()
-                .executeQuery("SELECT * FROM \"" + tableName + "\" WHERE \"attr_0\" = 'val1'");
+                    .executeQuery("SELECT * FROM \"" + tableName + "\" WHERE \"attr_0\" = 'val1'");
             Assert.assertTrue(rs.next());
             BsonDocument rowBsonDoc = (BsonDocument) rs.getObject(2);
             Assert.assertEquals(rowBsonDoc.get("attr_1").asInt32().getValue(), 123);
             Map<String, AttributeValue> phoenixItem =
-                BsonDocumentToDdbAttributes.getFullItem(rowBsonDoc);
+                    BsonDocumentToDdbAttributes.getFullItem(rowBsonDoc);
             Assert.assertEquals(phoenixItem, dynamoItem);
 
             //check no update to index row [123, val1, (val1, 123)]
@@ -224,7 +231,7 @@ public class ConditionalPutItemIT {
             Assert.assertEquals(rs.getLong(1), Long.parseLong(item1.get("attr_1").n()));
             Assert.assertEquals(rs.getString(2), item1.get("attr_0").s());
             Map<String, AttributeValue> indexRowItem =
-                BsonDocumentToDdbAttributes.getFullItem((BsonDocument) rs.getObject(3));
+                    BsonDocumentToDdbAttributes.getFullItem((BsonDocument) rs.getObject(3));
             Assert.assertEquals(indexRowItem, item1);
             Assert.assertEquals(indexRowItem, dynamoItem);
         }
@@ -237,7 +244,6 @@ public class ConditionalPutItemIT {
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, null, null);
-        PhoenixDBClientV2 phoenixDBClientV2 = new PhoenixDBClientV2(url);
         phoenixDBClientV2.createTable(createTableRequest);
         dynamoDbClient.createTable(createTableRequest);
 
@@ -301,7 +307,6 @@ public class ConditionalPutItemIT {
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, null, null);
-        PhoenixDBClientV2 phoenixDBClientV2 = new PhoenixDBClientV2(url);
         phoenixDBClientV2.createTable(createTableRequest);
         dynamoDbClient.createTable(createTableRequest);
 
@@ -359,9 +364,8 @@ public class ConditionalPutItemIT {
         //create table
         final String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
-            DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
-                ScalarAttributeType.B, "pk2", ScalarAttributeType.B);
-        PhoenixDBClientV2 phoenixDBClientV2 = new PhoenixDBClientV2(url);
+                DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
+                        ScalarAttributeType.B, "pk2", ScalarAttributeType.B);
         phoenixDBClientV2.createTable(createTableRequest);
         dynamoDbClient.createTable(createTableRequest);
 
@@ -377,7 +381,7 @@ public class ConditionalPutItemIT {
         PutItemRequest.Builder condPutRequest = PutItemRequest.builder().tableName(tableName).item(item2);
         // expression
         condPutRequest.conditionExpression("#0 = :0 AND #1 = :1 AND #2 = :2 AND #3 = :3 AND " +
-            "attribute_not_exists(#4) AND attribute_not_exists(#5)");
+                "attribute_not_exists(#4) AND attribute_not_exists(#5)");
         // expression names
         Map<String, String> exprAttrNames = new HashMap<>();
         exprAttrNames.put("#0", "attr_1");
@@ -410,11 +414,11 @@ public class ConditionalPutItemIT {
         }
 
         verifyResult2(tableName,
-            AttributeValue.builder().b(SdkBytes.fromByteArray(Bytes.toBytes("str_val_0"))).build(), 3, item1);
+                AttributeValue.builder().b(SdkBytes.fromByteArray(Bytes.toBytes("str_val_0"))).build(), 3, item1);
     }
 
     private void verifyResult2(String tableName, AttributeValue str_val_0, int columnIndex,
-        Map<String, AttributeValue> item1) throws SQLException {
+                               Map<String, AttributeValue> item1) throws SQLException {
         //query from dynamo
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
         qr.keyConditionExpression("attr_0 = :val");
@@ -428,10 +432,10 @@ public class ConditionalPutItemIT {
         // check phoenix row, there should be no update to the row
         try (Connection connection = DriverManager.getConnection(url)) {
             ResultSet rs = connection.createStatement()
-                .executeQuery("SELECT * FROM \"" + tableName + "\" WHERE \"attr_0\" = 'str_val_0'");
+                    .executeQuery("SELECT * FROM \"" + tableName + "\" WHERE \"attr_0\" = 'str_val_0'");
             Assert.assertTrue(rs.next());
             Map<String, AttributeValue> phoenixItem =
-                BsonDocumentToDdbAttributes.getFullItem((BsonDocument) rs.getObject(columnIndex));
+                    BsonDocumentToDdbAttributes.getFullItem((BsonDocument) rs.getObject(columnIndex));
             Assert.assertEquals(item1, phoenixItem);
 
             //TODO: uncomment when we have utility to compare sets
@@ -444,9 +448,8 @@ public class ConditionalPutItemIT {
         //create table
         final String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
-            DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
-                ScalarAttributeType.B, "pk2", ScalarAttributeType.B);
-        PhoenixDBClientV2 phoenixDBClientV2 = new PhoenixDBClientV2(url);
+                DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
+                        ScalarAttributeType.B, "pk2", ScalarAttributeType.B);
         phoenixDBClientV2.createTable(createTableRequest);
         dynamoDbClient.createTable(createTableRequest);
 
@@ -462,7 +465,7 @@ public class ConditionalPutItemIT {
         PutItemRequest.Builder condPutRequest = PutItemRequest.builder().tableName(tableName).item(item2);
         // expression
         condPutRequest.conditionExpression("#0 = :0 AND #1 = :1 AND #2 = :2 AND #3 = :3 AND " +
-            "attribute_not_exists(#4) AND attribute_not_exists(#5)");
+                "attribute_not_exists(#4) AND attribute_not_exists(#5)");
         // expression names
         Map<String, String> exprAttrNames = new HashMap<>();
         exprAttrNames.put("#0", "attr_1");
@@ -480,7 +483,7 @@ public class ConditionalPutItemIT {
         exprAttrVals.put(":3", AttributeValue.builder().bool(false).build());
         condPutRequest.expressionAttributeValues(exprAttrVals);
         condPutRequest.returnValuesOnConditionCheckFailure(
-            ReturnValuesOnConditionCheckFailure.ALL_OLD);
+                ReturnValuesOnConditionCheckFailure.ALL_OLD);
 
         try {
             dynamoDbClient.putItem(condPutRequest.build());
@@ -498,7 +501,7 @@ public class ConditionalPutItemIT {
 
         //query from dynamo
         verifyResult2(tableName,
-            AttributeValue.builder().b(SdkBytes.fromByteArray(Bytes.toBytes("str_val_0"))).build(), 3, item1);
+                AttributeValue.builder().b(SdkBytes.fromByteArray(Bytes.toBytes("str_val_0"))).build(), 3, item1);
     }
 
     @Test(timeout = 120000)
@@ -511,7 +514,6 @@ public class ConditionalPutItemIT {
         // add index on Id2
         createTableRequest = DDLTestUtils.addIndexToRequest(true, createTableRequest, "G_IDX_" + tableName, "Id2",
                 ScalarAttributeType.N, null, null);
-        PhoenixDBClientV2 phoenixDBClientV2 = new PhoenixDBClientV2(url);
         phoenixDBClientV2.createTable(createTableRequest);
         dynamoDbClient.createTable(createTableRequest);
 
@@ -580,4 +582,5 @@ public class ConditionalPutItemIT {
             //Assert.assertEquals(dynamoItem, indexRowItem);
         }
     }
+
 }

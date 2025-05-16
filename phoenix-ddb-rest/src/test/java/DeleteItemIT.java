@@ -97,7 +97,7 @@ public class DeleteItemIT {
 
     @Test(timeout = 120000)
     public void testWithOnlyPartitionKey() throws Exception {
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         //create table
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "ForumName", ScalarAttributeType.S,
@@ -131,7 +131,7 @@ public class DeleteItemIT {
 
     @Test(timeout = 120000)
     public void testWithBothPartitionAndSortKey() throws Exception {
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         //create table
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "ForumName", ScalarAttributeType.S,
@@ -167,7 +167,7 @@ public class DeleteItemIT {
 
     @Test(timeout = 120000)
     public void testSortKeyNotFound() throws Exception {
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         //create table
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "ForumName", ScalarAttributeType.S,
@@ -194,7 +194,7 @@ public class DeleteItemIT {
         //since item was not deleted we will still see 1 item in the table
         try (Connection connection = DriverManager.getConnection(url)) {
             ResultSet rs =
-                    connection.createStatement().executeQuery("SELECT COUNT(*) FROM " + tableName);
+                    connection.createStatement().executeQuery("SELECT COUNT(*) FROM \"" + tableName + "\"");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(1, rs.getInt(1));
         }
@@ -202,7 +202,7 @@ public class DeleteItemIT {
 
     @Test(timeout = 120000)
     public void testBothKeysNotFound() throws Exception {
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         //create table
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "ForumName", ScalarAttributeType.S,
@@ -230,7 +230,7 @@ public class DeleteItemIT {
         //since item was not deleted we will still see 1 item in the table
         try (Connection connection = DriverManager.getConnection(url)) {
             ResultSet rs =
-                    connection.createStatement().executeQuery("SELECT COUNT(*) FROM " + tableName);
+                    connection.createStatement().executeQuery("SELECT COUNT(*) FROM \"" + tableName + "\"");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(1, rs.getInt(1));
         }
@@ -239,7 +239,7 @@ public class DeleteItemIT {
 
     @Test(timeout = 120000)
     public void testConditionalCheckSuccessWithReturnValue() {
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         //create table
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "ForumName", ScalarAttributeType.S,
@@ -283,7 +283,7 @@ public class DeleteItemIT {
 
     @Test(timeout = 120000)
     public void testConditionalCheckFailureWithReturnValue() {
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         //create table
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "ForumName", ScalarAttributeType.S,
@@ -336,7 +336,7 @@ public class DeleteItemIT {
 
     @Test(timeout = 120000)
     public void testWithReturnValuesOnConditionCheckFailure() {
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         //create table
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "ForumName", ScalarAttributeType.S,
@@ -390,7 +390,7 @@ public class DeleteItemIT {
 
     @Test(timeout = 120000)
     public void testConcurrentConditionalUpdateWithReturnValues() {
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         //create table
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "ForumName", ScalarAttributeType.S,

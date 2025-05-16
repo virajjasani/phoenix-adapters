@@ -75,7 +75,7 @@ public class GetItemIT {
 
     @Test(timeout = 120000)
     public void testWithPartitionAndSortCol() throws Exception {
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         //create table
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "ForumName",
@@ -103,7 +103,7 @@ public class GetItemIT {
 
     @Test(timeout = 120000)
     public void testWithOnlyPartitionCol() throws Exception {
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         //create table
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "ForumName",
@@ -130,7 +130,7 @@ public class GetItemIT {
 
     @Test(timeout = 120000)
     public void testWithTwoItemsHavingSamePartitionColNames() throws Exception {
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         //create table
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "ForumName",

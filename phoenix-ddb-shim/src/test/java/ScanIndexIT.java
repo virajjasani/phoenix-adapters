@@ -77,8 +77,8 @@ public class ScanIndexIT {
     @Test(timeout = 120000)
     public void testScanIndexOnlyHashKey() throws SQLException {
         //create table
-        final String tableName = testName.getMethodName().toUpperCase();
-        final String indexName = "G_IDX" + tableName;
+        final String tableName = testName.getMethodName();
+        final String indexName = "G_IdX" + tableName;
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, "attr_1", ScalarAttributeType.N);
@@ -126,8 +126,8 @@ public class ScanIndexIT {
     @Test(timeout = 120000)
     public void testScanIndexBothKeys() throws SQLException {
         //create table
-        final String tableName = testName.getMethodName().toUpperCase();
-        final String indexName = "G_IDX" + tableName;
+        final String tableName = testName.getMethodName();
+        final String indexName = "G_IDx" + tableName;
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, "attr_1", ScalarAttributeType.N);
@@ -177,8 +177,8 @@ public class ScanIndexIT {
     @Test(timeout = 120000)
     public void testScanIndexWithPagination() throws SQLException {
         //create table
-        final String tableName = testName.getMethodName().toUpperCase();
-        final String indexName = "G_IDX" + tableName;
+        final String tableName = testName.getMethodName();
+        final String indexName = "g_IDX" + tableName;
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, "attr_1", ScalarAttributeType.N);

@@ -50,6 +50,9 @@ public class BatchGetItemIT {
     @Rule
     public final TestName testName = new TestName();
 
+    final static String tableName1 = "FoRum";
+    final static String tableName2 = "dataBase";
+
     @BeforeClass
     public static void initialize() throws Exception {
         tmpDir = System.getProperty("java.io.tmpdir");
@@ -62,8 +65,7 @@ public class BatchGetItemIT {
         String zkQuorum = "localhost:" + utility.getZkCluster().getClientPort();
         url = PhoenixRuntime.JDBC_PROTOCOL + PhoenixRuntime.JDBC_PROTOCOL_SEPARATOR + zkQuorum;
 
-        final String tableName1 = "FORUM";
-        final String tableName2 = "DATABASE";
+
 
         //create table
         CreateTableRequest createTableRequest1 =
@@ -136,7 +138,7 @@ public class BatchGetItemIT {
                 .keys(forumKeys)
                 .projectionExpression("ForumName, Threads, Messages")
                 .build();
-        requestItems.put("FORUM", forForum);
+        requestItems.put(tableName1, forForum);
 
         //making keys for DATABASE table
         Map<String, AttributeValue> key3 = new HashMap<>();
@@ -154,7 +156,7 @@ public class BatchGetItemIT {
                 .keys(databaseKeys)
                 .projectionExpression("Tags, Message")
                 .build();
-        requestItems.put("DATABASE", forDatabase);
+        requestItems.put(tableName2, forDatabase);
         BatchGetItemRequest gI = BatchGetItemRequest.builder()
                 .requestItems(requestItems)
                 .build();
@@ -187,7 +189,7 @@ public class BatchGetItemIT {
         String projectionExprForForum = "ForumName, Threads, Messages";
         forForum.projectionExpression(projectionExprForForum);
         //putting the KeyAndAttribute object with the table name in the BatchGetItem request
-        requestItems.put("FORUM", forForum.build());
+        requestItems.put(tableName1, forForum.build());
 
         //making keys for DATABASE table
         Map<String, AttributeValue> key3 = new HashMap<>();
@@ -205,7 +207,7 @@ public class BatchGetItemIT {
         String projectionExprForDatabase = "Tags, Message";
         forDatabase.projectionExpression(projectionExprForDatabase);
         //putting the KeyAndAttribute object with the table name in the BatchGetItem request
-        requestItems.put("DATABASE", forDatabase.build());
+        requestItems.put(tableName2, forDatabase.build());
 
         BatchGetItemRequest gI = BatchGetItemRequest.builder().requestItems(requestItems).build();
         BatchGetItemResponse dynamoResult = dynamoDbClient.batchGetItem(gI);
@@ -234,7 +236,7 @@ public class BatchGetItemIT {
         String projectionExprForForum = "ForumName, Threads, Messages";
         forForum.projectionExpression(projectionExprForForum);
         //putting the KeyAndAttribute object with the table name in the BatchGetItem request
-        requestItems.put("FORUM", forForum.build());
+        requestItems.put(tableName1, forForum.build());
 
         //making keys for DATABASE table which doesn't exist
         Map<String, AttributeValue> key3 = new HashMap<>();
@@ -254,7 +256,7 @@ public class BatchGetItemIT {
         String projectionExprForDatabase = "Tags, Message";
         forDatabase.projectionExpression(projectionExprForDatabase);
         //putting the KeyAndAttribute object with the table name in the BatchGetItem request
-        requestItems.put("DATABASE", forDatabase.build());
+        requestItems.put(tableName2, forDatabase.build());
 
         BatchGetItemRequest gI = BatchGetItemRequest.builder().requestItems(requestItems).build();
         BatchGetItemResponse dynamoResult = dynamoDbClient.batchGetItem(gI);
@@ -292,7 +294,7 @@ public class BatchGetItemIT {
         forForum.projectionExpression(projectionExpr);
 
         //putting the KeyAndAttribute object with the table name in the BatchGetItem request
-        requestItems.put("FORUM", forForum.build());
+        requestItems.put(tableName1, forForum.build());
 
         BatchGetItemRequest gI = BatchGetItemRequest.builder().requestItems(requestItems).build();
         BatchGetItemResponse dynamoResult = dynamoDbClient.batchGetItem(gI);
@@ -329,7 +331,7 @@ public class BatchGetItemIT {
         forForum.projectionExpression(projectionExpr);
 
         //putting the KeyAndAttribute object with the table name in the BatchGetItem request
-        requestItems.put("FORUM", forForum.build());
+        requestItems.put(tableName1, forForum.build());
 
         //making keys for DATABASE table
         Map<String, AttributeValue> key3 = new HashMap<>();
@@ -347,15 +349,15 @@ public class BatchGetItemIT {
         String projectionExprForDatabase = "Tags, Message";
         forDatabase.projectionExpression(projectionExprForDatabase);
         //putting the KeyAndAttribute object with the table name in the BatchGetItem request
-        requestItems.put("DATABASE", forDatabase.build());
+        requestItems.put(tableName2, forDatabase.build());
 
         BatchGetItemRequest gI = BatchGetItemRequest.builder().requestItems(requestItems).build();
         //we dont test dynamo result here since it gives exception on duplicate keys
         BatchGetItemResponse phoenixResult = phoenixDBClientV2.batchGetItem(gI);
         //since 102 keys were sent in the request, we expect 2 keys to not be processed for FORUM table
-        Assert.assertEquals(2, phoenixResult.unprocessedKeys().get("FORUM").keys().size());
+        Assert.assertEquals(2, phoenixResult.unprocessedKeys().get(tableName1).keys().size());
         //since 1 key was sent in the request, we expect DATABASE table to not be in the unprocessed key set
-        Assert.assertFalse(phoenixResult.unprocessedKeys().containsKey("DATABASE"));
+        Assert.assertFalse(phoenixResult.unprocessedKeys().containsKey(tableName2));
 
         //doing batch get item request on the unprocessed request that was returned
         BatchGetItemRequest gI2 = BatchGetItemRequest.builder().requestItems(phoenixResult.unprocessedKeys()).build();

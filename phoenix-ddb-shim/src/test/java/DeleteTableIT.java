@@ -99,5 +99,35 @@ public class DeleteTableIT {
         DDLTestUtils.assertTableDescriptions(tableDescription1, tableDescription2);
 
     }
+
+    @Test(timeout = 120000)
+    public void deleteTableTestWithMixedCaseTableName() throws Exception {
+        final String tableName = testName.getMethodName();
+        //create table request
+        CreateTableRequest createTableRequest =
+                DDLTestUtils.getCreateTableRequest(tableName, "PK1",
+                        ScalarAttributeType.B, "PK2", ScalarAttributeType.S);
+        //creating table for aws
+        dynamoDbClient.createTable(createTableRequest);
+        //creating table for phoenix
+        PhoenixDBClientV2 phoenixDBClientV2 = new PhoenixDBClientV2(url);
+        phoenixDBClientV2.createTable(createTableRequest);
+
+        //delete table request
+        DeleteTableRequest deleteTableRequest = DeleteTableRequest.builder().tableName(tableName).build();
+
+        //delete table for aws
+        DeleteTableResponse DeleteTableResponse1 = dynamoDbClient.deleteTable(deleteTableRequest);
+        //delete table for phoenix
+        DeleteTableResponse DeleteTableResponse2 = phoenixDBClientV2.deleteTable(deleteTableRequest);
+
+        LOGGER.info("Delete Table response from DynamoDB: {}", DeleteTableResponse1.toString());
+        LOGGER.info("Delete Table response from Phoenix: {}", DeleteTableResponse2.toString());
+
+        TableDescription tableDescription1 = DeleteTableResponse1.tableDescription();
+        TableDescription tableDescription2 = DeleteTableResponse2.tableDescription();
+        DDLTestUtils.assertTableDescriptions(tableDescription1, tableDescription2);
+
+    }
 }
 

@@ -235,6 +235,33 @@ public class CreateTableIT {
     }
 
     @Test(timeout = 120000)
+    public void createTableTestCaseSensitiveNames() throws Exception {
+        final String tableName = testName.getMethodName();
+        // create table request
+        CreateTableRequest createTableRequest =
+                DDLTestUtils.getCreateTableRequest(tableName, "PK1",
+                        ScalarAttributeType.B, "PK2", ScalarAttributeType.S);
+
+        // add global index
+        createTableRequest = DDLTestUtils.addIndexToRequest(true, createTableRequest, "idx1_" + tableName, "COL1",
+                ScalarAttributeType.N, "COL2", ScalarAttributeType.B);
+
+        // add local index
+        createTableRequest = DDLTestUtils.addIndexToRequest(false, createTableRequest, "idx2_" + tableName, "PK1",
+                ScalarAttributeType.B, "LCOL2", ScalarAttributeType.S);
+
+        CreateTableResponse CreateTableResponse1 = dynamoDbClient.createTable(createTableRequest);
+        CreateTableResponse CreateTableResponse2 = phoenixDBClientV2.createTable(createTableRequest);
+
+        LOGGER.info("Create Table response from DynamoDB: {}", CreateTableResponse1.toString());
+        LOGGER.info("Create Table response from Phoenix: {}", CreateTableResponse2.toString());
+
+        TableDescription tableDescription1 = CreateTableResponse1.tableDescription();
+        TableDescription tableDescription2 = CreateTableResponse2.tableDescription();
+        DDLTestUtils.assertTableDescriptions(tableDescription1, tableDescription2);
+    }
+
+    @Test(timeout = 120000)
     public void createTableWithStreamTest() throws Exception {
         String tableName = testName.getMethodName().toUpperCase();
         // create table request

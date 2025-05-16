@@ -108,7 +108,7 @@ public class GetRecordsShardLineageIT extends GetRecordsBaseTest {
 
     @Test(timeout = 120000)
     public void testGetRecordsWithPartitionSplit() throws Exception {
-        final String tableName = "MYTABLE";
+        final String tableName = "myTable";
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "PK1",
                         ScalarAttributeType.S, "PK2", ScalarAttributeType.N);

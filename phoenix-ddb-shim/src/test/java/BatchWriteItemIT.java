@@ -84,7 +84,7 @@ public class BatchWriteItemIT {
 
     @Test
     public void testBatchWritesOneTable() {
-        String tableName = testName.getMethodName().toUpperCase();
+        String tableName = testName.getMethodName();
         createTable1(tableName);
         putItem(tableName, getItem1());
         putItem(tableName, getItem2());
@@ -105,7 +105,7 @@ public class BatchWriteItemIT {
 
     @Test
     public void testBatchWritesTwoTables() {
-        String testname = testName.getMethodName().toUpperCase();
+        String testname = testName.getMethodName();
         String tableName1 = testname + "_1";
         String tableName2 = testname + "_2";
         createTable1(tableName1);
@@ -142,7 +142,7 @@ public class BatchWriteItemIT {
 
     @Test
     public void testUnprocessedKeys() {
-        String testname = testName.getMethodName().toUpperCase();
+        String testname = testName.getMethodName();
         String tableName1 = testname + "_1";
         String tableName2 = testname + "_2";
         createTable1(tableName1);

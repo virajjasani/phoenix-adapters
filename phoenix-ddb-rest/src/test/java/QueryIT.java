@@ -86,7 +86,7 @@ public class QueryIT {
     @Test(timeout = 120000)
     public void queryLimitAndFilterTest() throws Exception {
         //create table
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, "attr_1", ScalarAttributeType.N);
@@ -140,7 +140,7 @@ public class QueryIT {
     @Test(timeout = 120000)
     public void queryBetweenTest() throws Exception {
         //create table
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, "attr_1", ScalarAttributeType.N);
@@ -189,7 +189,7 @@ public class QueryIT {
     @Test(timeout = 120000)
     public void queryBeginsWithTest() throws Exception {
         //create table
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, "title", ScalarAttributeType.S);
@@ -234,7 +234,7 @@ public class QueryIT {
     @Test(timeout = 120000)
     public void queryBinaryBeginsWithTest() throws Exception {
         //create table
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, "title", ScalarAttributeType.B);
@@ -284,7 +284,7 @@ public class QueryIT {
     @Test(timeout = 120000)
     public void querySimpleProjectionTest() throws Exception {
         //create table
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, null, null);
@@ -325,7 +325,7 @@ public class QueryIT {
     @Test(timeout = 120000)
     public void queryScanIndexForwardTest() throws Exception {
         //create table
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, "attr_1", ScalarAttributeType.N);
@@ -375,7 +375,7 @@ public class QueryIT {
     @Test(timeout = 120000)
     public void queryLastEvaluatedKeyPagingWithHashSortKeysTest() throws Exception {
         //create table
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, "attr_1", ScalarAttributeType.N);
@@ -448,7 +448,7 @@ public class QueryIT {
     @Test(timeout = 120000)
     public void queryLastEvaluatedKeyPagingWithHashKeyTest() throws Exception {
         //create table
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, "attr_1", ScalarAttributeType.N);

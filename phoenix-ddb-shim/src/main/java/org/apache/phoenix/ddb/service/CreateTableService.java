@@ -49,8 +49,8 @@ public class CreateTableService {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(CreateTableService.class);
 
-  private static final String CREATE_CDC_DDL = "CREATE CDC CDC_%s on %s";
-  private static final String ALTER_TABLE_STREAM_TYPE_DDL = "ALTER TABLE %s set SCHEMA_VERSION = '%s'";
+  private static final String CREATE_CDC_DDL = "CREATE CDC \"CDC_%s\" on \"%s\"";
+  private static final String ALTER_TABLE_STREAM_TYPE_DDL = "ALTER TABLE \"%s\" set SCHEMA_VERSION = '%s'";
 
   public static CreateTableResponse getCreateTableResponse(final String tableName,
       final String connectionUrl) {
@@ -125,8 +125,8 @@ public class CreateTableService {
       }
 
       indexDDLs.add(
-              "CREATE INDEX " + indexName + " ON " + request.tableName()
-                      + " (" + indexOn + ") INCLUDE (COL) WHERE " + indexHashKey + " IS NOT " +
+              "CREATE INDEX \"" + indexName + "\" ON \"" + request.tableName()
+                      + "\" (" + indexOn + ") INCLUDE (COL) WHERE " + indexHashKey + " IS NOT " +
                       "NULL" + ((indexSortKey != null) ? " AND " + indexSortKey + " IS NOT " +
                       "NULL" : ""));
   }
@@ -248,7 +248,7 @@ public class CreateTableService {
               .append(")");
 
       String createTableDDL
-              = "CREATE TABLE " + tableName + " (" + cols + ") " + PhoenixUtils.getTableOptions();
+              = "CREATE TABLE \"" + tableName + "\" (" + cols + ") " + PhoenixUtils.getTableOptions();
       LOGGER.info("Create Table Query: " + createTableDDL);
 
       List<String> createIndexDDLs = getIndexDDLs(request, pkColsSet);

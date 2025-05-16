@@ -31,7 +31,7 @@ public class UpdateItemIT extends UpdateItemBaseTests {
 
     @Test(timeout = 120000)
     public void testConditionalCheckSuccess() {
-        final String tableName = testName.getMethodName().toUpperCase().replaceAll("[\\[\\]]", "");
+        final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
         createTableAndPutItem(tableName);
 
         // update item
@@ -62,7 +62,7 @@ public class UpdateItemIT extends UpdateItemBaseTests {
 
     @Test(timeout = 120000)
     public void testConditionalCheckFailure() {
-        final String tableName = testName.getMethodName().toUpperCase().replaceAll("[\\[\\]]", "");
+        final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
         createTableAndPutItem(tableName);
         // update item
         Map<String, AttributeValue> key = getKey();
@@ -95,7 +95,7 @@ public class UpdateItemIT extends UpdateItemBaseTests {
 
     @Test(timeout = 120000)
     public void testConditionalCheckFailureReturnValue() {
-        final String tableName = testName.getMethodName().toUpperCase().replaceAll("[\\[\\]]", "");
+        final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
         createTableAndPutItem(tableName);
         // update item
         Map<String, AttributeValue> key = getKey();
@@ -128,7 +128,7 @@ public class UpdateItemIT extends UpdateItemBaseTests {
 
     @Test(timeout = 120000)
     public void testConcurrentConditionalUpdateWithReturnValues() {
-        final String tableName = testName.getMethodName().toUpperCase().replaceAll("[\\[\\]]", "");
+        final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
         createTableAndPutItem(tableName);
 
         ExecutorService executorService = Executors.newFixedThreadPool(5);

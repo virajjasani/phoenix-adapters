@@ -34,7 +34,7 @@ public class GetRecordsService {
     private static final Logger LOGGER = LoggerFactory.getLogger(GetRecordsService.class);
 
     private static String GET_RECORDS_QUERY = "SELECT /*+ CDC_INCLUDE(PRE, POST) */ * " +
-            " FROM %s WHERE PARTITION_ID() = ? " +
+            " FROM \"%s\" WHERE PARTITION_ID() = ? " +
             " AND PHOENIX_ROW_TIMESTAMP() >= CAST(CAST(? AS BIGINT) AS TIMESTAMP) LIMIT ? ";
 
     private static final int MAX_GET_RECORDS_LIMIT = 1000;

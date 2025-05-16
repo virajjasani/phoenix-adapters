@@ -25,22 +25,22 @@ public class UpdateItemService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(UpdateItemService.class);
 
-    private static final String UPDATE_WITH_HASH_KEY = "UPSERT INTO %s VALUES (?) " +
+    private static final String UPDATE_WITH_HASH_KEY = "UPSERT INTO \"%s\" VALUES (?) " +
             " ON DUPLICATE KEY UPDATE\n" +
             " COL = BSON_UPDATE_EXPRESSION(COL,'%s')";
 
-    private static final String UPDATE_WITH_HASH_SORT_KEY = "UPSERT INTO %s VALUES (?,?) " +
+    private static final String UPDATE_WITH_HASH_SORT_KEY = "UPSERT INTO \"%s\" VALUES (?,?) " +
             " ON DUPLICATE KEY UPDATE\n" +
             " COL = BSON_UPDATE_EXPRESSION(COL,'%s')";
 
-    private static final String CONDITIONAL_UPDATE_WITH_HASH_KEY = "UPSERT INTO %s VALUES (?) " +
+    private static final String CONDITIONAL_UPDATE_WITH_HASH_KEY = "UPSERT INTO \"%s\" VALUES (?) " +
             " ON DUPLICATE KEY UPDATE\n" +
             " COL = CASE WHEN BSON_CONDITION_EXPRESSION(COL,'%s') " +
             " THEN BSON_UPDATE_EXPRESSION(COL,'%s') \n" +
             " ELSE COL END";
 
     private static final String
-            CONDITIONAL_UPDATE_WITH_HASH_SORT_KEY = "UPSERT INTO %s VALUES (?,?) " +
+            CONDITIONAL_UPDATE_WITH_HASH_SORT_KEY = "UPSERT INTO \"%s\" VALUES (?,?) " +
             " ON DUPLICATE KEY UPDATE\n" +
             " COL = CASE WHEN BSON_CONDITION_EXPRESSION(COL,'%s') " +
             " THEN BSON_UPDATE_EXPRESSION(COL,'%s') \n" +

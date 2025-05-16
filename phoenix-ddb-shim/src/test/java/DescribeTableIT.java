@@ -111,7 +111,7 @@ public class DescribeTableIT {
 
     @Test(timeout = 120000)
     public void describeTableWithStreamTest() throws Exception {
-        String tableName = testName.getMethodName().toUpperCase();
+        String tableName = testName.getMethodName();
         // create table request
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "hashKey",

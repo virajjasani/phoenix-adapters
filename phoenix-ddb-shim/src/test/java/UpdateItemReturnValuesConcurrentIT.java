@@ -119,7 +119,7 @@ public class UpdateItemReturnValuesConcurrentIT {
 
     @Test(timeout = 120000)
     public void test() {
-        final String tableName = testName.getMethodName().toUpperCase().replaceAll("[\\[\\]]", "");
+        final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
         createTableAndPutItem(tableName);
         UpdateItemRequest uir = getUpdateItemRequest(tableName);
         int[] dynamoResult = getUpdateAndErrorCounts(uir, dynamoDbClient);

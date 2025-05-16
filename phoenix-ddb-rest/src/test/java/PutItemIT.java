@@ -91,7 +91,7 @@ public class PutItemIT {
     @Test(timeout = 120000)
     public void putItemHashKeyTest() throws Exception {
         //create table
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, null, null);
@@ -117,7 +117,7 @@ public class PutItemIT {
 
         // query phoenix and compare row to item
         try (Connection connection = DriverManager.getConnection(url)) {
-            ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM " + tableName);
+            ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM \"" + tableName + "\"");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getString(1), item.get("attr_0").s());
             BsonDocument bsonDoc = (BsonDocument) rs.getObject(2);
@@ -134,7 +134,7 @@ public class PutItemIT {
     @Test(timeout = 120000)
     public void putItemHashRangeKeyTest() throws Exception {
         //create table
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, "attr_1", ScalarAttributeType.N);
@@ -160,7 +160,7 @@ public class PutItemIT {
 
         // query phoenix and compare row to item
         try (Connection connection = DriverManager.getConnection(url)) {
-            ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM " + tableName);
+            ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM \"" + tableName + "\"");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getString(1), item.get("attr_0").s());
             Assert.assertEquals(rs.getDouble(2), Double.parseDouble(item.get("attr_1").n()), 0.0);
@@ -176,12 +176,12 @@ public class PutItemIT {
     @Test(timeout = 120000)
     public void putItemWithGlobalIndexWithHashKeyTest() throws Exception {
         // create table
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, "attr_1", ScalarAttributeType.N);
         // add index on Title
-        createTableRequest = DDLTestUtils.addIndexToRequest(true, createTableRequest, "G_IDX_" + tableName, "Title",
+        createTableRequest = DDLTestUtils.addIndexToRequest(true, createTableRequest, "g_IDX_" + tableName, "Title",
                 ScalarAttributeType.S, null, null);
         phoenixDBClientV2.createTable(createTableRequest);
         dynamoDbClient.createTable(createTableRequest);
@@ -205,7 +205,7 @@ public class PutItemIT {
 
         // query phoenix and compare row to item
         try (Connection connection = DriverManager.getConnection(url)) {
-            ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM " + tableName);
+            ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM \"" + tableName + "\"");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getString(1), item.get("attr_0").s());
             Assert.assertEquals(rs.getDouble(2), Double.parseDouble(item.get("attr_1").n()), 0.0);
@@ -217,7 +217,7 @@ public class PutItemIT {
             //Assert.assertEquals(dynamoItem, phoenixItem);
 
             // check index row (Title, attr_0, attr1, COL)
-            rs = connection.createStatement().executeQuery("SELECT * FROM G_IDX_" + tableName);
+            rs = connection.createStatement().executeQuery("SELECT * FROM \"g_IDX_" + tableName + "\"");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getString(1), item.get("Title").s());
             Assert.assertEquals(rs.getString(2), item.get("attr_0").s());
@@ -234,12 +234,12 @@ public class PutItemIT {
     @Test(timeout = 120000)
     public void putItemIndexSortedTest() throws Exception {
         // create table [attr_0, idx_attr]
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, null, null);
         // add index on Title
-        createTableRequest = DDLTestUtils.addIndexToRequest(true, createTableRequest, "G_IDX_" + tableName, "idx_attr",
+        createTableRequest = DDLTestUtils.addIndexToRequest(true, createTableRequest, "G_iDX_" + tableName, "idx_attr",
                 ScalarAttributeType.N, null, null);
         phoenixDBClientV2.createTable(createTableRequest);
 
@@ -256,7 +256,7 @@ public class PutItemIT {
 
         // check index rows are sorted
         try (Connection connection = DriverManager.getConnection(url)) {
-            ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM G_IDX_" + tableName);
+            ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM \"G_iDX_" + tableName + "\"");
             Assert.assertTrue(rs.next());
             Double val = rs.getDouble(1);
             while (rs.next()) {

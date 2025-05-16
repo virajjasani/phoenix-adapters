@@ -89,8 +89,8 @@ public class QueryIndex1IT {
     @Test(timeout = 120000)
     public void testGlobalIndexNoSortKey1() throws SQLException {
         // create table with keys [attr_0]
-        final String tableName = testName.getMethodName().toUpperCase();
-        final String indexName = "G_IDX_" + tableName;
+        final String tableName = testName.getMethodName();
+        final String indexName = "G_IDx_" + tableName;
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, null, null);
@@ -143,8 +143,8 @@ public class QueryIndex1IT {
     @Test(timeout = 120000)
     public void testGlobalIndexNoSortKey2() throws SQLException {
         // create table with keys [attr_0, attr_1]
-        final String tableName = testName.getMethodName().toUpperCase();
-        final String indexName = "G_IDX_" + tableName;
+        final String tableName = testName.getMethodName();
+        final String indexName = "g_IDX_" + tableName;
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, "attr_1", ScalarAttributeType.N);
@@ -196,7 +196,7 @@ public class QueryIndex1IT {
     @Test(timeout = 120000)
     public void testGlobalIndexWithSortKey1() throws SQLException {
         // create table with keys [attr_0]
-        final String tableName = testName.getMethodName().toUpperCase();
+        final String tableName = testName.getMethodName();
         final String indexName = "G_IDX_" + tableName;
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
@@ -253,8 +253,8 @@ public class QueryIndex1IT {
     @Test(timeout = 120000)
     public void testGlobalIndexWithSortKey2() throws SQLException {
         // create table with keys [attr_0, attr_1]
-        final String tableName = testName.getMethodName().toUpperCase();
-        final String indexName = "G_IDX_" + tableName;
+        final String tableName = testName.getMethodName();
+        final String indexName = "G_IDx_" + tableName;
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, "attr_1", ScalarAttributeType.N);
@@ -309,8 +309,8 @@ public class QueryIndex1IT {
     @Test(timeout = 120000)
     public void testLocalIndex() throws SQLException {
         // create table with keys [attr_0, attr_1]
-        final String tableName = testName.getMethodName().toUpperCase();
-        final String indexName = "G_IDX_" + tableName;
+        final String tableName = testName.getMethodName();
+        final String indexName = "l_IDX_" + tableName;
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "attr_0",
                         ScalarAttributeType.S, "attr_1", ScalarAttributeType.N);

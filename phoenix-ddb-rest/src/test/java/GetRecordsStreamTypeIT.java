@@ -136,7 +136,7 @@ public class GetRecordsStreamTypeIT extends GetRecordsBaseTest  {
 
     @Test(timeout = 120000)
     public void testGetRecords() throws Exception {
-        final String tableName = testName.getMethodName().toUpperCase().replaceAll("[\\[\\]]", "");
+        final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "PK1",
                         ScalarAttributeType.S, "PK2", ScalarAttributeType.N);

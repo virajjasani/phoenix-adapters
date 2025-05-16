@@ -108,7 +108,7 @@ public class GetRecordsSequenceNumberIT extends GetRecordsBaseTest {
 
     @Test
     public void testSequenceNumbers() throws Exception {
-        final String tableName = testName.getMethodName().toUpperCase().replaceAll("[\\[\\]]", "");
+        final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "PK1",
                         ScalarAttributeType.S, "PK2", ScalarAttributeType.N);

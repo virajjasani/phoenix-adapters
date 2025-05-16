@@ -116,11 +116,11 @@ public class DescribeTableIT {
                 "PK1", ScalarAttributeType.B, "PK2", ScalarAttributeType.S);
 
         // add global index
-        createTableRequest = DDLTestUtils.addIndexToRequest(true, createTableRequest, "IDX1_" + tableName, "COL1",
+        createTableRequest = DDLTestUtils.addIndexToRequest(true, createTableRequest, "IdX1_" + tableName, "COL1",
                 ScalarAttributeType.N, "COL2", ScalarAttributeType.B);
 
         // add local index
-        createTableRequest = DDLTestUtils.addIndexToRequest(false, createTableRequest, "IDX2_" + tableName, "PK1",
+        createTableRequest = DDLTestUtils.addIndexToRequest(false, createTableRequest, "IDx2_" + tableName, "PK1",
                 ScalarAttributeType.B, "LCOL2", ScalarAttributeType.S);
 
         // create table
@@ -141,7 +141,7 @@ public class DescribeTableIT {
 
     @Test(timeout = 120000)
     public void describeTableWithStreamTest() throws Exception {
-        String tableName = testName.getMethodName().toUpperCase();
+        String tableName = testName.getMethodName();
         // create table request
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "hashKey",

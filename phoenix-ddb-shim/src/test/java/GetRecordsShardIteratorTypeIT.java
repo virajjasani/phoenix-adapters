@@ -107,7 +107,7 @@ public class GetRecordsShardIteratorTypeIT extends GetRecordsBaseTest {
 
     @Test
     public void testShardIteratorTypes() throws Exception {
-        final String tableName = testName.getMethodName().toUpperCase().replaceAll("[\\[\\]]", "");
+        final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "PK1",
                         ScalarAttributeType.S, "PK2", ScalarAttributeType.N);

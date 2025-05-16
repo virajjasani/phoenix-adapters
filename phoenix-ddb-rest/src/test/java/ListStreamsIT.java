@@ -87,7 +87,7 @@ public class ListStreamsIT {
 
     @Test(timeout = 120000)
     public void testListStreamsWithOnlyOneActiveStream() throws ParseException {
-        String tableName = testName.getMethodName().toUpperCase();
+        String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "hashKey",
                         ScalarAttributeType.B, "sortKey", ScalarAttributeType.N);

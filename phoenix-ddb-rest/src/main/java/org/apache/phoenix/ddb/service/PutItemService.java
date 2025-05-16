@@ -24,16 +24,16 @@ public class PutItemService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PutItemService.class);
 
-    private static final String PUT_WITH_HASH_KEY = "UPSERT INTO %s VALUES (?,?)";
-    private static final String PUT_WITH_HASH_SORT_KEY = "UPSERT INTO %s VALUES (?,?,?)";
+    private static final String PUT_WITH_HASH_KEY = "UPSERT INTO \"%s\" VALUES (?,?)";
+    private static final String PUT_WITH_HASH_SORT_KEY = "UPSERT INTO \"%s\" VALUES (?,?,?)";
 
-    private static final String CONDITIONAL_PUT_WITH_HASH_KEY = "UPSERT INTO %s VALUES (?) " +
+    private static final String CONDITIONAL_PUT_WITH_HASH_KEY = "UPSERT INTO \"%s\" VALUES (?) " +
             " ON DUPLICATE KEY UPDATE\n" +
             " COL = CASE WHEN BSON_CONDITION_EXPRESSION(COL,'%s') THEN ? \n" +
             " ELSE COL END";
 
     private static final String CONDITIONAL_PUT_WITH_HASH_SORT_KEY
-            = "UPSERT INTO %s VALUES (?, ?) " + " ON DUPLICATE KEY UPDATE\n" +
+            = "UPSERT INTO \"%s\" VALUES (?, ?) " + " ON DUPLICATE KEY UPDATE\n" +
             " COL = CASE WHEN BSON_CONDITION_EXPRESSION(COL,'%s') THEN ? \n" +
             " ELSE COL END";
 

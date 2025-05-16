@@ -21,9 +21,9 @@ public class ScanService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ScanService.class);
 
-    private static final String SELECT_QUERY = "SELECT COL FROM %s ";
+    private static final String SELECT_QUERY = "SELECT COL FROM \"%s\" ";
     private static final String SELECT_QUERY_WITH_INDEX_HINT =
-            "SELECT /*+ INDEX(%s %s) */ COL FROM %s ";
+            "SELECT /*+ INDEX(\"%s\" \"%s\") */ COL FROM \"%s\" ";
 
     private static final int MAX_SCAN_LIMIT = 500;
 

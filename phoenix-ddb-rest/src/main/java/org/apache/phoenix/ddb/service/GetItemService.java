@@ -23,7 +23,7 @@ public class GetItemService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(GetItemService.class);
 
-    private static final String SELECT_QUERY = "SELECT COL FROM %s WHERE %s = ? ";
+    private static final String SELECT_QUERY = "SELECT COL FROM \"%s\" WHERE %s = ? ";
     private static final String CLAUSE_FOR_SORT_COL = "AND %s = ?";
 
     public static Map<String, Object> getItem(Map<String, Object> request, String connectionUrl) {

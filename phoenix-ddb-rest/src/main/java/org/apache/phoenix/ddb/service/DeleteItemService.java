@@ -22,12 +22,12 @@ public class DeleteItemService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(DeleteItemService.class);
 
-    private static final String DELETE_QUERY = "DELETE FROM %s WHERE %s = ? ";
-    private static final String DELETE_QUERY_WITH_SORT = "DELETE FROM %s WHERE %s = ? AND %s = ?";
+    private static final String DELETE_QUERY = "DELETE FROM \"%s\" WHERE %s = ? ";
+    private static final String DELETE_QUERY_WITH_SORT = "DELETE FROM \"%s\" WHERE %s = ? AND %s = ?";
     private static final String DELETE_QUERY_NO_SORT_WITH_COND_EXPR =
-            "DELETE FROM %s WHERE %s = ? AND BSON_CONDITION_EXPRESSION(COL,'%s')";
+            "DELETE FROM \"%s\" WHERE %s = ? AND BSON_CONDITION_EXPRESSION(COL,'%s')";
     private static final String DELETE_QUERY_SORT_WITH_COND_EXPR =
-            "DELETE FROM %s WHERE %s = ? AND %s = ? AND BSON_CONDITION_EXPRESSION(COL,'%s')";
+            "DELETE FROM \"%s\" WHERE %s = ? AND %s = ? AND BSON_CONDITION_EXPRESSION(COL,'%s')";
 
     public static Map<String, Object> deleteItem(Map<String, Object> request,
             String connectionUrl) {
