@@ -7,6 +7,8 @@ import org.apache.hbase.thirdparty.javax.ws.rs.HeaderParam;
 import org.apache.hbase.thirdparty.javax.ws.rs.POST;
 import org.apache.hbase.thirdparty.javax.ws.rs.Path;
 import org.apache.hbase.thirdparty.javax.ws.rs.Produces;
+
+import org.apache.phoenix.ddb.service.BatchGetItemService;
 import org.apache.phoenix.ddb.service.DescribeStreamService;
 import org.apache.phoenix.ddb.service.GetRecordsService;
 import org.apache.phoenix.ddb.service.GetShardIteratorService;
@@ -105,6 +107,10 @@ public class RootResource {
                 }
                 case "DynamoDB_20120810.GetItem": {
                     responseObject = GetItemService.getItem(request, jdbcConnectionUrl);
+                    break;
+                }
+                case "DynamoDB_20120810.BatchGetItem": {
+                    responseObject = BatchGetItemService.batchGetItem(request, jdbcConnectionUrl);
                     break;
                 }
                 case "DynamoDB_20120810.Query": {
