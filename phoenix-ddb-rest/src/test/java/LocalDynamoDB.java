@@ -60,15 +60,16 @@ class LocalDynamoDB {
      */
     DynamoDbClient createV2Client() {
         String endpoint = String.format("http://localhost:%d", port);
-        return DynamoDbClient.builder()
-                .endpointOverride(URI.create(endpoint))
-                // The region is meaningless for local DynamoDb but required for client builder validation
-                .region(Region.US_EAST_1)
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create("dummykey", "dummysecret")))
-                .build();
+        return createV2Client(endpoint);
     }
 
+    /**
+     * Create a standard AWS v2 SDK ddb client pointing to the given endpoint. The endpoint
+     * can belong to either localddb or phoenix-ddb rest service.
+     *
+     * @param endpoint ddb rest service endpoint.
+     * @return The DynamoDbClient.
+     */
     static DynamoDbClient createV2Client(String endpoint) {
         return DynamoDbClient.builder()
                 .endpointOverride(URI.create(endpoint))
@@ -88,6 +89,13 @@ class LocalDynamoDB {
         return createV2StreamsClient(endpoint);
     }
 
+    /**
+     * Create a standard AWS v2 SDK stream ddb client pointing to the given endpoint.
+     * The endpoint can belong to either localddb or phoenix-ddb rest service.
+     *
+     * @param endpoint ddb rest service endpoint.
+     * @return The DynamoDbStreamsClient.
+     */
     static DynamoDbStreamsClient createV2StreamsClient(String endpoint) {
         return DynamoDbStreamsClient.builder()
                 .endpointOverride(URI.create(endpoint))

@@ -73,6 +73,7 @@ public class RootResource {
             final @HeaderParam("X-Amz-Target") String api,
             final Map<String, Object> request) {
         try {
+            LOG.info("Content Type: {}, api: {}, Request: {}", contentType, api, request);
             servlet.getMetrics().incrementRequests(1);
             final Map<String, Object> responseObject;
 
