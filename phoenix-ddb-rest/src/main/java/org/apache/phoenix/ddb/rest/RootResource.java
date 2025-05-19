@@ -9,10 +9,12 @@ import org.apache.hbase.thirdparty.javax.ws.rs.Path;
 import org.apache.hbase.thirdparty.javax.ws.rs.Produces;
 
 import org.apache.phoenix.ddb.service.BatchGetItemService;
+import org.apache.phoenix.ddb.service.BatchWriteItemService;
 import org.apache.phoenix.ddb.service.DescribeStreamService;
 import org.apache.phoenix.ddb.service.GetRecordsService;
 import org.apache.phoenix.ddb.service.GetShardIteratorService;
 import org.apache.phoenix.ddb.service.ListStreamsService;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -113,6 +115,11 @@ public class RootResource {
                     responseObject = BatchGetItemService.batchGetItem(request, jdbcConnectionUrl);
                     break;
                 }
+                case "DynamoDB_20120810.BatchWriteItem": {
+                    responseObject =
+                            BatchWriteItemService.batchWriteItem(request, jdbcConnectionUrl);
+                    break;
+                }
                 case "DynamoDB_20120810.Query": {
                     responseObject = QueryService.query(request, jdbcConnectionUrl);
                     break;
@@ -134,11 +141,13 @@ public class RootResource {
                     break;
                 }
                 case "DynamoDBStreams_20120810.DescribeStream": {
-                    responseObject = DescribeStreamService.describeStream(request, jdbcConnectionUrl);
+                    responseObject =
+                            DescribeStreamService.describeStream(request, jdbcConnectionUrl);
                     break;
                 }
                 case "DynamoDBStreams_20120810.GetShardIterator": {
-                    responseObject = GetShardIteratorService.getShardIterator(request, jdbcConnectionUrl);
+                    responseObject =
+                            GetShardIteratorService.getShardIterator(request, jdbcConnectionUrl);
                     break;
                 }
                 case "DynamoDBStreams_20120810.GetRecords": {
