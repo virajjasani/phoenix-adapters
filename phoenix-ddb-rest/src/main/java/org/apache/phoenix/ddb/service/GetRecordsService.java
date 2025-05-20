@@ -23,6 +23,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.apache.phoenix.ddb.utils.CommonServiceUtils.isCauseMessageAvailable;
+
 public class GetRecordsService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(GetRecordsService.class);
@@ -83,8 +85,14 @@ public class GetRecordsService {
             rs.close();
         } catch (Exception e) {
             // TODO: remove when phoenix bug is fixed
-            if (e.getMessage().contains("Index 0 out of bounds for length 0")
-                    || e.getCause().getMessage().contains("Index 0 out of bounds for length 0")) {
+            if ((e.getMessage() != null && e.getMessage().contains(
+                    "Index 0 out of bounds for length 0"))
+                    || (e.getMessage() != null && e.getMessage().contains(
+                            "Index: 0, Size: 0"))
+                    || (isCauseMessageAvailable(e) && e.getCause().getMessage().contains(
+                            "Index 0 out of bounds for length 0"))
+                    || (isCauseMessageAvailable(e) && e.getCause().getMessage().contains(
+                            "Index: 0, Size: 0"))) {
                 LOGGER.info("Hit end of region, avoiding offset bug.");
             } else {
                 throw new RuntimeException(e);

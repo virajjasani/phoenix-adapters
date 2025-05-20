@@ -43,6 +43,10 @@ public class CommonServiceUtils {
     public static final String DOUBLE_QUOTE = "\"";
     public static final String HASH = "#";
 
+    public static boolean isCauseMessageAvailable(Exception e) {
+        return e.getCause() != null && e.getCause().getMessage() != null;
+    }
+
     public static ScalarAttributeType getScalarAttributeFromPDataType(PDataType<?> pDataType) {
         if (pDataType == PVarchar.INSTANCE) {
             return ScalarAttributeType.S;

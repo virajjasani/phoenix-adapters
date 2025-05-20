@@ -25,6 +25,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.ArrayList;
 
+import static org.apache.phoenix.ddb.utils.CommonServiceUtils.isCauseMessageAvailable;
 import static software.amazon.awssdk.services.dynamodb.model.OperationType.INSERT;
 import static software.amazon.awssdk.services.dynamodb.model.OperationType.MODIFY;
 import static software.amazon.awssdk.services.dynamodb.model.OperationType.REMOVE;
@@ -88,8 +89,14 @@ public class GetRecordsService {
             rs.close();
         } catch (Exception e) {
             // TODO: remove when phoenix bug is fixed
-            if (e.getMessage().contains("Index 0 out of bounds for length 0")
-                    || e.getCause().getMessage().contains("Index 0 out of bounds for length 0")) {
+            if ((e.getMessage() != null && e.getMessage().contains(
+                    "Index 0 out of bounds for length 0"))
+                    || (e.getMessage() != null && e.getMessage().contains(
+                    "Index: 0, Size: 0"))
+                    || (isCauseMessageAvailable(e) && e.getCause().getMessage().contains(
+                    "Index 0 out of bounds for length 0"))
+                    || (isCauseMessageAvailable(e) && e.getCause().getMessage().contains(
+                    "Index: 0, Size: 0"))) {
                 LOGGER.info("Hit end of region, avoiding offset bug.");
             } else {
                 throw new RuntimeException(e);
