@@ -123,6 +123,19 @@ public class CommonServiceUtils {
     }
 
     /**
+     * Return BsonDocument representation of BSON Update Expression based on dynamo update
+     * expression, expression attribute names and expression attribute values.
+     */
+    public static BsonDocument getBsonUpdateExpressionFromMap(String updateExpr,
+            Map<String, String> exprAttrNames, Map<String, Object> exprAttrVals) {
+        if (StringUtils.isEmpty(updateExpr))
+            return new BsonDocument();
+        updateExpr = replaceExpressionAttributeNames(updateExpr, exprAttrNames);
+        return UpdateExpressionDdbToBson.getBsonDocumentForUpdateExpression(updateExpr,
+                MapToBsonDocument.getBsonDocument(exprAttrVals));
+    }
+
+    /**
      * Enclose given argument within double quotes. This is used to escape column/table names in queries.
      */
     public static String getEscapedArgument(String argument) {

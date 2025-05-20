@@ -16,7 +16,9 @@ public final class MapToBsonDocument {
 
     public static BsonDocument getBsonDocument(Map<String, Object> map) {
         BsonDocument document = new BsonDocument();
-        updateDocWithMapAttributes(document, map);
+        if (map != null) {
+            updateDocWithMapAttributes(document, map);
+        }
         return document;
     }
 

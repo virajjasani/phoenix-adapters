@@ -94,11 +94,9 @@ public class DMLUtils {
         } else {
             if (returnValue.equals("ALL_NEW") || returnValue.equals("ALL_OLD")) {
                 returnAttrs = BsonDocumentToMap.getFullItem(rawBsonDocument);
-                if (isDelete) {
-                    Map<String, Object> tmpReturnAttrs = returnAttrs;
-                    returnAttrs = new HashMap<>();
-                    returnAttrs.put("Attributes", tmpReturnAttrs);
-                }
+                Map<String, Object> tmpReturnAttrs = returnAttrs;
+                returnAttrs = new HashMap<>();
+                returnAttrs.put("Attributes", tmpReturnAttrs);
             }
         }
         return returnAttrs;

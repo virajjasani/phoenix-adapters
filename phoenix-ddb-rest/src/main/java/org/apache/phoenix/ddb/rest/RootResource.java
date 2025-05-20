@@ -37,6 +37,7 @@ import org.apache.phoenix.ddb.service.PutItemService;
 import org.apache.phoenix.ddb.service.QueryService;
 import org.apache.phoenix.ddb.service.ScanService;
 import org.apache.phoenix.ddb.service.TTLService;
+import org.apache.phoenix.ddb.service.UpdateItemService;
 import org.apache.phoenix.ddb.service.utils.TableDescriptorUtils;
 import org.apache.phoenix.ddb.service.utils.exceptions.ConditionCheckFailedException;
 import org.apache.phoenix.ddb.utils.PhoenixUtils;
@@ -95,6 +96,14 @@ public class RootResource {
                 case "DynamoDB_20120810.PutItem": {
                     try {
                         responseObject = PutItemService.putItem(request, jdbcConnectionUrl);
+                    } catch (ConditionCheckFailedException e) {
+                        return getResponseForConditionCheckFailure(e);
+                    }
+                    break;
+                }
+                case "DynamoDB_20120810.UpdateItem": {
+                    try {
+                        responseObject = UpdateItemService.updateItem(request, jdbcConnectionUrl);
                     } catch (ConditionCheckFailedException e) {
                         return getResponseForConditionCheckFailure(e);
                     }
@@ -164,7 +173,8 @@ public class RootResource {
             response.cacheControl(cacheControl);
             return response.build();
         } catch (Exception e) {
-            LOG.error("Error ", e);
+            LOG.error("Error... Content Type: {}, api: {}, Request: {} ", contentType, api,
+                    request, e);
             switch (api) {
                 case "DynamoDB_20120810.CreateTable": {
                     servlet.getMetrics().incrementCreateTableFailedRequests(1);
