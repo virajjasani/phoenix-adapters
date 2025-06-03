@@ -37,6 +37,12 @@ public class PutItemService {
             " COL = CASE WHEN BSON_CONDITION_EXPRESSION(COL,'%s') THEN ? \n" +
             " ELSE COL END";
 
+    private static final String CONDITIONAL_PUT_IGNORE_WITH_HASH_KEY
+            = "UPSERT INTO %s.\"%s\" VALUES (?, ?) ON DUPLICATE KEY IGNORE ";
+
+    private static final String CONDITIONAL_PUT_IGNORE_WITH_HASH_SORT_KEY
+            = "UPSERT INTO %s.\"%s\" VALUES (?, ?, ?) ON DUPLICATE KEY IGNORE ";
+
     public static Map<String, Object> putItem(Map<String, Object> request, String connectionUrl) {
         Map<String, Object> result;
         try (Connection connection = DriverManager.getConnection(connectionUrl)) {
@@ -59,7 +65,7 @@ public class PutItemService {
         List<PColumn> pkCols = table.getPKColumns();
 
         //create statement based on PKs and conditional expression
-        PreparedStatement stmt = getPreparedStatement(connection, request, pkCols.size());
+        PreparedStatement stmt = getPreparedStatement(connection, request, pkCols);
         // extract PKs from item
         DMLUtils.setKeysOnStatement(stmt, pkCols, item);
         // set bson document of entire item
@@ -77,7 +83,7 @@ public class PutItemService {
      * Primary Key columns and conditional expression.
      */
     private static PreparedStatement getPreparedStatement(Connection conn,
-            Map<String, Object> request, int numPKs) throws SQLException {
+            Map<String, Object> request, List<PColumn> pkCols) throws SQLException {
         PreparedStatement stmt;
         String tableName = (String) request.get("TableName");
         String condExpr = (String) request.get("ConditionExpression");
@@ -89,15 +95,32 @@ public class PutItemService {
             String bsonCondExpr =
                     CommonServiceUtils.getBsonConditionExpressionFromMap(condExpr, exprAttrNames,
                             exprAttrVals);
-            String QUERY_FORMAT = (numPKs == 1)
-                    ? CONDITIONAL_PUT_WITH_HASH_KEY : CONDITIONAL_PUT_WITH_HASH_SORT_KEY;
-            stmt = conn.prepareStatement(
-                    String.format(QUERY_FORMAT, "DDB", tableName, bsonCondExpr));
+            // we do not want upsert to be performed if row already exists
+            if (shouldUseIgnoreForAtomicUpsert(bsonCondExpr, pkCols)) {
+                String QUERY_FORMAT = (pkCols.size() == 1)
+                        ? CONDITIONAL_PUT_IGNORE_WITH_HASH_KEY : CONDITIONAL_PUT_IGNORE_WITH_HASH_SORT_KEY;
+                stmt = conn.prepareStatement(String.format(QUERY_FORMAT, "DDB", tableName));
+            } else {
+                String QUERY_FORMAT = (pkCols.size() == 1)
+                        ? CONDITIONAL_PUT_WITH_HASH_KEY : CONDITIONAL_PUT_WITH_HASH_SORT_KEY;
+                stmt = conn.prepareStatement(
+                        String.format(QUERY_FORMAT, "DDB", tableName, bsonCondExpr));
+            }
         } else {
-            String QUERY_FORMAT = (numPKs == 1)
+            String QUERY_FORMAT = (pkCols.size() == 1)
                     ? PUT_WITH_HASH_KEY : PUT_WITH_HASH_SORT_KEY;
             stmt = conn.prepareStatement(String.format(QUERY_FORMAT, "DDB", tableName));
         }
         return stmt;
+    }
+
+    private static boolean shouldUseIgnoreForAtomicUpsert(String condExpr, List<PColumn> pkCols) {
+        if (pkCols.size() == 1) {
+            return condExpr.contains("attribute_not_exists(" + pkCols.get(0).getName().toString() + ")");
+        } else {
+            String cond1 = "attribute_not_exists(" + pkCols.get(0).getName().toString() + ")";
+            String cond2 = "attribute_not_exists(" + pkCols.get(1).getName().toString() + ")";
+            return condExpr.contains(cond1) && condExpr.contains(cond2) && condExpr.contains("AND");
+        }
     }
 }

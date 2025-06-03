@@ -148,9 +148,8 @@ public class GetItemIT {
         PutItemRequest putItemRequest = PutItemRequest.builder().tableName("Xyzzz..--__")
                 .item(map)
                 .returnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
-//                TODO : remove this comment while fixing ON DUPLICATE KEY IGNORE case
-//                .conditionExpression("attribute_not_exists(#0) AND attribute_not_exists(#1)")
-//                .expressionAttributeNames(expressionAttributes)
+                .conditionExpression("attribute_not_exists(#0) AND attribute_not_exists(#1)")
+                .expressionAttributeNames(expressionAttributes)
                 .build();
         dynamoDbClient.putItem(putItemRequest);
         phoenixDBClientV2.putItem(putItemRequest);
