@@ -27,6 +27,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
+import static org.apache.phoenix.query.BaseTest.generateUniqueName;
 import static org.apache.phoenix.query.BaseTest.setUpConfigForMiniCluster;
 
 public class ListStreamsIT {
@@ -105,9 +106,35 @@ public class ListStreamsIT {
 
         Assert.assertEquals(dynamoResult.streams().size(), phoenixResult.streams().size());
         Stream phoenixStream = phoenixResult.streams().get(0);
-        Assert.assertEquals("DDB." + tableName, phoenixStream.tableName());
+        Assert.assertEquals(tableName, phoenixStream.tableName());
         SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS zzz");
         Date date = df.parse(phoenixStream.streamLabel());
         Assert.assertTrue(phoenixStream.streamArn().contains(String.valueOf(date.getTime())));
+    }
+
+    @Test(timeout = 120000)
+    public void testListStreamsAllTables() throws ParseException {
+        String tableName1 = testName.getMethodName() + generateUniqueName();
+        String tableName2 = testName.getMethodName() + generateUniqueName();
+        CreateTableRequest createTableRequest1 =
+                DDLTestUtils.getCreateTableRequest(tableName1, "hashKey",
+                        ScalarAttributeType.B, "sortKey", ScalarAttributeType.N);
+        createTableRequest1 = DDLTestUtils.addStreamSpecToRequest(createTableRequest1, "NEW_IMAGE");
+        CreateTableRequest createTableRequest2 =
+                DDLTestUtils.getCreateTableRequest(tableName2, "hk",
+                        ScalarAttributeType.B, "sk", ScalarAttributeType.S);
+        createTableRequest2 = DDLTestUtils.addStreamSpecToRequest(createTableRequest2, "OLD_IMAGE");
+
+        dynamoDbClient.createTable(createTableRequest1);
+        phoenixDBClientV2.createTable(createTableRequest1);
+        dynamoDbClient.createTable(createTableRequest2);
+        phoenixDBClientV2.createTable(createTableRequest2);
+
+        ListStreamsRequest lsr = ListStreamsRequest.builder().build();
+        ListStreamsResponse phoenixResult = phoenixDBStreamsClientV2.listStreams(lsr);
+        ListStreamsResponse dynamoResult = dynamoDbStreamsClient.listStreams(lsr);
+        LOGGER.info("ListStreamsResponse in Phoenix: " + phoenixResult);
+        LOGGER.info("ListStreamsResponse in DDB: " + dynamoResult);
+        Assert.assertEquals(dynamoResult.streams().size(), phoenixResult.streams().size());
     }
 }

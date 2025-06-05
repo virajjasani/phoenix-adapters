@@ -6,34 +6,43 @@ import org.apache.phoenix.jdbc.PhoenixConnection;
 import org.apache.phoenix.schema.PTable;
 import org.apache.phoenix.schema.PTableKey;
 import org.apache.phoenix.thirdparty.com.google.common.base.Preconditions;
+import org.apache.phoenix.util.CDCUtil;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.apache.phoenix.jdbc.PhoenixDatabaseMetaData.SYSTEM_CDC_STREAM_STATUS_NAME;
+
 public class ListStreamsService {
 
-    public static Map<String, Object> listStreams(Map<String, Object> request, String connectionUrl) {
-        String tableName = (String) request.get(ApiMetadata.TABLE_NAME);
-        Preconditions.checkNotNull(tableName, "Table Name should be provided.");
+    // For now, we will only return the currently enabled or enabling stream
+    // TODO: once phoenix can handle disable stream, we will also return historical streams.
+    private static final String STREAM_QUERY
+            = "SELECT TABLE_NAME, STREAM_NAME FROM " + SYSTEM_CDC_STREAM_STATUS_NAME
+            + " WHERE STREAM_STATUS IN ('"
+            + CDCUtil.CdcStreamStatus.ENABLED.getSerializedValue() + "', '"
+            + CDCUtil.CdcStreamStatus.ENABLING.getSerializedValue() + "')";
 
+    public static Map<String, Object> listStreams(Map<String, Object> request, String connectionUrl) {
         Map<String, Object> result = new HashMap<>();
         try (Connection connection = DriverManager.getConnection(connectionUrl)) {
-            PhoenixConnection pconn = connection.unwrap(PhoenixConnection.class);
-            PTable table = pconn.getTable(new PTableKey(pconn.getTenantId(), "DDB." + tableName));
             List<Map<String, Object>> streams = new ArrayList<>();
-            // For now, we will only return the currently enabled or enabling stream
-            // TODO: once phoenix can handle disable stream, we will also return historical streams.
-            String streamName
-                    = DDBShimCDCUtils.getEnabledStreamName(pconn, table.getName().getString());
-            if (streamName != null && table.getSchemaVersion() != null) {
+            String query = request.get(ApiMetadata.TABLE_NAME) == null
+                    ? STREAM_QUERY + "AND SUBSTR(TABLE_NAME, 0, 4) = 'DDB.'"
+                    : STREAM_QUERY + " AND TABLE_NAME = '" + "DDB." + request.get(ApiMetadata.TABLE_NAME) + "'";
+            ResultSet rs = connection.createStatement().executeQuery(query);
+            while (rs.next()) {
+                String tableName = rs.getString(1);
+                String streamName = rs.getString(2);
                 long creationTS = DDBShimCDCUtils.getCDCIndexTimestampFromStreamName(streamName);
                 Map<String, Object> stream = new HashMap<>();
-                stream.put(ApiMetadata.TABLE_NAME, table.getName().getString());
+                stream.put(ApiMetadata.TABLE_NAME, tableName.startsWith("DDB.") ? tableName.split("DDB.")[1] : tableName);
                 stream.put(ApiMetadata.STREAM_ARN, streamName);
                 stream.put(ApiMetadata.STREAM_LABEL, DDBShimCDCUtils.getStreamLabel(creationTS));
                 streams.add(stream);
