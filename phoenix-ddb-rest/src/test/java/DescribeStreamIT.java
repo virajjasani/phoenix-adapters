@@ -1,3 +1,4 @@
+import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
@@ -108,6 +109,57 @@ public class DescribeStreamIT {
     }
 
     @Test(timeout = 120000)
+    public void testDescribeStreamWithLimitAndPagination() throws Exception {
+        String tableName = testName.getMethodName();
+        CreateTableRequest createTableRequest =
+                DDLTestUtils.getCreateTableRequest(tableName, "hashKey",
+                        ScalarAttributeType.S, "sortKey", ScalarAttributeType.N);
+
+        createTableRequest = DDLTestUtils.addStreamSpecToRequest(createTableRequest, "NEW_IMAGE");
+        phoenixDBClientV2.createTable(createTableRequest);
+
+        // wait for stream to be enabled
+        ListStreamsRequest lsr = ListStreamsRequest.builder().tableName(tableName).build();
+        ListStreamsResponse phoenixStreams = phoenixDBStreamsClientV2.listStreams(lsr);
+        String phoenixStreamArn = phoenixStreams.streams().get(0).streamArn();
+        TestUtils.waitForStream(phoenixDBStreamsClientV2, phoenixStreamArn);
+
+        try (Connection connection = DriverManager.getConnection(url)) {
+            TestUtils.splitTable(connection, "DDB." + tableName, Bytes.toBytes("m"));
+            TestUtils.splitTable(connection, "DDB." + tableName, Bytes.toBytes("g"));
+            TestUtils.splitTable(connection, "DDB." + tableName, Bytes.toBytes("d"));
+            TestUtils.splitTable(connection, "DDB." + tableName, Bytes.toBytes("j"));
+            TestUtils.splitTable(connection, "DDB." + tableName, Bytes.toBytes("t"));
+            TestUtils.splitTable(connection, "DDB." + tableName, Bytes.toBytes("p"));
+            TestUtils.splitTable(connection, "DDB." + tableName, Bytes.toBytes("w"));
+            TestUtils.splitTable(connection, "DDB." + tableName, Bytes.toBytes("l"));
+            TestUtils.splitTable(connection, "DDB." + tableName, Bytes.toBytes("r"));
+        }
+
+        List<Shard> phoenixShards = new ArrayList<>();
+        String lastEvaluatedShardId = null;
+        do {
+            StreamDescription phoenixStreamDesc = phoenixDBStreamsClientV2.describeStream(
+                    DescribeStreamRequest.builder().streamArn(phoenixStreamArn)
+                            .exclusiveStartShardId(lastEvaluatedShardId).limit(3).build()).streamDescription();
+            phoenixShards.addAll(phoenixStreamDesc.shards());
+            lastEvaluatedShardId = phoenixStreamDesc.lastEvaluatedShardId();
+        } while (lastEvaluatedShardId != null);
+        Assert.assertEquals(19, phoenixShards.size());
+
+        int open = 0, closed = 0;
+        for (Shard shard : phoenixShards) {
+            if (StringUtils.isEmpty(shard.sequenceNumberRange().endingSequenceNumber())) {
+                open++;
+            } else {
+                closed++;
+            }
+        }
+        Assert.assertEquals(10, open);
+        Assert.assertEquals(9, closed);
+    }
+
+    @Test(timeout = 120000)
     public void testDescribeStreamWithSplit() throws Exception {
         String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
@@ -182,7 +234,7 @@ public class DescribeStreamIT {
         do {
             phoenixStreamDesc = phoenixDBStreamsClientV2.describeStream(
                 DescribeStreamRequest.builder().streamArn(phoenixStreamArn)
-                    .exclusiveStartShardId(lastEvaluatedShardId).build()).streamDescription();
+                    .exclusiveStartShardId(lastEvaluatedShardId).limit(1).build()).streamDescription();
             phoenixShards.addAll(phoenixStreamDesc.shards());
             lastEvaluatedShardId = phoenixStreamDesc.lastEvaluatedShardId();
         } while (lastEvaluatedShardId != null);

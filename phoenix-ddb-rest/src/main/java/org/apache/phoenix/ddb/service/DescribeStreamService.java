@@ -25,6 +25,7 @@ import static org.apache.phoenix.jdbc.PhoenixDatabaseMetaData.SYSTEM_CDC_STREAM_
 public class DescribeStreamService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(DescribeStreamService.class);
+    private static final int MAX_LIMIT = 100;
 
     private static String DESCRIBE_STREAM_QUERY
             = "SELECT PARTITION_ID, PARENT_PARTITION_ID, PARTITION_START_TIME, PARTITION_END_TIME FROM "
@@ -33,7 +34,7 @@ public class DescribeStreamService {
     public static Map<String, Object> describeStream(Map<String, Object> request, String connectionUrl) {
         String streamName = (String) request.get(ApiMetadata.STREAM_ARN);
         String exclusiveStartShardId = (String) request.get(ApiMetadata.EXCLUSIVE_START_SHARD_ID);
-        Integer limit = (Integer) request.get(ApiMetadata.LIMIT);
+        Integer limit = (Integer) request.getOrDefault(ApiMetadata.LIMIT, MAX_LIMIT);
         String tableName = DDBShimCDCUtils.getTableNameFromStreamName(streamName);
         Map<String, Object> streamDesc;
         try (Connection conn = DriverManager.getConnection(connectionUrl)) {
@@ -48,10 +49,8 @@ public class DescribeStreamService {
                     sb.append(exclusiveStartShardId);
                     sb.append("'");
                 }
-                if (limit != null && limit > 0) {
-                    sb.append(" LIMIT ");
-                    sb.append(limit);
-                }
+                sb.append(" LIMIT ");
+                sb.append(limit);
                 LOGGER.info("Describe Stream Query: " + sb);
                 List<Map<String, Object>> shards = new ArrayList<>();
                 String lastEvaluatedShardId = null;
