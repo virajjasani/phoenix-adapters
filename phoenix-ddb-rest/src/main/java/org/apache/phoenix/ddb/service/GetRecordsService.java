@@ -9,6 +9,7 @@ import org.apache.phoenix.ddb.service.utils.DQLUtils;
 import org.apache.phoenix.ddb.utils.DDBShimCDCUtils;
 import org.apache.phoenix.ddb.utils.PhoenixShardIterator;
 import org.apache.phoenix.ddb.utils.PhoenixUtils;
+import org.apache.phoenix.jdbc.PhoenixResultSet;
 import org.apache.phoenix.schema.PColumn;
 import org.bson.RawBsonDocument;
 import org.slf4j.Logger;
@@ -174,6 +175,9 @@ public class GetRecordsService {
         //always set keys
         RawBsonDocument image = (imagesBsonDoc[0] != null) ? imagesBsonDoc[0] : imagesBsonDoc[1];
         streamRecord.put(ApiMetadata.KEYS, DQLUtils.getKeyFromDoc(image, false, pkCols, null));
+
+        //size
+        streamRecord.put(ApiMetadata.SIZE_BYTES, rs.unwrap(PhoenixResultSet.class).getCurrentRow().getSerializedSize());
 
         // Record Name
         Map<String, Object> record = new HashMap<>();

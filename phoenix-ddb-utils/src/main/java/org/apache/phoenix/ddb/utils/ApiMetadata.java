@@ -123,6 +123,7 @@ public class ApiMetadata {
     public static final String NEW_IMAGE = "NewImage";
     public static final String OLD_IMAGE = "OldImage";
     public static final String KEYS = "Keys";
+    public static final String SIZE_BYTES = "SizeBytes";
 
     // API Operation Names
     public static final String CREATE_TABLE = "CreateTable";
