@@ -25,7 +25,9 @@ import software.amazon.awssdk.services.dynamodb.streams.DynamoDbStreamsClient;
 import java.sql.DriverManager;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
 import static org.apache.phoenix.query.BaseTest.generateUniqueName;
 import static org.apache.phoenix.query.BaseTest.setUpConfigForMiniCluster;
@@ -33,10 +35,8 @@ import static org.apache.phoenix.query.BaseTest.setUpConfigForMiniCluster;
 public class ListStreamsIT {
     private static final Logger LOGGER = LoggerFactory.getLogger(ListStreamsIT.class);
 
-    private final DynamoDbClient dynamoDbClient =
-            LocalDynamoDbTestBase.localDynamoDb().createV2Client();
-    private final DynamoDbStreamsClient dynamoDbStreamsClient =
-            LocalDynamoDbTestBase.localDynamoDb().createV2StreamsClient();
+    private static DynamoDbClient dynamoDbClient;
+    private static DynamoDbStreamsClient dynamoDbStreamsClient;
     private static DynamoDbClient phoenixDBClientV2;
     private static DynamoDbStreamsClient phoenixDBStreamsClientV2;
 
@@ -47,6 +47,8 @@ public class ListStreamsIT {
 
     @Rule
     public final TestName testName = new TestName();
+
+    private static List<String> tableNames = new ArrayList<>();
 
     @BeforeClass
     public static void initialize() throws Exception {
@@ -66,6 +68,19 @@ public class ListStreamsIT {
         LOGGER.info("started {} on port {}", restServer.getClass().getName(), restServer.getPort());
         phoenixDBClientV2 = LocalDynamoDB.createV2Client("http://" + restServer.getServerAddress());
         phoenixDBStreamsClientV2 = LocalDynamoDB.createV2StreamsClient("http://" + restServer.getServerAddress());
+        dynamoDbClient = LocalDynamoDbTestBase.localDynamoDb().createV2Client();
+        dynamoDbStreamsClient = LocalDynamoDbTestBase.localDynamoDb().createV2StreamsClient();;
+
+        for (int i=0; i<10; i++) {
+            String tableName = generateUniqueName();
+            tableNames.add(tableName);
+            CreateTableRequest createTableRequest =
+                    DDLTestUtils.getCreateTableRequest(tableName, "hashKey",
+                            ScalarAttributeType.B, "sortKey", ScalarAttributeType.N);
+            createTableRequest = DDLTestUtils.addStreamSpecToRequest(createTableRequest, "NEW_IMAGE");
+            phoenixDBClientV2.createTable(createTableRequest);
+            dynamoDbClient.createTable(createTableRequest);
+        }
     }
 
     @AfterClass
@@ -87,17 +102,8 @@ public class ListStreamsIT {
     }
 
     @Test(timeout = 120000)
-    public void testListStreamsWithOnlyOneActiveStream() throws ParseException {
-        String tableName = testName.getMethodName();
-        CreateTableRequest createTableRequest =
-                DDLTestUtils.getCreateTableRequest(tableName, "hashKey",
-                        ScalarAttributeType.B, "sortKey", ScalarAttributeType.N);
-
-        createTableRequest = DDLTestUtils.addStreamSpecToRequest(createTableRequest, "NEW_IMAGE");
-
-        dynamoDbClient.createTable(createTableRequest);
-        phoenixDBClientV2.createTable(createTableRequest);
-
+    public void testListStreamsForTable() throws ParseException {
+        String tableName = tableNames.get(0);
         ListStreamsRequest lsr = ListStreamsRequest.builder().tableName(tableName).build();
         ListStreamsResponse phoenixResult = phoenixDBStreamsClientV2.listStreams(lsr);
         ListStreamsResponse dynamoResult = dynamoDbStreamsClient.listStreams(lsr);
@@ -113,28 +119,35 @@ public class ListStreamsIT {
     }
 
     @Test(timeout = 120000)
-    public void testListStreamsAllTables() throws ParseException {
-        String tableName1 = testName.getMethodName() + generateUniqueName();
-        String tableName2 = testName.getMethodName() + generateUniqueName();
-        CreateTableRequest createTableRequest1 =
-                DDLTestUtils.getCreateTableRequest(tableName1, "hashKey",
-                        ScalarAttributeType.B, "sortKey", ScalarAttributeType.N);
-        createTableRequest1 = DDLTestUtils.addStreamSpecToRequest(createTableRequest1, "NEW_IMAGE");
-        CreateTableRequest createTableRequest2 =
-                DDLTestUtils.getCreateTableRequest(tableName2, "hk",
-                        ScalarAttributeType.B, "sk", ScalarAttributeType.S);
-        createTableRequest2 = DDLTestUtils.addStreamSpecToRequest(createTableRequest2, "OLD_IMAGE");
-
-        dynamoDbClient.createTable(createTableRequest1);
-        phoenixDBClientV2.createTable(createTableRequest1);
-        dynamoDbClient.createTable(createTableRequest2);
-        phoenixDBClientV2.createTable(createTableRequest2);
-
+    public void testListStreamsAllTables() {
         ListStreamsRequest lsr = ListStreamsRequest.builder().build();
         ListStreamsResponse phoenixResult = phoenixDBStreamsClientV2.listStreams(lsr);
         ListStreamsResponse dynamoResult = dynamoDbStreamsClient.listStreams(lsr);
         LOGGER.info("ListStreamsResponse in Phoenix: " + phoenixResult);
         LOGGER.info("ListStreamsResponse in DDB: " + dynamoResult);
         Assert.assertEquals(dynamoResult.streams().size(), phoenixResult.streams().size());
+    }
+
+    @Test(timeout = 120000)
+    public void testListStreamsAllTablesWithPagination() {
+        ListStreamsRequest.Builder lsr = ListStreamsRequest.builder().limit(3);
+        ListStreamsResponse ddbResponse;
+        List<Stream> ddbStreams = new ArrayList<>();
+        do {
+            ddbResponse = dynamoDbStreamsClient.listStreams(lsr.build());
+            ddbStreams.addAll(ddbResponse.streams());
+            lsr.exclusiveStartStreamArn(ddbResponse.lastEvaluatedStreamArn());
+        } while (!ddbResponse.streams().isEmpty() && ddbResponse.lastEvaluatedStreamArn() != null);
+        Assert.assertEquals(10, ddbStreams.size());
+
+        lsr.exclusiveStartStreamArn(null);
+        ListStreamsResponse phoenixResponse;
+        List<Stream> phoenixStreams = new ArrayList<>();
+        do {
+            phoenixResponse = phoenixDBStreamsClientV2.listStreams(lsr.build());
+            phoenixStreams.addAll(phoenixResponse.streams());
+            lsr.exclusiveStartStreamArn(phoenixResponse.lastEvaluatedStreamArn());
+        } while (!phoenixResponse.streams().isEmpty() && phoenixResponse.lastEvaluatedStreamArn() != null);
+        Assert.assertEquals(10, phoenixStreams.size());
     }
 }

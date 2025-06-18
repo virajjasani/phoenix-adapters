@@ -132,9 +132,9 @@ public class GetRecordsService {
         if (phoenixShardIterator.getOffset() > 0) {
             ps.setInt(4, phoenixShardIterator.getOffset());
         }
-        LOGGER.info("Query for getRecords: {}", ps);
-        LOGGER.info("Query Parameters: {}, {}, {}, {}", phoenixShardIterator.getPartitionId(),
-                phoenixShardIterator.getTimestamp(), limit, phoenixShardIterator.getOffset());
+        LOGGER.info("Query for getRecords: {}, Parameters: {}, {}, {}, {}",
+                ps, phoenixShardIterator.getPartitionId(), phoenixShardIterator.getTimestamp(),
+                limit, phoenixShardIterator.getOffset());
         return ps;
     }
 

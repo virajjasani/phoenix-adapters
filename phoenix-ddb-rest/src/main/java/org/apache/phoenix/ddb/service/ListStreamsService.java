@@ -1,5 +1,6 @@
 package org.apache.phoenix.ddb.service;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.utils.DDBShimCDCUtils;
 import org.apache.phoenix.util.CDCUtil;
@@ -25,14 +26,31 @@ public class ListStreamsService {
             + CDCUtil.CdcStreamStatus.ENABLED.getSerializedValue() + "', '"
             + CDCUtil.CdcStreamStatus.ENABLING.getSerializedValue() + "')";
 
+    private static final int MAX_LIMIT = 100;
+
     public static Map<String, Object> listStreams(Map<String, Object> request, String connectionUrl) {
         Map<String, Object> result = new HashMap<>();
+        String requestTableName = (String) request.get(ApiMetadata.TABLE_NAME);
+        String exclusiveStartStreamArn = (String) request.get(ApiMetadata.EXCLUSIVE_START_STREAM_ARN);
         try (Connection connection = DriverManager.getConnection(connectionUrl)) {
             List<Map<String, Object>> streams = new ArrayList<>();
-            String query = request.get(ApiMetadata.TABLE_NAME) == null
-                    ? STREAM_QUERY + "AND SUBSTR(TABLE_NAME, 0, 4) = 'DDB.'"
-                    : STREAM_QUERY + " AND TABLE_NAME = '" + "DDB." + request.get(ApiMetadata.TABLE_NAME) + "'";
-            ResultSet rs = connection.createStatement().executeQuery(query);
+            StringBuilder query = new StringBuilder(STREAM_QUERY);
+            if (StringUtils.isEmpty(requestTableName)) {
+                query.append("AND SUBSTR(TABLE_NAME, 0, 4) = 'DDB.'");
+            } else {
+                query.append(" AND TABLE_NAME = '" + "DDB.")
+                     .append(requestTableName)
+                     .append("'");
+            }
+            if (!StringUtils.isEmpty(exclusiveStartStreamArn)) {
+                query.append(" AND STREAM_NAME > '")
+                     .append(exclusiveStartStreamArn)
+                     .append("'");
+            }
+            int limit = (int) request.getOrDefault(ApiMetadata.LIMIT, MAX_LIMIT);
+            query.append(" LIMIT ").append(limit);
+            ResultSet rs = connection.createStatement().executeQuery(query.toString());
+            String lastStreamArn = null;
             while (rs.next()) {
                 String tableName = rs.getString(1);
                 String streamName = rs.getString(2);
@@ -42,8 +60,10 @@ public class ListStreamsService {
                 stream.put(ApiMetadata.STREAM_ARN, streamName);
                 stream.put(ApiMetadata.STREAM_LABEL, DDBShimCDCUtils.getStreamLabel(creationTS));
                 streams.add(stream);
+                lastStreamArn = streamName;
             }
             result.put(ApiMetadata.STREAMS, streams);
+            result.put(ApiMetadata.LAST_EVALUATED_STREAM_ARN, lastStreamArn);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
