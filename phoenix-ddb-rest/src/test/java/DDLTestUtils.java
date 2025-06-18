@@ -23,6 +23,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.TimeZone;
 
 /**
  * Utility functions for DDL API tests.
@@ -220,7 +221,8 @@ public class DDLTestUtils {
             }
         }
         Assert.assertTrue(cdcIndexPresent);
-        SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS zzz");
+        SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
+        df.setTimeZone(TimeZone.getTimeZone("UTC"));
         Date date = df.parse(td.latestStreamLabel());
         Assert.assertEquals(String.valueOf(cdcIndex.getTimeStamp()), String.valueOf(date.getTime()));
         Assert.assertTrue(td.latestStreamArn().contains(String.valueOf(cdcIndex.getTimeStamp())));

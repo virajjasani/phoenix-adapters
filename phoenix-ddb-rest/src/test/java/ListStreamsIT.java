@@ -28,6 +28,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.TimeZone;
 
 import static org.apache.phoenix.query.BaseTest.generateUniqueName;
 import static org.apache.phoenix.query.BaseTest.setUpConfigForMiniCluster;
@@ -113,7 +114,8 @@ public class ListStreamsIT {
         Assert.assertEquals(dynamoResult.streams().size(), phoenixResult.streams().size());
         Stream phoenixStream = phoenixResult.streams().get(0);
         Assert.assertEquals(tableName, phoenixStream.tableName());
-        SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS zzz");
+        SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
+        df.setTimeZone(TimeZone.getTimeZone("UTC"));
         Date date = df.parse(phoenixStream.streamLabel());
         Assert.assertTrue(phoenixStream.streamArn().contains(String.valueOf(date.getTime())));
     }

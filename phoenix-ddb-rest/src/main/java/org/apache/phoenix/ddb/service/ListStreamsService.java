@@ -54,11 +54,10 @@ public class ListStreamsService {
             while (rs.next()) {
                 String tableName = rs.getString(1);
                 String streamName = rs.getString(2);
-                long creationTS = DDBShimCDCUtils.getCDCIndexTimestampFromStreamName(streamName);
                 Map<String, Object> stream = new HashMap<>();
                 stream.put(ApiMetadata.TABLE_NAME, tableName.startsWith("DDB.") ? tableName.split("DDB.")[1] : tableName);
                 stream.put(ApiMetadata.STREAM_ARN, streamName);
-                stream.put(ApiMetadata.STREAM_LABEL, DDBShimCDCUtils.getStreamLabel(creationTS));
+                stream.put(ApiMetadata.STREAM_LABEL, DDBShimCDCUtils.getStreamLabel(streamName));
                 streams.add(stream);
                 lastStreamArn = streamName;
             }

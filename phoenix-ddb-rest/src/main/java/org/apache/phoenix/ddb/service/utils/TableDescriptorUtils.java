@@ -210,10 +210,8 @@ public class TableDescriptorUtils {
         String streamName = DDBShimCDCUtils.getEnabledStreamName(pconn,
                 table.getName().getString());
         if (streamName != null && table.getSchemaVersion() != null) {
-            long creationTS = DDBShimCDCUtils.getCDCIndexTimestampFromStreamName(streamName);
-
             tableDescription.put(ApiMetadata.LATEST_STREAM_ARN, streamName);
-            tableDescription.put(ApiMetadata.LATEST_STREAM_LABEL, DDBShimCDCUtils.getStreamLabel(creationTS));
+            tableDescription.put(ApiMetadata.LATEST_STREAM_LABEL, DDBShimCDCUtils.getStreamLabel(streamName));
 
             Map<String, Object> streamSpecification = new HashMap<>();
             streamSpecification.put(ApiMetadata.STREAM_ENABLED, true);

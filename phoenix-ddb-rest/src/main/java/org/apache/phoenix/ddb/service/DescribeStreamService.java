@@ -86,7 +86,7 @@ public class DescribeStreamService {
         streamDesc.put(ApiMetadata.TABLE_NAME,
                 tableName.startsWith("DDB.") ? tableName.split("DDB.")[1] : tableName);
         long creationTS = DDBShimCDCUtils.getCDCIndexTimestampFromStreamName(streamName);
-        streamDesc.put(ApiMetadata.STREAM_LABEL, DDBShimCDCUtils.getStreamLabel(creationTS));
+        streamDesc.put(ApiMetadata.STREAM_LABEL, DDBShimCDCUtils.getStreamLabel(streamName));
         streamDesc.put(ApiMetadata.STREAM_VIEW_TYPE, table.getSchemaVersion());
         streamDesc.put(ApiMetadata.CREATION_REQUEST_DATE_TIME,
                 BigDecimal.valueOf(creationTS).movePointLeft(3));

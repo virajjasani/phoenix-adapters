@@ -39,9 +39,9 @@ public class DDBShimCDCUtils {
     public static String SHARD_ITERATOR_FORMAT = "shardIterator/%s/%s/%s/%s/%s";
     public static String SHARD_ITERATOR_DELIM = "/";
     public static int SHARD_ITERATOR_NUM_PARTS = 6;
-    // phoenix/cdc/stream/{tableName}/{cdc object name}/{cdc index timestamp}
+    // phoenix/cdc/stream/{tableName}/{cdc object name}/{cdc index timestamp}/{creation datetime}
     public static String STREAM_NAME_DELIM = "/";
-    public static int STREAM_NAME_NUM_PARTS = 6;
+    public static int STREAM_NAME_NUM_PARTS = 7;
 
     private static final String STREAM_NAME_QUERY
             = "SELECT STREAM_NAME FROM " + SYSTEM_CDC_STREAM_STATUS_NAME
@@ -119,20 +119,16 @@ public class DDBShimCDCUtils {
     }
 
     /**
-     * Return human-readable format for index creation timestamp as Stream Label.
+     * Parse CDC creation datetime from streamName.
      */
-    public static String getStreamLabel(long timestamp) {
-        Date date = new Date(timestamp);
-        DateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS zzz");
-        format.setTimeZone(TimeZone.getTimeZone("Etc/UTC"));
-        return format.format(date);
+    public static String getStreamLabel(String streamName) {
+        return getStreamNameComponent(streamName, 6);
     }
 
     /**
      * Parse tableName from streamName.
      */
     public static String getTableNameFromStreamName(String streamName) {
-        // phoenix/cdc/stream/{tableName}/{cdc object name}/{cdc index timestamp}
         return getStreamNameComponent(streamName, 3);
     }
 
@@ -140,7 +136,6 @@ public class DDBShimCDCUtils {
      * Parse CDC Object name from streamName.
      */
     public static String getCDCObjectNameFromStreamName(String streamName) {
-        // phoenix/cdc/stream/{tableName}/{cdc object name}/{cdc index timestamp}
         return getStreamNameComponent(streamName, 4);
     }
 
@@ -148,7 +143,6 @@ public class DDBShimCDCUtils {
      * Parse CDC index creation time from streamName.
      */
     public static long getCDCIndexTimestampFromStreamName(String streamName) {
-        // phoenix/cdc/stream/{tableName}/{cdc object name}/{cdc index timestamp}
         return Long.parseLong(getStreamNameComponent(streamName, 5));
     }
 
