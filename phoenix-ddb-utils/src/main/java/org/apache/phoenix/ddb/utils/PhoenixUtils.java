@@ -145,7 +145,7 @@ public class PhoenixUtils {
                 "REPLICATION_SCOPE=0" + "," +
                 "DISABLE_TABLE_SOR=true" + "," +
                 "UPDATE_CACHE_FREQUENCY=1800000" + "," +
-                "\"phoenix.max.lookback.age.seconds\"=129600" + "," +
+                "\"phoenix.max.lookback.age.seconds\"=97200" + "," +
                 "\"hbase.hregion.majorcompaction\"=172800000";
     }
 
@@ -153,7 +153,7 @@ public class PhoenixUtils {
      * Get the default index options when creating a new index.
      */
     public static String getIndexOptions() {
-        return " \"phoenix.max.lookback.age.seconds\"=129600" + "," +
+        return " \"phoenix.max.lookback.age.seconds\"=97200" + "," +
                 "\"hbase.hregion.majorcompaction\"=172800000";
     }
 }

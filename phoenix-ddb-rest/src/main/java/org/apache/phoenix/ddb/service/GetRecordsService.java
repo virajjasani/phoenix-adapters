@@ -2,16 +2,13 @@ package org.apache.phoenix.ddb.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 
-import org.apache.phoenix.ddb.bson.BsonDocumentToMap;
-import org.apache.phoenix.ddb.bson.CDCBsonUtil;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
-import org.apache.phoenix.ddb.service.utils.DQLUtils;
 import org.apache.phoenix.ddb.utils.DDBShimCDCUtils;
 import org.apache.phoenix.ddb.utils.PhoenixShardIterator;
+import org.apache.phoenix.ddb.utils.PhoenixStreamRecord;
 import org.apache.phoenix.ddb.utils.PhoenixUtils;
 import org.apache.phoenix.jdbc.PhoenixResultSet;
 import org.apache.phoenix.schema.PColumn;
-import org.bson.RawBsonDocument;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,6 +37,8 @@ public class GetRecordsService {
     private static final String OLD_IMAGE = "OLD_IMAGE";
     private static final String NEW_IMAGE = "NEW_IMAGE";
     private static final String NEW_AND_OLD_IMAGES = "NEW_AND_OLD_IMAGES";
+    private static final String SERVICE = "Service";
+    private static final String PRINCIPAL_ID = "phoenix/hbase";
 
     /**
      * Notes:
@@ -155,26 +154,21 @@ public class GetRecordsService {
 
         //images
         String cdcJson = rs.getString(pkCols.size() + 2);
-        RawBsonDocument[] imagesBsonDoc = CDCBsonUtil.getBsonDocsForCDCImages(cdcJson);
+        PhoenixStreamRecord phoenixStreamRecord = new PhoenixStreamRecord(cdcJson, pkCols);
         switch (streamType) {
             case OLD_IMAGE:
-                if (imagesBsonDoc[0] != null)
-                    streamRecord.put(ApiMetadata.OLD_IMAGE, BsonDocumentToMap.getFullItem(imagesBsonDoc[0]));
+                streamRecord.put(ApiMetadata.OLD_IMAGE, phoenixStreamRecord.getPreImage());
                 break;
             case NEW_IMAGE:
-                if (imagesBsonDoc[1] != null)
-                    streamRecord.put(ApiMetadata.NEW_IMAGE, BsonDocumentToMap.getFullItem(imagesBsonDoc[1]));
+                streamRecord.put(ApiMetadata.NEW_IMAGE, phoenixStreamRecord.getPostImage());
                 break;
             case NEW_AND_OLD_IMAGES:
-                if (imagesBsonDoc[0] != null)
-                    streamRecord.put(ApiMetadata.OLD_IMAGE, BsonDocumentToMap.getFullItem(imagesBsonDoc[0]));
-                if (imagesBsonDoc[1] != null)
-                    streamRecord.put(ApiMetadata.NEW_IMAGE, BsonDocumentToMap.getFullItem(imagesBsonDoc[1]));
+                streamRecord.put(ApiMetadata.OLD_IMAGE, phoenixStreamRecord.getPreImage());
+                streamRecord.put(ApiMetadata.NEW_IMAGE, phoenixStreamRecord.getPostImage());
                 break;
         }
         //always set keys
-        RawBsonDocument image = (imagesBsonDoc[0] != null) ? imagesBsonDoc[0] : imagesBsonDoc[1];
-        streamRecord.put(ApiMetadata.KEYS, DQLUtils.getKeyFromDoc(image, false, pkCols, null));
+        streamRecord.put(ApiMetadata.KEYS, phoenixStreamRecord.getKeys());
 
         //size
         streamRecord.put(ApiMetadata.SIZE_BYTES, rs.unwrap(PhoenixResultSet.class).getCurrentRow().getSerializedSize());
@@ -182,10 +176,16 @@ public class GetRecordsService {
         // Record Name
         Map<String, Object> record = new HashMap<>();
         record.put(ApiMetadata.DYNAMODB, streamRecord);
-        if (imagesBsonDoc[0] == null) {
+        if (!phoenixStreamRecord.hasPreImage()) {
             record.put(ApiMetadata.EVENT_NAME, "INSERT");
-        } else if (imagesBsonDoc[1] == null) {
+        } else if (!phoenixStreamRecord.hasPostImage()) {
             record.put(ApiMetadata.EVENT_NAME, "REMOVE");
+            if (phoenixStreamRecord.isTTLDeleteEvent()) {
+                Map<String, Object> userIdentity = new HashMap<>();
+                userIdentity.put(ApiMetadata.TYPE, SERVICE);
+                userIdentity.put(ApiMetadata.PRINCIPAL_ID, PRINCIPAL_ID);
+                record.put(ApiMetadata.USER_IDENTITY, userIdentity);
+            }
         } else {
             record.put(ApiMetadata.EVENT_NAME, "MODIFY");
         }
