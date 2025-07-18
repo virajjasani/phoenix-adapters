@@ -153,7 +153,6 @@ public class PhoenixUtils {
      * Get the default index options when creating a new index.
      */
     public static String getIndexOptions() {
-        return " \"phoenix.max.lookback.age.seconds\"=97200" + "," +
-                "\"hbase.hregion.majorcompaction\"=172800000";
+        return "\"hbase.hregion.majorcompaction\"=172800000";
     }
 }

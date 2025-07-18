@@ -90,8 +90,6 @@ public class GetRecordsTTLExpiryIT extends GetRecordsBaseTest  {
                 Long.toString(0));
         props.put(QueryServices.TASK_HANDLING_INITIAL_DELAY_MS_ATTRIB,
                 Long.toString(1000));
-        // TODO: remove after we can set CDC Index maxlookback in phoenix
-        props.put(BaseScannerRegionObserverConstants.PHOENIX_MAX_LOOKBACK_AGE_CONF_KEY, Integer.toString(27*60*60));
         props.put("hbase.coprocessor.master.classes", PhoenixMasterObserver.class.getName());
         setUpConfigForMiniCluster(conf, new ReadOnlyProps(props.entrySet().iterator()));
 
