@@ -4,8 +4,14 @@ import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.phoenix.ddb.rest.RESTServer;
 import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
 import org.apache.phoenix.jdbc.PhoenixDriver;
+import org.apache.phoenix.jdbc.PhoenixTestDriver;
+import org.apache.phoenix.util.EnvironmentEdgeManager;
+import org.apache.phoenix.util.ManualEnvironmentEdge;
 import org.apache.phoenix.util.PhoenixRuntime;
+import org.apache.phoenix.util.SchemaUtil;
 import org.apache.phoenix.util.ServerUtil;
+import org.apache.phoenix.util.TestUtil;
+
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -27,17 +33,16 @@ import software.amazon.awssdk.services.dynamodb.model.TimeToLiveSpecification;
 import software.amazon.awssdk.services.dynamodb.model.UpdateTimeToLiveRequest;
 import software.amazon.awssdk.services.dynamodb.model.UpdateTimeToLiveResponse;
 
+import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.apache.phoenix.query.BaseTest.setUpConfigForMiniCluster;
 
-/*
-TODO: Once we move to eventually consistent TTL,
-    we will no longer be able to mask items that expire until they are removed by Major Compaction.
- */
 public class TimeToLiveIT {
     private static final Logger LOGGER = LoggerFactory.getLogger(TimeToLiveIT.class);
 
@@ -64,6 +69,7 @@ public class TimeToLiveIT {
         utility.startMiniCluster();
         String zkQuorum = "localhost:" + utility.getZkCluster().getClientPort();
         url = PhoenixRuntime.JDBC_PROTOCOL + PhoenixRuntime.JDBC_PROTOCOL_SEPARATOR + zkQuorum;
+        DriverManager.registerDriver(new PhoenixTestDriver());
 
         restServer = new RESTServer(utility.getConfiguration());
         restServer.run();
@@ -143,10 +149,10 @@ public class TimeToLiveIT {
     }
 
     @Test(timeout = 120000)
-    public void ttlExpressionTest() throws InterruptedException {
+    public void ttlExpressionTest() throws Exception {
         final String tableName = testName.getMethodName().toUpperCase();
         CreateTableRequest createTableRequest = DDLTestUtils.getCreateTableRequest(tableName,
-                "PK1", ScalarAttributeType.S, "PK2", ScalarAttributeType.S);
+                "hk", ScalarAttributeType.S, "sk", ScalarAttributeType.S);
 
         phoenixDBClientV2.createTable(createTableRequest);
 
@@ -155,55 +161,76 @@ public class TimeToLiveIT {
         TimeToLiveSpecification spec = TimeToLiveSpecification.builder().attributeName("ttlAttr").enabled(true).build();
         phoenixDBClientV2.updateTimeToLive(uTtlReq.timeToLiveSpecification(spec).build());
 
-        // item with expiry = now
-        Map<String, AttributeValue> item = new HashMap<>();
-        item.put("PK1", AttributeValue.builder().s("pk1").build());
-        item.put("PK2", AttributeValue.builder().s("pk2").build());
-        item.put("ttlAttr", AttributeValue.builder().n(Long.toString(Instant.now().getEpochSecond())).build());
+        long now = Instant.now().getEpochSecond();
+        // item with expiry now
+        Map<String, AttributeValue> item = getItem("pk1", "pk11", now);
         PutItemRequest pir = PutItemRequest.builder().tableName(tableName).item(item).build();
         phoenixDBClientV2.putItem(pir);
 
-        // item2 with expiry = now + 10s
-        Map<String, AttributeValue> item2 = new HashMap<>();
-        item2.put("PK1", AttributeValue.builder().s("pk11").build());
-        item2.put("PK2", AttributeValue.builder().s("pk22").build());
-        item2.put("ttlAttr", AttributeValue.builder().n(Long.toString(Instant.now().getEpochSecond() + 10)).build());
-        pir = PutItemRequest.builder().tableName(tableName).item(item2).build();
+        // item with expiry 1d
+        item = getItem("pk2", "pk22", now + TimeUnit.DAYS.toSeconds(1));
+        pir = PutItemRequest.builder().tableName(tableName).item(item).build();
         phoenixDBClientV2.putItem(pir);
 
-        // scan should show only item2
-        ScanRequest scanRequest = ScanRequest.builder().tableName(tableName).build();
-        ScanResponse scanResponse = phoenixDBClientV2.scan(scanRequest);
-        Assert.assertEquals(1, scanResponse.items().size());
-        Assert.assertEquals("pk11", scanResponse.items().get(0).get("PK1").s());
-        Assert.assertEquals("pk22", scanResponse.items().get(0).get("PK2").s());
-
-        // item3 without the ttl attribute
-        Map<String, AttributeValue> item3 = new HashMap<>();
-        item3.put("PK1", AttributeValue.builder().s("pk111").build());
-        item3.put("PK2", AttributeValue.builder().s("pk222").build());
-        item3.put("otherAttr", AttributeValue.builder().n(Long.toString(System.currentTimeMillis())).build());
-        pir = PutItemRequest.builder().tableName(tableName).item(item3).build();
+        // item with expiry 2d
+        item = getItem("pk3", "pk33", now + TimeUnit.DAYS.toSeconds(2));
+        pir = PutItemRequest.builder().tableName(tableName).item(item).build();
         phoenixDBClientV2.putItem(pir);
 
-        //scan should show item2 and item3
-        scanResponse = phoenixDBClientV2.scan(scanRequest);
-        Assert.assertEquals(2, scanResponse.items().size());
-        Assert.assertFalse(scanResponse.items().contains(item));
+        // item with no ttl attribute
+        item = getItem("pk4", "pk44", null);
+        pir = PutItemRequest.builder().tableName(tableName).item(item).build();
+        phoenixDBClientV2.putItem(pir);
 
-        //sleep for >10s, item2 should also expire, only item3 remains
-        Thread.sleep(10100);
-        scanResponse = phoenixDBClientV2.scan(scanRequest);
-        Assert.assertEquals(1, scanResponse.items().size());
-        Assert.assertTrue(scanResponse.items().contains(item3));
+        // scan should show all items since we did not run compaction
+        ScanRequest sr = ScanRequest.builder().tableName(tableName).build();
+        Assert.assertEquals(4, phoenixDBClientV2.scan(sr).items().size());
 
-        // disable TTL
-        uTtlReq = UpdateTimeToLiveRequest.builder().tableName(tableName);
-        spec = TimeToLiveSpecification.builder().attributeName("ttlAttr").enabled(false).build();
-        phoenixDBClientV2.updateTimeToLive(uTtlReq.timeToLiveSpecification(spec).build());
+        // increment clock by 26h50min and major compact
+        ManualEnvironmentEdge injectEdge = new ManualEnvironmentEdge();
+        long t = System.currentTimeMillis() + TimeUnit.HOURS.toMillis(26) + TimeUnit.MINUTES.toMillis(50);
+        t = ((t / 1000) + 60) * 1000;
+        EnvironmentEdgeManager.injectEdge(injectEdge);
+        injectEdge.setValue(t);
+        try (Connection connection = DriverManager.getConnection(url)) {
+            TestUtil.doMajorCompaction(connection, "DDB." + tableName);
+        }
 
-        //scan should show all items since we did not run compaction
-        scanResponse = phoenixDBClientV2.scan(scanRequest);
-        Assert.assertEquals(3, scanResponse.items().size());
+        // max lookback is 27h so all rows should be visible
+        Assert.assertEquals(4, phoenixDBClientV2.scan(sr).items().size());
+
+        // increment clock by 15 mins and major compact
+        injectEdge.incrementValue(TimeUnit.MINUTES.toMillis(15));
+
+        // first 2 items do not show in scan after major compaction
+        try (Connection connection = DriverManager.getConnection(url)) {
+            TestUtil.doMajorCompaction(connection, "DDB." + tableName);
+        }
+        ScanResponse sres = phoenixDBClientV2.scan(sr);
+        Assert.assertEquals(2, sres.items().size());
+        Assert.assertEquals("pk3", sres.items().get(0).get("hk").s());
+        Assert.assertEquals("pk4", sres.items().get(1).get("hk").s());
+
+        // increment clock by 1 day, third item should not show up in scan after compaction
+        injectEdge.incrementValue(TimeUnit.DAYS.toMillis(1));
+        Assert.assertEquals(2, phoenixDBClientV2.scan(sr).items().size());
+        try (Connection connection = DriverManager.getConnection(url)) {
+            TestUtil.doMajorCompaction(connection, "DDB." + tableName);
+        }
+        sres = phoenixDBClientV2.scan(sr);
+        Assert.assertEquals(1, sres.items().size());
+        Assert.assertEquals("pk4", sres.items().get(0).get("hk").s());
+
+        EnvironmentEdgeManager.reset();
+    }
+
+    private Map<String, AttributeValue> getItem(String pk1, String pk2, Long expiryTS) {
+        Map<String, AttributeValue> item = new HashMap<>();
+        item.put("hk", AttributeValue.builder().s(pk1).build());
+        item.put("sk", AttributeValue.builder().s(pk2).build());
+        if (expiryTS != null) {
+            item.put("ttlAttr", AttributeValue.builder().n(expiryTS.toString()).build());
+        }
+        return item;
     }
 }

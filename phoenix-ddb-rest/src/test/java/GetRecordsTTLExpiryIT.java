@@ -349,11 +349,10 @@ public class GetRecordsTTLExpiryIT extends GetRecordsBaseTest  {
         Assert.assertEquals(1, records.size());
         String lastSeqNum = records.get(0).dynamodb().sequenceNumber();
 
-        // increment clock by ttl=3days and update the row just before it expires
-        // TODO: we can update row even after expiry once phoenix has relaxed ttl
+        // increment clock by ttl=3days and update the row after it expires
         ManualEnvironmentEdge injectEdge = new ManualEnvironmentEdge();
         long t = System.currentTimeMillis() + TimeUnit.DAYS.toMillis(3);
-        t = ((t / 1000) - 60) * 1000;
+        t = ((t / 1000) + 60) * 1000;
         EnvironmentEdgeManager.injectEdge(injectEdge);
         injectEdge.setValue(t);
         UpdateItemRequest uir = UpdateItemRequest.builder()
