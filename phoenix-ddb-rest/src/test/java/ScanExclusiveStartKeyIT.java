@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.nio.ByteBuffer;
 
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -26,6 +27,7 @@ import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
+import software.amazon.awssdk.core.SdkBytes;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
@@ -40,7 +42,7 @@ import static org.apache.phoenix.query.BaseTest.setUpConfigForMiniCluster;
 
 /**
  * Parametrized test to verify getExclusiveStartKeyConditionForScan() logic in DQLUtils.
- * Tests scan pagination with different limits using tables with both hash and sort keys.
+ * Tests scan pagination with different limits and different combinations of hash and sort key data types.
  */
 @RunWith(Parameterized.class)
 public class ScanExclusiveStartKeyIT {
@@ -59,15 +61,63 @@ public class ScanExclusiveStartKeyIT {
     @Rule
     public final TestName testName = new TestName();
     
+    // Test parameters
     public int scanLimit;
+    public KeyTypeConfig keyTypeConfig;
 
-    @Parameterized.Parameters(name = "testScanExclusiveStartKey_limit_{0}")
-    public static synchronized Collection<Object> data() {
-        return Arrays.asList(new Object[] {1,2,3,4,5,6,7,8});
+    // Configuration for different key type combinations
+    public static class KeyTypeConfig {
+        public final String name;
+        public final ScalarAttributeType hashKeyType;
+        public final ScalarAttributeType sortKeyType;
+        public final String hashKeyName;
+        public final String sortKeyName;
+
+        public KeyTypeConfig(String name, ScalarAttributeType hashKeyType, ScalarAttributeType sortKeyType) {
+            this.name = name;
+            this.hashKeyType = hashKeyType;
+            this.sortKeyType = sortKeyType;
+            this.hashKeyName = "partition_key";
+            this.sortKeyName = "sort_key";
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
     }
 
-    public ScanExclusiveStartKeyIT(int scanLimit) {
+    @Parameterized.Parameters(name = "limit_{0}_keyTypes_{1}")
+    public static synchronized Collection<Object[]> data() {
+        List<Object[]> parameters = new ArrayList<>();
+        
+        // Different scan limits to test
+        int[] scanLimits = {1, 2, 3, 4, 5, 6, 7, 8};
+        
+        // Different key type combinations
+        KeyTypeConfig[] keyConfigs = {
+            new KeyTypeConfig("S_N", ScalarAttributeType.S, ScalarAttributeType.N), // String + Number
+            new KeyTypeConfig("B_B", ScalarAttributeType.B, ScalarAttributeType.B), // Binary + Binary  
+            new KeyTypeConfig("B_N", ScalarAttributeType.B, ScalarAttributeType.N), // Binary + Number
+            new KeyTypeConfig("N_S", ScalarAttributeType.N, ScalarAttributeType.S), // Number + String
+            new KeyTypeConfig("N_N", ScalarAttributeType.N, ScalarAttributeType.N), // Number + Number
+            new KeyTypeConfig("S_S", ScalarAttributeType.S, ScalarAttributeType.S), // String + String
+            new KeyTypeConfig("S_B", ScalarAttributeType.S, ScalarAttributeType.B)  // String + Binary
+        };
+        
+        // Create all combinations of limits and key types
+        for (int limit : scanLimits) {
+            for (KeyTypeConfig config : keyConfigs) {
+                parameters.add(new Object[]{limit, config});
+            }
+        }
+        
+        return parameters;
+    }
+
+    public ScanExclusiveStartKeyIT(int scanLimit, KeyTypeConfig keyTypeConfig) {
         this.scanLimit = scanLimit;
+        this.keyTypeConfig = keyTypeConfig;
     }
 
     @BeforeClass
@@ -116,20 +166,21 @@ public class ScanExclusiveStartKeyIT {
      */
     @Test(timeout = 120000)
     public void testScanExclusiveStartKeyPagination() {
-        final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "_") + "_limit_" + scanLimit;
+        final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "_") + 
+                "_limit_" + scanLimit + "_" + keyTypeConfig.name;
         
-        // Create table with hash key (partition_key) and sort key (sort_key)
+        // Create table with hash key and sort key of specified types
         CreateTableRequest createTableRequest =
-                DDLTestUtils.getCreateTableRequest(tableName, "partition_key",
-                        ScalarAttributeType.S, "sort_key", ScalarAttributeType.N);
+                DDLTestUtils.getCreateTableRequest(tableName, keyTypeConfig.hashKeyName,
+                        keyTypeConfig.hashKeyType, keyTypeConfig.sortKeyName, keyTypeConfig.sortKeyType);
         phoenixDBClientV2.createTable(createTableRequest);
         dynamoDbClient.createTable(createTableRequest);
 
-        // Insert 56 items: 7 hash keys (pk0-pk6) with 8 sort keys each (0-7)
+        // Insert 56 items: 7 hash keys with 8 sort keys each
         List<Map<String, AttributeValue>> testItems = new ArrayList<>();
         for (int hashIndex = 0; hashIndex < 7; hashIndex++) {
             for (int sortIndex = 0; sortIndex < 8; sortIndex++) {
-                Map<String, AttributeValue> item = createTestItem("pk" + hashIndex, sortIndex);
+                Map<String, AttributeValue> item = createTestItem(hashIndex, sortIndex, keyTypeConfig);
                 testItems.add(item);
                 
                 PutItemRequest putItemRequest = PutItemRequest.builder()
@@ -207,30 +258,93 @@ public class ScanExclusiveStartKeyIT {
         }
 
         List<Map<String, AttributeValue>> sortedPhoenixItems =
-                sortItemsByPartitionAndSortKey(phoenixItems);
+                sortItemsByPartitionAndSortKey(phoenixItems, keyTypeConfig);
         List<Map<String, AttributeValue>> sortedDynamoItems =
-                sortItemsByPartitionAndSortKey(dynamoItems);
+                sortItemsByPartitionAndSortKey(dynamoItems, keyTypeConfig);
         Assert.assertTrue("Phoenix and DynamoDB should return identical items when sorted",
                 ItemComparator.areItemsEqual(sortedPhoenixItems, sortedDynamoItems));
     }
 
     /**
-     * Create a test item with the given partition key and sort key.
+     * Create a test item with the given partition key and sort key based on the key type configuration.
      */
-    private Map<String, AttributeValue> createTestItem(String partitionKey, int sortKey) {
+    private Map<String, AttributeValue> createTestItem(int hashIndex, int sortIndex, KeyTypeConfig config) {
         Map<String, AttributeValue> item = new HashMap<>();
-        item.put("partition_key", AttributeValue.builder().s(partitionKey).build());
-        item.put("sort_key", AttributeValue.builder().n(String.valueOf(sortKey)).build());
-        item.put("data_field", AttributeValue.builder().s("data_" + partitionKey + "_" + sortKey).build());
+        
+        // Create hash key value based on type
+        AttributeValue hashKeyValue = createAttributeValue(config.hashKeyType, hashIndex, "pk");
+        item.put(config.hashKeyName, hashKeyValue);
+        
+        // Create sort key value based on type
+        AttributeValue sortKeyValue = createAttributeValue(config.sortKeyType, sortIndex, "sk");
+        item.put(config.sortKeyName, sortKeyValue);
+        
+        // Add a data field for verification
+        item.put("data_field", AttributeValue.builder().s("data_" + hashIndex + "_" + sortIndex).build());
+        
         return item;
     }
 
+    /**
+     * Create an AttributeValue based on the specified type and index.
+     */
+    private AttributeValue createAttributeValue(ScalarAttributeType type, int index, String prefix) {
+        switch (type) {
+            case S:
+                return AttributeValue.builder().s(prefix + index).build();
+            case N:
+                return AttributeValue.builder().n(String.valueOf(index)).build();
+            case B:
+                // Create binary data using the index as bytes
+                byte[] bytes = (prefix + index).getBytes();
+                return AttributeValue.builder().b(SdkBytes.fromByteArray(bytes)).build();
+            default:
+                throw new IllegalArgumentException("Unsupported attribute type: " + type);
+        }
+    }
+
+    /**
+     * Sort items by partition and sort key, handling different data types.
+     */
     private List<Map<String, AttributeValue>> sortItemsByPartitionAndSortKey(
-            List<Map<String, AttributeValue>> items) {
-        return items.stream().sorted(
-                        Comparator.comparing(
-                                        (Map<String, AttributeValue> item) -> item.get("partition_key").s())
-                                .thenComparing(item -> Integer.parseInt(item.get("sort_key").n())))
-                .collect(Collectors.toList());
+            List<Map<String, AttributeValue>> items, KeyTypeConfig config) {
+        return items.stream().sorted((item1, item2) -> {
+            // Compare hash keys first
+            int hashComparison = compareAttributeValues(
+                    item1.get(config.hashKeyName), item2.get(config.hashKeyName), config.hashKeyType);
+            if (hashComparison != 0) {
+                return hashComparison;
+            }
+            // If hash keys are equal, compare sort keys
+            return compareAttributeValues(
+                    item1.get(config.sortKeyName), item2.get(config.sortKeyName), config.sortKeyType);
+        }).collect(Collectors.toList());
+    }
+
+    /**
+     * Compare two AttributeValues based on their type.
+     */
+    @SuppressWarnings("unchecked")
+    private int compareAttributeValues(AttributeValue attr1, AttributeValue attr2, ScalarAttributeType type) {
+        Comparable<Object> val1 = (Comparable<Object>) getComparableValue(attr1, type);
+        Comparable<Object> val2 = (Comparable<Object>) getComparableValue(attr2, type);
+        return val1.compareTo(val2);
+    }
+
+    /**
+     * Get a comparable value from an AttributeValue based on its type.
+     */
+    private Comparable<?> getComparableValue(AttributeValue attr, ScalarAttributeType type) {
+        switch (type) {
+            case S:
+                return attr.s();
+            case N:
+                return Double.parseDouble(attr.n());
+            case B:
+                // For binary data, convert to string for comparison
+                return new String(attr.b().asByteArray());
+            default:
+                throw new IllegalArgumentException("Unsupported attribute type: " + type);
+        }
     }
 } 

@@ -28,18 +28,21 @@ import java.util.Properties;
  */
 public class DQLUtils {
 
+    public static final String SIZE_LIMIT_REACHED = "SizeLimitReached";
+
     /**
      * Execute the given PreparedStatement, collect all returned items with projected attributes
-     * and return QueryReuslt or ScanResponse.
+     * and return QueryResult or ScanResponse.
      */
-    public static Map<String, Object> executeStatementReturnResult(boolean isQuery,
-            PreparedStatement stmt, List<String> projectionAttributes, boolean useIndex,
+    public static Map<String, Object> executeStatementReturnResult(PreparedStatement stmt,
+            List<String> projectionAttributes, boolean useIndex,
             List<PColumn> tablePKCols, List<PColumn> indexPKCols, String tableName,
-            boolean isSingleRowExpected) throws SQLException {
+            boolean isSingleRowExpected, boolean isScanFirstQuery) throws SQLException {
         int count = 0;
         int bytesSize = 0;
         List<Map<String, Object>> items = new ArrayList<>();
         RawBsonDocument lastBsonDoc = null;
+        boolean sizeLimitReached = false;
         try (ResultSet rs = stmt.executeQuery()) {
             while (rs.next()) {
                 lastBsonDoc = (RawBsonDocument) rs.getObject(1);
@@ -50,6 +53,7 @@ public class DQLUtils {
                 bytesSize +=
                         (int) rs.unwrap(PhoenixResultSet.class).getCurrentRow().getSerializedSize();
                 if (bytesSize >= ApiMetadata.MAX_BYTES_SIZE) {
+                    sizeLimitReached = true;
                     break;
                 }
             }
@@ -63,6 +67,9 @@ public class DQLUtils {
             response.put(ApiMetadata.SCANNED_COUNT, countRowsScanned);
             response.put(ApiMetadata.CONSUMED_CAPACITY,
                     CommonServiceUtils.getConsumedCapacity(tableName));
+            if (isScanFirstQuery) {
+                response.put(SIZE_LIMIT_REACHED, sizeLimitReached);
+            }
             return response;
         } catch (SQLException e) {
             if (e.getMessage() != null && e.getMessage()
@@ -128,12 +135,10 @@ public class DQLUtils {
      * Return the sortKeyName here in case the QueryRequest's KeyConditionExpression
      * did not have a condition on the sortKey.
      */
-    public static void addExclusiveStartKeyCondition(boolean isQuery, boolean isFilterAddedForScan,
-            StringBuilder queryBuilder, Map<String, Object> exclusiveStartKey, boolean useIndex,
-            PColumn partitionKeyPKCol, PColumn sortKeyPKCol, boolean scanIndexForward) {
+    public static void addExclusiveStartKeyConditionForQuery(StringBuilder queryBuilder,
+            Map<String, Object> exclusiveStartKey, boolean useIndex,
+            PColumn sortKeyPKCol, boolean scanIndexForward) {
         if (exclusiveStartKey != null && !exclusiveStartKey.isEmpty()) {
-            // query, only sort key
-            if (isQuery) {
                 String op = " > ";
                 // when using index and scanning backwards, flip the operator
                 if (useIndex && !scanIndexForward) {
@@ -147,16 +152,6 @@ public class DQLUtils {
                             CommonServiceUtils.getEscapedArgument(name);
                     queryBuilder.append(" AND " + name + op + " ? ");
                 }
-            }
-            // scan
-            else {
-                if (isFilterAddedForScan) {
-                    queryBuilder.append(" AND ");
-                }
-                queryBuilder.append(
-                        getExclusiveStartKeyConditionForScan(partitionKeyPKCol, sortKeyPKCol,
-                                useIndex));
-            }
         }
     }
 
@@ -214,21 +209,5 @@ public class DQLUtils {
     public static Properties getConnectionProps() {
         Properties props = PhoenixUtils.getConnectionProps();
         return props;
-    }
-
-    /**
-     * last evaluated key as k1 --> pk1 > k1
-     * last evaluated key as k1,k2 --> (pk1 = k1 AND pk2 > k2) OR pk1 > k1)
-     */
-    private static String getExclusiveStartKeyConditionForScan(PColumn partitionKeyPKCol,
-            PColumn sortKeyPKCol, boolean useIndex) {
-        String pkName = partitionKeyPKCol.getName().toString();
-        pkName = (useIndex) ? pkName.substring(1) : CommonServiceUtils.getEscapedArgument(pkName);
-        if (sortKeyPKCol == null) {
-            return pkName + " > ?";
-        }
-        String skName = sortKeyPKCol.getName().toString();
-        skName = (useIndex) ? skName.substring(1) : CommonServiceUtils.getEscapedArgument(skName);
-        return String.format(" ((%s = ? AND %s > ?) OR %s > ?) ", pkName, skName, pkName);
     }
 }

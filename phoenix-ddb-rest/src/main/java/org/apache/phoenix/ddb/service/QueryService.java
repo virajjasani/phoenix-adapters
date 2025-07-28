@@ -49,9 +49,9 @@ public class QueryService {
                     getPreparedStatement(connection, request, useIndex, tablePKCols, indexPKCols);
             PreparedStatement stmt = pairVal.getFirst();
             boolean isSingleRowExpected = pairVal.getSecond();
-            return DQLUtils.executeStatementReturnResult(true, stmt,
+            return DQLUtils.executeStatementReturnResult(stmt,
                     getProjectionAttributes(request), useIndex, tablePKCols, indexPKCols, tableName,
-                    isSingleRowExpected);
+                    isSingleRowExpected, false);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
@@ -98,8 +98,8 @@ public class QueryService {
         // TODO: Validate exclusiveStartKey against sortKey range in key condition expression
         queryBuilder.append(keyConditions.getSQLWhereClause());
         boolean scanIndexForward = doScanIndexForward(request);
-        DQLUtils.addExclusiveStartKeyCondition(true, false, queryBuilder,
-                (Map<String, Object>) request.get(ApiMetadata.EXCLUSIVE_START_KEY), useIndex, partitionKeyPKCol,
+        DQLUtils.addExclusiveStartKeyConditionForQuery(queryBuilder,
+                (Map<String, Object>) request.get(ApiMetadata.EXCLUSIVE_START_KEY), useIndex,
                 sortKeyPKCol, scanIndexForward);
         DQLUtils.addFilterCondition(true, queryBuilder, (String) request.get(ApiMetadata.FILTER_EXPRESSION),
                 exprAttrNames, exprAttrValues);

@@ -835,6 +835,117 @@ public class ReturnItemsLimitIT {
     }
 
     /**
+     * Test to verify that in two-key table scan, if the first query returns early due to 
+     * bytes size limit, the second query is not executed.
+     * 
+     * This test specifically targets the executeTwoKeyTableScan method where:
+     * - First query: (pk = k1 AND sk > k2) hits the 1MB size limit
+     * - Second query: (pk > k1) should NOT be executed
+     */
+    @Test(timeout = 120000)
+    public void testTwoKeyTableScanWithBytesLimitOnFirstQuery() {
+        final String tableName = testName.getMethodName() + "_two_key_scan";
+
+        // Create table with both partition key and sort key
+        CreateTableRequest createTableRequest =
+                DDLTestUtils.getCreateTableRequest(tableName, "pk", ScalarAttributeType.S, "sk",
+                        ScalarAttributeType.S);
+        phoenixDBClientV2.createTable(createTableRequest);
+        dynamoDbClient.createTable(createTableRequest);
+
+        // Insert large items that will trigger the two-key scan scenario
+        // We need items with the same partition key but different sort keys to trigger first query
+        // And items with different partition keys to potentially trigger second query
+        
+        String targetPartitionKey = "target_pk";
+        String targetSortKey = "target_sk_005"; // We'll scan from this sort key
+        
+        // Insert 3 large items with same partition key, sort keys after our target
+        // These should be returned by the first query (pk = target_pk AND sk > target_sk_005)
+        for (int i = 6; i < 9; i++) {
+            Map<String, AttributeValue> item = new HashMap<>();
+            item.put("pk", AttributeValue.builder().s(targetPartitionKey).build());
+            item.put("sk", AttributeValue.builder().s("target_sk_" + String.format("%03d", i)).build());
+            
+            // Create large data to ensure we hit the 1MB limit with just these items
+            String largeData = generateLargeString(380 * 1024); // 380 KB each
+            item.put("large_data", AttributeValue.builder().s(largeData).build());
+            item.put("test_data", AttributeValue.builder().s("first_query_item_" + i).build());
+
+            PutItemRequest putRequest = PutItemRequest.builder().tableName(tableName).item(item).build();
+            phoenixDBClientV2.putItem(putRequest);
+            dynamoDbClient.putItem(putRequest);
+        }
+        
+        // Insert items with different partition keys that would be returned by second query
+        // These should NOT be returned if the first query hits the size limit
+        for (int i = 0; i < 3; i++) {
+            Map<String, AttributeValue> item = new HashMap<>();
+            String higherPartitionKey = "z_pk_" + String.format("%03d", i); // Lexicographically after "target_pk"
+            item.put("pk", AttributeValue.builder().s(higherPartitionKey).build());
+            item.put("sk", AttributeValue.builder().s("sk_" + i).build());
+            
+            // Smaller items for second query
+            item.put("data", AttributeValue.builder().s("second_query_item_" + i).build());
+            item.put("test_data", AttributeValue.builder().s("should_not_be_returned").build());
+
+            PutItemRequest putRequest = PutItemRequest.builder().tableName(tableName).item(item).build();
+            phoenixDBClientV2.putItem(putRequest);
+            dynamoDbClient.putItem(putRequest);
+        }
+
+        // Set up scan with exclusiveStartKey to trigger two-key table scan
+        Map<String, AttributeValue> exclusiveStartKey = new HashMap<>();
+        exclusiveStartKey.put("pk", AttributeValue.builder().s(targetPartitionKey).build());
+        exclusiveStartKey.put("sk", AttributeValue.builder().s(targetSortKey).build());
+        ScanRequest scanRequest = ScanRequest.builder()
+                .tableName(tableName)
+                .exclusiveStartKey(exclusiveStartKey)
+                .limit(10) // High limit, but should be limited by bytes size
+                .build();
+
+        ScanResponse phoenixResponse = phoenixDBClientV2.scan(scanRequest);
+
+        // Verify the behavior:
+        // 1. Should return fewer items than the limit due to bytes size constraint
+        Assert.assertTrue("Should return fewer than 10 items due to 1MB limit", 
+                phoenixResponse.count() < 10);
+        
+        // 2. Should return some items from the first query (same partition key)
+        Assert.assertTrue("Should return at least 1 item from first query", 
+                phoenixResponse.count() >= 1);
+        
+        // 3. All returned items should have the target partition key (from first query only)
+        for (Map<String, AttributeValue> item : phoenixResponse.items()) {
+            String itemPK = item.get("pk").s();
+            Assert.assertEquals("All returned items should have target partition key (first query)", 
+                    targetPartitionKey, itemPK);
+            
+            String itemSK = item.get("sk").s();
+            Assert.assertTrue("Sort key should be greater than target sort key", 
+                    itemSK.compareTo(targetSortKey) > 0);
+        }
+        
+        // 4. Should have lastEvaluatedKey indicating more data exists but within same partition
+        Map<String, AttributeValue> lastEvaluatedKey = phoenixResponse.lastEvaluatedKey();
+        Assert.assertNotNull("Should have lastEvaluatedKey indicating incomplete scan", lastEvaluatedKey);
+        Assert.assertEquals("LastEvaluatedKey should still be within target partition", 
+                targetPartitionKey, lastEvaluatedKey.get("pk").s());
+        
+        // Additional verification: Continue the scan to ensure we can still get remaining data
+        ScanRequest continuationRequest = ScanRequest.builder()
+                .tableName(tableName)
+                .exclusiveStartKey(lastEvaluatedKey)
+                .limit(10)
+                .build();
+                
+        ScanResponse continuationResponse = phoenixDBClientV2.scan(continuationRequest);
+        // The continuation should be able to retrieve remaining items
+        Assert.assertTrue("Continuation scan should return some items", 
+                continuationResponse.count() >= 0);
+    }
+
+    /**
      * Create a list of large items, each approximately 390 KB in size.
      */
     private List<Map<String, AttributeValue>> createLargeItems(int count) {

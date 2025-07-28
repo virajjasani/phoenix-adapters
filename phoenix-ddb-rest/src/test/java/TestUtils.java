@@ -111,15 +111,9 @@ public class TestUtils {
      */
     public static void validateIndexUsed(ScanRequest sr, String url, String scanType)
             throws SQLException {
-        String tableName = sr.tableName();
         String indexName = sr.indexName();
-        List<PColumn> tablePKCols, indexPKCols;
         try (Connection connection = DriverManager.getConnection(url)) {
-            tablePKCols = PhoenixUtils.getPKColumns(connection, tableName);
-            indexPKCols = PhoenixUtils.getOnlyIndexPKColumns(connection, indexName, tableName);
-            PreparedStatement ps =
-                    ScanService.getPreparedStatement(connection, getScanRequest(sr), true,
-                            tablePKCols, indexPKCols);
+            PreparedStatement ps = ScanService.getPreparedStatement(connection, getScanRequest(sr));
             ExplainPlan plan =
                     ps.unwrap(PhoenixPreparedStatement.class).optimizeQuery().getExplainPlan();
             ExplainPlanAttributes explainPlanAttributes = plan.getPlanStepsAsAttributes();
