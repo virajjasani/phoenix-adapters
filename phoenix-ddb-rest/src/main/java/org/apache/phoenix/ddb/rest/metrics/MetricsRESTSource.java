@@ -27,40 +27,14 @@ import org.apache.hadoop.hbase.metrics.JvmPauseMonitorSource;
 public interface MetricsRESTSource extends BaseSource, JvmPauseMonitorSource {
 
     String METRICS_NAME = "PHOENIX-REST";
-
     String CONTEXT = "phoenix-rest";
-
     String JMX_CONTEXT = "PHOENIX-REST";
-
     String METRICS_DESCRIPTION = "Metrics for the Phoenix DynamoDB REST server";
-
     String REQUEST_KEY = "requests";
 
-    String CREATE_TABLE_SUCCESS_KEY = "createTableSuccessTime";
-
-    String CREATE_TABLE_FAIL_KEY = "createTableFailureTime";
-
-    String CREATE_TABLE_SUCCESS_DESC = "Time duration in milliseconds for creating the table";
-
-    String CREATE_TABLE_FAIL_DESC =
-            "Time duration in milliseconds for failure in creating the table";
-
-    /**
-     * Increment the number of requests
-     * @param inc Ammount to increment by
-     */
     void incrementRequests(int inc);
 
-    /**
-     * Time duration for the successful Create Table requests.
-     * @param time taken for the successful Create Table requests.
-     */
-    void createTableSuccessTime(long time);
+    void recordSuccessTime(ApiOperation operation, long time);
 
-    /**
-     * Time duration for the failed Create Table requests.
-     * @param time taken for the failed Create Table requests.
-     */
-    void createTableFailureTime(long time);
-
+    void recordFailureTime(ApiOperation operation, long time);
 }

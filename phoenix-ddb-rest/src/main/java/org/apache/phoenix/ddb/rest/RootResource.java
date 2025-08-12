@@ -38,6 +38,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
+import org.apache.phoenix.ddb.rest.metrics.ApiOperation;
 import org.apache.phoenix.ddb.rest.util.Constants;
 import org.apache.phoenix.ddb.service.BatchGetItemService;
 import org.apache.phoenix.ddb.service.BatchWriteItemService;
@@ -92,8 +93,7 @@ public class RootResource {
     public Response get(final @Context UriInfo uriInfo,
             final @Context HttpServletRequest httpRequest,
             final @HeaderParam("Content-Type") String contentType,
-            final @HeaderParam("X-Amz-Target") String api,
-            final Map<String, Object> request) {
+            final @HeaderParam("X-Amz-Target") String api, final Map<String, Object> request) {
         long startTime = EnvironmentEdgeManager.currentTime();
         try {
             String userName = (String) httpRequest.getAttribute("userName");
@@ -113,107 +113,106 @@ public class RootResource {
 
             final Map<String, Object> responseObject;
             String operation = getOperationName(api);
+            ApiOperation apiOperation = ApiOperation.fromApiName(operation);
 
             switch (operation) {
-                case ApiMetadata.CREATE_TABLE: {
-                    responseObject = CreateTableService.createTable(request, jdbcConnectionUrl);
-                    servlet.getMetrics().createTableSuccessTime(
-                            EnvironmentEdgeManager.currentTime() - startTime);
-                    break;
-                }
-                case ApiMetadata.DELETE_TABLE: {
-                    responseObject = DeleteTableService.deleteTable(request, jdbcConnectionUrl);
-                    break;
-                }
-                case ApiMetadata.DESCRIBE_TABLE: {
-                    responseObject = TableDescriptorUtils.getTableDescription(
-                            (String) request.get(ApiMetadata.TABLE_NAME), jdbcConnectionUrl,
-                            "Table");
-                    break;
-                }
-                case ApiMetadata.LIST_TABLES: {
-                    responseObject = ListTablesService.listTables(request, jdbcConnectionUrl);
-                    break;
-                }
-                case ApiMetadata.UPDATE_TABLE: {
-                    responseObject = UpdateTableService.updateTable(request, jdbcConnectionUrl);
-                    break;
-                }
-                case ApiMetadata.PUT_ITEM: {
-                    try {
-                        responseObject = PutItemService.putItem(request, jdbcConnectionUrl);
-                    } catch (ConditionCheckFailedException e) {
-                        return getResponseForConditionCheckFailure(e);
-                    }
-                    break;
-                }
-                case ApiMetadata.UPDATE_ITEM: {
-                    try {
-                        responseObject = UpdateItemService.updateItem(request, jdbcConnectionUrl);
-                    } catch (ConditionCheckFailedException e) {
-                        return getResponseForConditionCheckFailure(e);
-                    }
-                    break;
-                }
-                case ApiMetadata.DELETE_ITEM: {
-                    try {
-                        responseObject = DeleteItemService.deleteItem(request, jdbcConnectionUrl);
-                    } catch (ConditionCheckFailedException e) {
-                        return getResponseForConditionCheckFailure(e);
-                    }
-                    break;
-                }
-                case ApiMetadata.GET_ITEM: {
-                    responseObject = GetItemService.getItem(request, jdbcConnectionUrl);
-                    break;
-                }
-                case ApiMetadata.BATCH_GET_ITEM: {
-                    responseObject = BatchGetItemService.batchGetItem(request, jdbcConnectionUrl);
-                    break;
-                }
-                case ApiMetadata.BATCH_WRITE_ITEM: {
-                    responseObject =
-                            BatchWriteItemService.batchWriteItem(request, jdbcConnectionUrl);
-                    break;
-                }
-                case ApiMetadata.QUERY: {
-                    responseObject = QueryService.query(request, jdbcConnectionUrl);
-                    break;
-                }
-                case ApiMetadata.SCAN: {
-                    responseObject = ScanService.scan(request, jdbcConnectionUrl);
-                    break;
-                }
-                case ApiMetadata.UPDATE_TIME_TO_LIVE: {
-                    responseObject = TTLService.updateTimeToLive(request, jdbcConnectionUrl);
-                    break;
-                }
-                case ApiMetadata.DESCRIBE_TIME_TO_LIVE: {
-                    responseObject = TTLService.describeTimeToLive(request, jdbcConnectionUrl);
-                    break;
-                }
-                case ApiMetadata.LIST_STREAMS: {
-                    responseObject = ListStreamsService.listStreams(request, jdbcConnectionUrl);
-                    break;
-                }
-                case ApiMetadata.DESCRIBE_STREAM: {
-                    responseObject =
-                            DescribeStreamService.describeStream(request, jdbcConnectionUrl);
-                    break;
-                }
-                case ApiMetadata.GET_SHARD_ITERATOR: {
-                    responseObject =
-                            GetShardIteratorService.getShardIterator(request, jdbcConnectionUrl);
-                    break;
-                }
-                case ApiMetadata.GET_RECORDS: {
-                    responseObject = GetRecordsService.getRecords(request, jdbcConnectionUrl);
-                    break;
-                }
-                default: {
-                    throw new IllegalArgumentException("Unknown API: " + api);
-                }
+            case ApiMetadata.CREATE_TABLE: {
+                responseObject = CreateTableService.createTable(request, jdbcConnectionUrl);
+                break;
             }
+            case ApiMetadata.DELETE_TABLE: {
+                responseObject = DeleteTableService.deleteTable(request, jdbcConnectionUrl);
+                break;
+            }
+            case ApiMetadata.DESCRIBE_TABLE: {
+                responseObject = TableDescriptorUtils.getTableDescription(
+                        (String) request.get(ApiMetadata.TABLE_NAME), jdbcConnectionUrl, "Table");
+                break;
+            }
+            case ApiMetadata.LIST_TABLES: {
+                responseObject = ListTablesService.listTables(request, jdbcConnectionUrl);
+                break;
+            }
+            case ApiMetadata.UPDATE_TABLE: {
+                responseObject = UpdateTableService.updateTable(request, jdbcConnectionUrl);
+                break;
+            }
+            case ApiMetadata.PUT_ITEM: {
+                try {
+                    responseObject = PutItemService.putItem(request, jdbcConnectionUrl);
+                } catch (ConditionCheckFailedException e) {
+                    return getResponseForConditionCheckFailure(e);
+                }
+                break;
+            }
+            case ApiMetadata.UPDATE_ITEM: {
+                try {
+                    responseObject = UpdateItemService.updateItem(request, jdbcConnectionUrl);
+                } catch (ConditionCheckFailedException e) {
+                    return getResponseForConditionCheckFailure(e);
+                }
+                break;
+            }
+            case ApiMetadata.DELETE_ITEM: {
+                try {
+                    responseObject = DeleteItemService.deleteItem(request, jdbcConnectionUrl);
+                } catch (ConditionCheckFailedException e) {
+                    return getResponseForConditionCheckFailure(e);
+                }
+                break;
+            }
+            case ApiMetadata.GET_ITEM: {
+                responseObject = GetItemService.getItem(request, jdbcConnectionUrl);
+                break;
+            }
+            case ApiMetadata.BATCH_GET_ITEM: {
+                responseObject = BatchGetItemService.batchGetItem(request, jdbcConnectionUrl);
+                break;
+            }
+            case ApiMetadata.BATCH_WRITE_ITEM: {
+                responseObject = BatchWriteItemService.batchWriteItem(request, jdbcConnectionUrl);
+                break;
+            }
+            case ApiMetadata.QUERY: {
+                responseObject = QueryService.query(request, jdbcConnectionUrl);
+                break;
+            }
+            case ApiMetadata.SCAN: {
+                responseObject = ScanService.scan(request, jdbcConnectionUrl);
+                break;
+            }
+            case ApiMetadata.UPDATE_TIME_TO_LIVE: {
+                responseObject = TTLService.updateTimeToLive(request, jdbcConnectionUrl);
+                break;
+            }
+            case ApiMetadata.DESCRIBE_TIME_TO_LIVE: {
+                responseObject = TTLService.describeTimeToLive(request, jdbcConnectionUrl);
+                break;
+            }
+            case ApiMetadata.LIST_STREAMS: {
+                responseObject = ListStreamsService.listStreams(request, jdbcConnectionUrl);
+                break;
+            }
+            case ApiMetadata.DESCRIBE_STREAM: {
+                responseObject = DescribeStreamService.describeStream(request, jdbcConnectionUrl);
+                break;
+            }
+            case ApiMetadata.GET_SHARD_ITERATOR: {
+                responseObject =
+                        GetShardIteratorService.getShardIterator(request, jdbcConnectionUrl);
+                break;
+            }
+            case ApiMetadata.GET_RECORDS: {
+                responseObject = GetRecordsService.getRecords(request, jdbcConnectionUrl);
+                break;
+            }
+            default: {
+                throw new IllegalArgumentException("Unknown API: " + api);
+            }
+            }
+
+            servlet.getMetrics().recordSuccessTime(apiOperation,
+                    EnvironmentEdgeManager.currentTime() - startTime);
 
             ResponseBuilder response = Response.ok(responseObject);
             response.cacheControl(cacheControl);
@@ -230,35 +229,12 @@ public class RootResource {
             }
             // TODO : metrics for error response
             String operation = getOperationName(api);
-            switch (operation) {
-                case ApiMetadata.CREATE_TABLE: {
-                    servlet.getMetrics().createTableFailureTime(
-                            EnvironmentEdgeManager.currentTime() - startTime);
-                    break;
-                }
-                case ApiMetadata.DELETE_TABLE: {
-                    break;
-                }
-                case ApiMetadata.DESCRIBE_TABLE: {
-                    break;
-                }
-                case ApiMetadata.PUT_ITEM: {
-                    break;
-                }
-                case ApiMetadata.DELETE_ITEM: {
-                    break;
-                }
-                case ApiMetadata.GET_ITEM: {
-                    break;
-                }
-                case ApiMetadata.QUERY: {
-                    break;
-                }
-                case ApiMetadata.SCAN: {
-                    break;
-                }
-                default: {
-                }
+            long elapsedTime = EnvironmentEdgeManager.currentTime() - startTime;
+            try {
+                ApiOperation apiOperation = ApiOperation.fromApiName(operation);
+                servlet.getMetrics().recordFailureTime(apiOperation, elapsedTime);
+            } catch (IllegalArgumentException iae) {
+                // Unknown API operation, ignore metrics recording
             }
             if (isTableNotFoundError(e)) {
                 return getResponseForTableNotFoundFailure();
@@ -281,8 +257,7 @@ public class RootResource {
 
     private static Response getResponseForTableNotFoundFailure() {
         Map<String, Object> respObj = new HashMap<>();
-        respObj.put("__type",
-                "com.amazonaws.dynamodb.v20120810#ResourceNotFoundException");
+        respObj.put("__type", "com.amazonaws.dynamodb.v20120810#ResourceNotFoundException");
         respObj.put("Message", "Cannot do operations on a non-existent table");
         return Response.status(Response.Status.BAD_REQUEST).entity(respObj).build();
     }
@@ -290,8 +265,7 @@ public class RootResource {
     private static Response getResponseForConditionCheckFailure(ConditionCheckFailedException e) {
         Map<String, Object> item = e.getItem();
         Map<String, Object> respObj = new HashMap<>();
-        respObj.put("__type",
-                "com.amazonaws.dynamodb.v20120810#ConditionalCheckFailedException");
+        respObj.put("__type", "com.amazonaws.dynamodb.v20120810#ConditionalCheckFailedException");
         respObj.put("Message", "The conditional request failed");
         if (item != null) {
             respObj.put("Item", item);
@@ -301,8 +275,7 @@ public class RootResource {
 
     private static Response getResponseForValidationException(ValidationException e) {
         Map<String, Object> respObj = new HashMap<>();
-        respObj.put("__type",
-                "com.amazonaws.dynamodb.v20120810#ValidationException");
+        respObj.put("__type", "com.amazonaws.dynamodb.v20120810#ValidationException");
         respObj.put("Message", e.getMessage());
         return Response.status(Response.Status.BAD_REQUEST).entity(respObj).build();
     }

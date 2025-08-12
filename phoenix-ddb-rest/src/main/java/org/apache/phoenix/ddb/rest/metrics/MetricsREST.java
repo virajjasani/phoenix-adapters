@@ -20,35 +20,25 @@ package org.apache.phoenix.ddb.rest.metrics;
 
 public class MetricsREST {
 
-    public MetricsRESTSource getSource() {
-        return source;
-    }
-
     private MetricsRESTSource source;
 
     public MetricsREST() {
         source = new MetricsRESTSourceImpl();
     }
 
-    /**
-     * @param inc How much to add to requests.
-     */
+    public MetricsRESTSource getSource() {
+        return source;
+    }
+
     public void incrementRequests(final int inc) {
         source.incrementRequests(inc);
     }
 
-    /**
-     * @param time taken for the successful Create Table requests.
-     */
-    public void createTableSuccessTime(long time) {
-        source.createTableSuccessTime(time);
+    public void recordSuccessTime(ApiOperation operation, long time) {
+        source.recordSuccessTime(operation, time);
     }
 
-    /**
-     * @param time taken for the failed Create Table requests.
-     */
-    public void createTableFailureTime(long time) {
-        source.createTableFailureTime(time);
+    public void recordFailureTime(ApiOperation operation, long time) {
+        source.recordFailureTime(operation, time);
     }
-
 }
