@@ -164,8 +164,8 @@ public class CreateTableService {
         indexDDLs.add(
                 "CREATE INDEX \"" + indexName + "\" ON DDB.\"" + tableName
                         + "\" (" + indexOn + ") INCLUDE (COL) WHERE " + indexHashKey + " IS NOT " +
-                        "NULL" + ((indexSortKey != null) ? " AND " + indexSortKey + " IS NOT " +
-                        "NULL" : "") + (isAsync ? " ASYNC " : "") + PhoenixUtils.getIndexOptions());
+                        "NULL " + ((indexSortKey != null) ? " AND " + indexSortKey + " IS NOT " +
+                        "NULL " : "") + (isAsync ? " ASYNC " : "") + PhoenixUtils.getIndexOptions());
     }
 
     public static List<String> getIndexDDLs(Map<String, Object> request) {

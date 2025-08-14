@@ -68,6 +68,7 @@ import org.apache.hadoop.hbase.zookeeper.ZKConfig;
 import org.apache.phoenix.ddb.rest.auth.AccessKeyAuthFilter;
 import org.apache.phoenix.ddb.rest.auth.CredentialStore;
 import org.apache.phoenix.ddb.rest.util.Constants;
+import org.apache.phoenix.ddb.TableOptionsConfig;
 import org.apache.phoenix.ddb.utils.IndexBuildingActivator;
 import org.apache.phoenix.ddb.utils.PhoenixUtils;
 
@@ -162,6 +163,7 @@ public class RESTServer {
         try {
             validateConnection();
             indexBuildingActivator = startIndexBuildingActivator();
+            TableOptionsConfig.initialize();
         } catch (Exception e) {
             LOG.error("Failed to validate connection, shutting down REST Server...", e);
             throw e;
