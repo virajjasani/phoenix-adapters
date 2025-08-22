@@ -7,7 +7,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.hadoop.hbase.util.Pair;
 import org.apache.phoenix.ddb.service.utils.ValidationUtil;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.expression.util.bson.SQLComparisonExpressionUtils;
@@ -35,22 +34,22 @@ public class PutItemService {
 
     private static final String CONDITIONAL_PUT_UPDATE_ONLY_WITH_HASH_KEY =
             "UPSERT INTO %s.\"%s\" VALUES (?) " + " ON DUPLICATE KEY UPDATE_ONLY\n"
-                    + " COL = CASE WHEN BSON_CONDITION_EXPRESSION(COL,'%s') THEN ? \n"
+                    + " COL = CASE WHEN BSON_CONDITION_EXPRESSION(COL,?) THEN ? \n"
                     + " ELSE COL END";
 
     private static final String CONDITIONAL_PUT_UPDATE_ONLY_WITH_HASH_SORT_KEY =
             "UPSERT INTO %s.\"%s\" VALUES (?, ?) " + " ON DUPLICATE KEY UPDATE_ONLY\n"
-                    + " COL = CASE WHEN BSON_CONDITION_EXPRESSION(COL,'%s') THEN ? \n"
+                    + " COL = CASE WHEN BSON_CONDITION_EXPRESSION(COL,?) THEN ? \n"
                     + " ELSE COL END";
 
     private static final String CONDITIONAL_PUT_UPDATE_WITH_HASH_KEY =
             "UPSERT INTO %s.\"%s\" VALUES (?, ?) " + " ON DUPLICATE KEY UPDATE\n"
-                    + " COL = CASE WHEN BSON_CONDITION_EXPRESSION(COL,'%s') THEN ? \n"
+                    + " COL = CASE WHEN BSON_CONDITION_EXPRESSION(COL,?) THEN ? \n"
                     + " ELSE COL END";
 
     private static final String CONDITIONAL_PUT_UPDATE_WITH_HASH_SORT_KEY =
             "UPSERT INTO %s.\"%s\" VALUES (?, ?, ?) " + " ON DUPLICATE KEY UPDATE\n"
-                    + " COL = CASE WHEN BSON_CONDITION_EXPRESSION(COL,'%s') THEN ? \n"
+                    + " COL = CASE WHEN BSON_CONDITION_EXPRESSION(COL,?) THEN ? \n"
                     + " ELSE COL END";
 
     private static final BsonDocument EMPTY_BSON_DOC = new BsonDocument();
@@ -71,7 +70,7 @@ public class PutItemService {
             Map<String, Object> request) throws SQLException {
         ValidationUtil.validatePutItemRequest(request);
         Map<String, Object> item = (Map<String, Object>) request.get(ApiMetadata.ITEM);
-        BsonDocument bsonDoc = MapToBsonDocument.getBsonDocument(item);
+
         // get PTable and PK PColumns
         PhoenixConnection phoenixConnection = connection.unwrap(PhoenixConnection.class);
         PTable table = phoenixConnection.getTable(new PTableKey(phoenixConnection.getTenantId(),
@@ -79,33 +78,21 @@ public class PutItemService {
         List<PColumn> pkCols = table.getPKColumns();
 
         //create statement based on PKs and conditional expression
-        Pair<Boolean, PreparedStatement> result = getPreparedStatement(connection, request, pkCols);
-        PreparedStatement stmt = result.getSecond();
-        // extract PKs from item
-        DMLUtils.setKeysOnStatement(stmt, pkCols, item);
-        // set bson document of entire item
-        stmt.setObject(pkCols.size() + 1, bsonDoc);
-        if (result.getFirst()) {
-            // this is done for UPDATE where we provide full row in VALUES(), not for UPDATE_ONLY
-            stmt.setObject(pkCols.size() + 2, bsonDoc);
-        }
+        StatementInfo stmtInfo = getPreparedStatement(connection, request, pkCols);
+        setValuesOnPreparedStatement(stmtInfo, pkCols, item);
 
         //execute, auto commit is on
-        LOGGER.debug("Upsert Query for PutItem: {}", stmt);
-        return DMLUtils.executeUpdate(stmt, (String) request.get(ApiMetadata.RETURN_VALUES),
+        LOGGER.debug("Upsert Query for PutItem: {}", stmtInfo.stmt);
+        return DMLUtils.executeUpdate(stmtInfo.stmt, (String) request.get(ApiMetadata.RETURN_VALUES),
                 (String) request.get(ApiMetadata.RETURN_VALUES_ON_CONDITION_CHECK_FAILURE),
                 (String) request.get(ApiMetadata.CONDITION_EXPRESSION), pkCols, false);
     }
 
-    /**
-     * Return a pair of
-     * 1. boolean which is true when we are using UPDATE and need to set item twice on the statement.
-     * 2. PreparedStatement based on number of Primary Key columns and conditional expression.
-     */
-    private static Pair<Boolean, PreparedStatement> getPreparedStatement(Connection conn,
-            Map<String, Object> request, List<PColumn> pkCols) throws SQLException {
+    private static StatementInfo getPreparedStatement(Connection conn, Map<String, Object> request,
+            List<PColumn> pkCols) throws SQLException {
         PreparedStatement stmt;
         boolean setItemTwice = false;
+        BsonDocument conditionDoc = null;
         String tableName = (String) request.get(ApiMetadata.TABLE_NAME);
         String condExpr = (String) request.get(ApiMetadata.CONDITION_EXPRESSION);
         Map<String, String> exprAttrNames =
@@ -113,30 +100,29 @@ public class PutItemService {
         Map<String, Object> exprAttrVals =
                 (Map<String, Object>) request.get(ApiMetadata.EXPRESSION_ATTRIBUTE_VALUES);
         if (!StringUtils.isEmpty(condExpr)) {
+            conditionDoc =
+                    CommonServiceUtils.getBsonConditionExpressionDoc(condExpr, exprAttrNames,
+                            exprAttrVals);
             BsonDocument exprAttrNamesDoc =
                     CommonServiceUtils.getExpressionAttributeNamesDoc(exprAttrNames);
-            String bsonCondExpr =
-                    CommonServiceUtils.getBsonConditionExpressionUtil(condExpr, exprAttrNamesDoc,
-                            exprAttrVals);
             if (shouldUseUpdateForAtomicPut(condExpr, exprAttrNamesDoc)) {
                 String QUERY_FORMAT = (pkCols.size() == 1) ?
                         CONDITIONAL_PUT_UPDATE_WITH_HASH_KEY :
                         CONDITIONAL_PUT_UPDATE_WITH_HASH_SORT_KEY;
-                stmt = conn.prepareStatement(
-                        String.format(QUERY_FORMAT, "DDB", tableName, bsonCondExpr));
+                stmt = conn.prepareStatement(String.format(QUERY_FORMAT, "DDB", tableName));
                 setItemTwice = true;
             } else {
                 String QUERY_FORMAT = (pkCols.size() == 1) ?
                         CONDITIONAL_PUT_UPDATE_ONLY_WITH_HASH_KEY :
                         CONDITIONAL_PUT_UPDATE_ONLY_WITH_HASH_SORT_KEY;
-                stmt = conn.prepareStatement(
-                        String.format(QUERY_FORMAT, "DDB", tableName, bsonCondExpr));
+                stmt = conn.prepareStatement(String.format(QUERY_FORMAT, "DDB", tableName));
             }
         } else {
             String QUERY_FORMAT = (pkCols.size() == 1) ? PUT_WITH_HASH_KEY : PUT_WITH_HASH_SORT_KEY;
             stmt = conn.prepareStatement(String.format(QUERY_FORMAT, "DDB", tableName));
         }
-        return new Pair<>(setItemTwice, stmt);
+        
+        return new StatementInfo(setItemTwice, stmt, conditionDoc);
     }
 
     /**
@@ -148,5 +134,46 @@ public class PutItemService {
             BsonDocument exprAttrNamesDoc) {
         return SQLComparisonExpressionUtils.evaluateConditionExpression(condExpr,
                 EMPTY_RAW_BSON_DOC, EMPTY_BSON_DOC, exprAttrNamesDoc);
+    }
+
+    /**
+     * Set keys, condition expression BSON document and the item on the statement.
+     */
+    private static void setValuesOnPreparedStatement(StatementInfo statementInfo,
+            List<PColumn> pkCols, Map<String, Object> item) throws SQLException {
+
+        // set keys
+        DMLUtils.setKeysOnStatement(statementInfo.stmt, pkCols, item);
+        int paramIndex = pkCols.size() + 1;
+
+        BsonDocument bsonDoc = MapToBsonDocument.getBsonDocument(item);
+        if (statementInfo.setItemTwice) {
+            // this is done for UPDATE where we provide full row in VALUES(), not for UPDATE_ONLY
+            statementInfo.stmt.setObject(paramIndex++, bsonDoc);
+        }
+
+        // set condition expression BSON document
+        if (statementInfo.conditionDoc != null) {
+            statementInfo.stmt.setObject(paramIndex++, statementInfo.conditionDoc);
+        }
+
+        // set bson document of entire item for THEN clause
+        statementInfo.stmt.setObject(paramIndex, bsonDoc);
+
+    }
+
+    /**
+     * Helper class to return statement information including setItemTwice flag and condition document.
+     */
+    private static class StatementInfo {
+        final boolean setItemTwice;
+        final PreparedStatement stmt;
+        final BsonDocument conditionDoc;
+
+        StatementInfo(boolean setItemTwice, PreparedStatement stmt, BsonDocument conditionDoc) {
+            this.setItemTwice = setItemTwice;
+            this.stmt = stmt;
+            this.conditionDoc = conditionDoc;
+        }
     }
 }

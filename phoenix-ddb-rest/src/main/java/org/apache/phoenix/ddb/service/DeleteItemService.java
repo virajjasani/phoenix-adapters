@@ -9,6 +9,7 @@ import java.util.Map;
 
 import org.apache.phoenix.ddb.service.utils.ValidationUtil;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
+import org.bson.BsonDocument;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,9 +29,9 @@ public class DeleteItemService {
     private static final String DELETE_QUERY_WITH_SORT =
             "DELETE FROM %s.\"%s\" WHERE %s = ? AND %s = ?";
     private static final String DELETE_QUERY_NO_SORT_WITH_COND_EXPR =
-            "DELETE FROM %s.\"%s\" WHERE %s = ? AND BSON_CONDITION_EXPRESSION(COL,'%s')";
+            "DELETE FROM %s.\"%s\" WHERE %s = ? AND BSON_CONDITION_EXPRESSION(COL,?)";
     private static final String DELETE_QUERY_SORT_WITH_COND_EXPR =
-            "DELETE FROM %s.\"%s\" WHERE %s = ? AND %s = ? AND BSON_CONDITION_EXPRESSION(COL,'%s')";
+            "DELETE FROM %s.\"%s\" WHERE %s = ? AND %s = ? AND BSON_CONDITION_EXPRESSION(COL,?)";
 
     public static Map<String, Object> deleteItem(Map<String, Object> request,
             String connectionUrl) {
@@ -53,20 +54,20 @@ public class DeleteItemService {
         // get PKs from phoenix
         List<PColumn> pkCols = table.getPKColumns();
         //build prepared statement and execute
-        PreparedStatement stmt = getPreparedStatement(connection, request, pkCols);
+        StatementInfo stmtInfo = getPreparedStatement(connection, request, pkCols);
+        setValuesOnPreparedStatement(stmtInfo, pkCols, (Map<String, Object>) request.get(ApiMetadata.KEY));
 
-        DMLUtils.setKeysOnStatement(stmt, pkCols, (Map<String, Object>) request.get(ApiMetadata.KEY));
-        LOGGER.debug("Delete Query for DeleteItem: {}", stmt);
-        return DMLUtils.executeUpdate(stmt, (String) request.get(ApiMetadata.RETURN_VALUES),
+        LOGGER.debug("Delete Query for DeleteItem: {}", stmtInfo.stmt);
+        return DMLUtils.executeUpdate(stmtInfo.stmt, (String) request.get(ApiMetadata.RETURN_VALUES),
                 (String) request.get(ApiMetadata.RETURN_VALUES_ON_CONDITION_CHECK_FAILURE),
                 (String) request.get(ApiMetadata.CONDITION_EXPRESSION), pkCols, true);
     }
 
     /**
-     * Build the SELECT query based on the query request parameters.
-     * Return a PreparedStatement with values set.
+     * Build the DELETE query based on the request parameters.
+     * Return a StatementInfo with PreparedStatement and condition document.
      */
-    public static PreparedStatement getPreparedStatement(Connection conn,
+    public static StatementInfo getPreparedStatement(Connection conn,
             Map<String, Object> request, List<PColumn> pkCols) throws SQLException {
         String tableName = (String) request.get(ApiMetadata.TABLE_NAME);
         String condExpr = (String) request.get(ApiMetadata.CONDITION_EXPRESSION);
@@ -77,24 +78,23 @@ public class DeleteItemService {
         Map<String, Object> exprAttrVals =
                 (Map<String, Object>) request.get(ApiMetadata.EXPRESSION_ATTRIBUTE_VALUES);
         PreparedStatement stmt;
+        BsonDocument conditionDoc = null;
 
         if (pkCols.size() > 1) {
             sortKeyPKCol = pkCols.get(1).toString();
         }
         if (!StringUtils.isEmpty(condExpr)) {
-            String bsonCondExpr =
-                    CommonServiceUtils.getBsonConditionExpressionFromMap(condExpr, exprAttrNames,
+            conditionDoc = CommonServiceUtils.getBsonConditionExpressionDoc(condExpr, exprAttrNames,
                             exprAttrVals);
             if (sortKeyPKCol != null) {
                 stmt = conn.prepareStatement(
                         String.format(DELETE_QUERY_SORT_WITH_COND_EXPR, "DDB", tableName,
                                 CommonServiceUtils.getEscapedArgument(partitionKeyPKCol),
-                                CommonServiceUtils.getEscapedArgument(sortKeyPKCol), bsonCondExpr));
+                                CommonServiceUtils.getEscapedArgument(sortKeyPKCol)));
             } else {
                 stmt = conn.prepareStatement(
                         String.format(DELETE_QUERY_NO_SORT_WITH_COND_EXPR, "DDB", tableName,
-                                CommonServiceUtils.getEscapedArgument(partitionKeyPKCol),
-                                bsonCondExpr));
+                                CommonServiceUtils.getEscapedArgument(partitionKeyPKCol)));
             }
         } else {
             if (sortKeyPKCol != null) {
@@ -106,6 +106,35 @@ public class DeleteItemService {
                         CommonServiceUtils.getEscapedArgument(partitionKeyPKCol)));
             }
         }
-        return stmt;
+        return new StatementInfo(stmt, conditionDoc);
+    }
+
+    /**
+     * Set keys and condition expression BSON document on the statement.
+     */
+    private static void setValuesOnPreparedStatement(StatementInfo statementInfo,
+            List<PColumn> pkCols, Map<String, Object> keyMap) throws SQLException {
+        
+        // set keys
+        DMLUtils.setKeysOnStatement(statementInfo.stmt, pkCols, keyMap);
+        
+        // set condition expression BSON document if present
+        if (statementInfo.conditionDoc != null) {
+            int paramIndex = pkCols.size() + 1;
+            statementInfo.stmt.setObject(paramIndex, statementInfo.conditionDoc);
+        }
+    }
+
+    /**
+     * Helper class to return statement information including condition document.
+     */
+    private static class StatementInfo {
+        final PreparedStatement stmt;
+        final BsonDocument conditionDoc;
+
+        StatementInfo(PreparedStatement stmt, BsonDocument conditionDoc) {
+            this.stmt = stmt;
+            this.conditionDoc = conditionDoc;
+        }
     }
 }

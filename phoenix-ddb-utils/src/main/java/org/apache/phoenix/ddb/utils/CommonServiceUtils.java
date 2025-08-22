@@ -76,24 +76,28 @@ public class CommonServiceUtils {
     }
 
     /**
-     * Return string representation of BSON Condition Expression based on dynamo condition
+     * Return BsonDocument representation of BSON Condition Expression based on dynamo condition
      * expression, expression attribute names and expression attribute values.
      */
-    public static String getBsonConditionExpressionFromMap(String condExpr,
+    public static BsonDocument getBsonConditionExpressionDoc(String condExpr,
             Map<String, String> exprAttrNames, Map<String, Object> exprAttrVals) {
         BsonDocument exprAttrNamesDoc = getExpressionAttributeNamesDoc(exprAttrNames);
-        return getBsonConditionExpressionUtil(condExpr, exprAttrNamesDoc, exprAttrVals);
-    }
-
-    public static String getBsonConditionExpressionUtil(String condExpr,
-            BsonDocument exprAttrNamesDoc, Map<String, Object> exprAttrVals) {
         BsonDocument conditionDoc = new BsonDocument();
         conditionDoc.put("$EXPR", new BsonString(condExpr));
         conditionDoc.put("$VAL", MapToBsonDocument.getBsonDocument(exprAttrVals));
         if (exprAttrNamesDoc != null) {
             conditionDoc.put("$KEYS", exprAttrNamesDoc);
         }
-        return conditionDoc.toJson();
+        return conditionDoc;
+    }
+
+    /**
+     * Return string representation of BSON Condition Expression based on dynamo condition
+     * expression, expression attribute names and expression attribute values.
+     */
+    public static String getBsonConditionExpressionString(String condExpr,
+            Map<String, String> exprAttrNames, Map<String, Object> exprAttrVals) {
+        return getBsonConditionExpressionDoc(condExpr, exprAttrNames, exprAttrVals).toJson();
     }
 
     public static BsonDocument getExpressionAttributeNamesDoc(Map<String, String> exprAttrNames) {

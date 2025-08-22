@@ -168,7 +168,7 @@ public class DQLUtils {
                 queryBuilder.append(" AND ");
             }
             String bsonCondExpr =
-                    CommonServiceUtils.getBsonConditionExpressionFromMap(filterExpr, exprAttrNames,
+                    CommonServiceUtils.getBsonConditionExpressionString(filterExpr, exprAttrNames,
                             exprAttrVals);
             queryBuilder.append(" BSON_CONDITION_EXPRESSION(COL, '");
             queryBuilder.append(bsonCondExpr);

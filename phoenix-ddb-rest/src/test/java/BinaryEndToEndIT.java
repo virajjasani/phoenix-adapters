@@ -473,6 +473,189 @@ public class BinaryEndToEndIT {
     }
 
     @Test
+    public void testComplexUpdateAndConditionExpressions() {
+        Map<String, AttributeValue> item = getItem(1);
+
+        // Add complex nested attributes with JSON-like structures
+        item.put("itemType", AttributeValue.builder().s("widget-processor").build());
+        item.put("accessConfig", AttributeValue.builder().s("[]").build());
+        item.put("connectionList", AttributeValue.builder().s(
+                "[{\"application\":\"main-connector\",\"hostname\":\"widget-processor.internal.example.com\",\"listeningPort\":8080}," +
+                        "{\"application\":\"load-balancer\",\"hostname\":\"widget-processor.{region}.{instance}.example.com\",\"listeningPort\":443}]"
+        ).build());
+        item.put("configurationName", AttributeValue.builder().s("widget-processor-config").build());
+        item.put("customSettings", AttributeValue.builder().s(
+                "[{\"instanceId\":\"region1-east\",\"domain\":\"primary\",\"zone\":\"alpha\"," +
+                        "\"connections\":[],\"settings\":{\"cache_timeout\":\"300\",\"retry_count\":\"3\"}," +
+                        "\"groups\":[],\"accessRules\":[]}," +
+                        "{\"instanceId\":\"region2-west\",\"domain\":\"primary\",\"zone\":\"beta\"," +
+                        "\"connections\":[],\"settings\":{\"cache_timeout\":\"600\",\"retry_count\":\"5\"}," +
+                        "\"groups\":[],\"accessRules\":[]}]"
+        ).build());
+        item.put("groups", AttributeValue.builder().s("[]").build());
+        item.put("teamName", AttributeValue.builder().s("platform").build());
+        item.put("metadata", AttributeValue.builder().s(
+                "{\"sys:teamId\":\"team_abc123xyz789\",\"sys:teamName\":\"Foo Team\"," +
+                        "\"config_name\":\"widget-validation-config\",\"sys:channelType\":\"STANDARD\"," +
+                        "\"api_base_path\":\"api/v1/widgets\",\"admin_base_path\":\"api/v1/admin\"," +
+                        "\"sys:aggregationKey\":\"widget-processor\",\"sys:notificationEnabled\":\"true\",\"sys:alerting\":\"enabled\"}"
+        ).build());
+        item.put("status", AttributeValue.builder().s("active").build());
+        item.put("version", AttributeValue.builder().n("1").build());
+        item.put("environment", AttributeValue.builder().s("development").build());
+
+        // Insert initial item
+        PutItemRequest initialPir = PutItemRequest.builder().tableName(TABLE_NAME).item(item).build();
+        dynamoDbClient.putItem(initialPir);
+        phoenixDBClientV2.putItem(initialPir);
+
+        // Test 1: Complex Conditional Put (should fail since item exists)
+        Map<String, AttributeValue> newItem = new HashMap<>(item);
+        newItem.put("itemType", AttributeValue.builder().s("updated-processor").build());
+
+        Map<String, String> putExprAttrNames = new HashMap<>();
+        putExprAttrNames.put("#it", "itemType");
+        putExprAttrNames.put("#env", "environment");
+        putExprAttrNames.put("#ver", "version");
+        putExprAttrNames.put("#status", "status");
+
+        Map<String, AttributeValue> putExprAttrVals = new HashMap<>();
+        putExprAttrVals.put(":expectedType", AttributeValue.builder().s("non-existent-processor").build());
+        putExprAttrVals.put(":expectedEnv", AttributeValue.builder().s("production").build());
+        putExprAttrVals.put(":maxVersion", AttributeValue.builder().n("5").build());
+        putExprAttrVals.put(":activeStatus", AttributeValue.builder().s("active").build());
+
+        PutItemRequest conditionalPut = PutItemRequest.builder()
+                .tableName(TABLE_NAME)
+                .item(newItem)
+                .expressionAttributeNames(putExprAttrNames)
+                .expressionAttributeValues(putExprAttrVals)
+                .conditionExpression("(#it = :expectedType OR #env = :expectedEnv) AND #ver < :maxVersion AND #status = :activeStatus")
+                .build();
+
+        // Should fail on both DynamoDB and Phoenix
+        boolean putFailedDynamo = false, putFailedPhoenix = false;
+        try {
+            dynamoDbClient.putItem(conditionalPut);
+        } catch (ConditionalCheckFailedException expected) {
+            putFailedDynamo = true;
+        }
+        try {
+            phoenixDBClientV2.putItem(conditionalPut);
+        } catch (ConditionalCheckFailedException expected) {
+            putFailedPhoenix = true;
+        }
+        Assert.assertTrue("Conditional put should have failed on DynamoDB", putFailedDynamo);
+        Assert.assertTrue("Conditional put should have failed on Phoenix", putFailedPhoenix);
+
+        // Test 2: Complex Update with nested SET, ADD operations and complex condition
+        Map<String, AttributeValue> key = getKey(item);
+
+        Map<String, String> updateExprAttrNames = new HashMap<>();
+        updateExprAttrNames.put("#it", "itemType");
+        updateExprAttrNames.put("#ac", "accessConfig");
+        updateExprAttrNames.put("#cl", "connectionList");
+        updateExprAttrNames.put("#cn", "configurationName");
+        updateExprAttrNames.put("#cs", "customSettings");
+        updateExprAttrNames.put("#meta", "metadata");
+        updateExprAttrNames.put("#ver", "version");
+        updateExprAttrNames.put("#env", "environment");
+        updateExprAttrNames.put("#status", "status");
+        updateExprAttrNames.put("#lastUpdated", "lastUpdated");
+
+        Map<String, AttributeValue> updateExprAttrVals = new HashMap<>();
+        updateExprAttrVals.put(":newItemType", AttributeValue.builder().s("updated-widget-processor").build());
+        updateExprAttrVals.put(":newAccessConfig", AttributeValue.builder().s("[{\"rule\":\"allow-admin\",\"scope\":\"read-write\"}]").build());
+        updateExprAttrVals.put(":newConnectionList", AttributeValue.builder().s(
+                "[{\"application\":\"updated-connector\",\"hostname\":\"updated-widget-processor.internal.example.com\",\"listeningPort\":9090}," +
+                        "{\"application\":\"updated-lb\",\"hostname\":\"updated-widget-processor.{region}.{instance}.example.com\",\"listeningPort\":443}]"
+        ).build());
+        updateExprAttrVals.put(":newConfigName", AttributeValue.builder().s("updated-widget-processor-config").build());
+        updateExprAttrVals.put(":newCustomSettings", AttributeValue.builder().s(
+                "[{\"instanceId\":\"updated-region1-east\",\"domain\":\"updated-primary\",\"zone\":\"updated-alpha\"," +
+                        "\"connections\":[{\"type\":\"internal\"}],\"settings\":{\"updated_cache_timeout\":\"450\",\"updated_retry_count\":\"4\"}," +
+                        "\"groups\":[\"group1\",\"group2\"],\"accessRules\":[{\"rule\":\"updated-rule\"}]}]"
+        ).build());
+        updateExprAttrVals.put(":newMetadata", AttributeValue.builder().s(
+                "{\"sys:teamId\":\"updated_team_xyz789abc123\",\"sys:teamName\":\"Bar Team\"," +
+                        "\"config_name\":\"updated-widget-validation-config\",\"sys:channelType\":\"ENHANCED\"," +
+                        "\"api_base_path\":\"api/v2/widgets\",\"admin_base_path\":\"api/v2/admin\"," +
+                        "\"sys:aggregationKey\":\"updated-widget-processor\",\"sys:notificationEnabled\":\"false\",\"sys:alerting\":\"disabled\"}"
+        ).build());
+        updateExprAttrVals.put(":versionIncrement", AttributeValue.builder().n("1").build());
+        updateExprAttrVals.put(":currentTimestamp", AttributeValue.builder().n(String.valueOf(System.currentTimeMillis())).build());
+        updateExprAttrVals.put(":expectedType", AttributeValue.builder().s("widget-processor").build());
+        updateExprAttrVals.put(":expectedEnv", AttributeValue.builder().s("development").build());
+        updateExprAttrVals.put(":minVersion", AttributeValue.builder().n("1").build());
+        updateExprAttrVals.put(":maxVersion", AttributeValue.builder().n("10").build());
+        updateExprAttrVals.put(":activeStatus", AttributeValue.builder().s("active").build());
+
+        UpdateItemRequest complexUpdate = UpdateItemRequest.builder()
+                .tableName(TABLE_NAME)
+                .key(key)
+                .expressionAttributeNames(updateExprAttrNames)
+                .expressionAttributeValues(updateExprAttrVals)
+                .updateExpression("SET #it = :newItemType, #ac = :newAccessConfig, #cl = :newConnectionList, " +
+                        "#cn = :newConfigName, #cs = :newCustomSettings, #meta = :newMetadata, " +
+                        "#lastUpdated = :currentTimestamp " +
+                        "ADD #ver :versionIncrement")
+                .conditionExpression("(#it = :expectedType AND #env = :expectedEnv) AND " +
+                        "#ver >= :minVersion AND #ver < :maxVersion AND #status = :activeStatus")
+                .build();
+
+        // Should succeed on both DynamoDB and Phoenix
+        dynamoDbClient.updateItem(complexUpdate);
+        phoenixDBClientV2.updateItem(complexUpdate);
+
+        // Verify the update worked
+        GetItemRequest gir = GetItemRequest.builder().tableName(TABLE_NAME).key(key).build();
+        Map<String, AttributeValue> dynamoResult = dynamoDbClient.getItem(gir).item();
+        Map<String, AttributeValue> phoenixResult = phoenixDBClientV2.getItem(gir).item();
+        Assert.assertEquals("Results should match after complex update", dynamoResult, phoenixResult);
+        Assert.assertEquals("Item type should be updated", "updated-widget-processor", dynamoResult.get("itemType").s());
+        Assert.assertEquals("Version should be incremented", "2", dynamoResult.get("version").n());
+
+        // Test 3: Complex Conditional Delete with nested conditions
+        Map<String, String> deleteExprAttrNames = new HashMap<>();
+        deleteExprAttrNames.put("#it", "itemType");
+        deleteExprAttrNames.put("#env", "environment");
+        deleteExprAttrNames.put("#ver", "version");
+        deleteExprAttrNames.put("#status", "status");
+        deleteExprAttrNames.put("#team", "teamName");
+        deleteExprAttrNames.put("#lu", "lastUpdated");
+
+        Map<String, AttributeValue> deleteExprAttrVals = new HashMap<>();
+        deleteExprAttrVals.put(":expectedType", AttributeValue.builder().s("updated-widget-processor").build());
+        deleteExprAttrVals.put(":expectedEnv", AttributeValue.builder().s("development").build());
+        deleteExprAttrVals.put(":expectedVersion", AttributeValue.builder().n("2").build());
+        deleteExprAttrVals.put(":activeStatus", AttributeValue.builder().s("active").build());
+        deleteExprAttrVals.put(":expectedTeam", AttributeValue.builder().s("platform").build());
+        deleteExprAttrVals.put(":recentTime", AttributeValue.builder().n(String.valueOf(System.currentTimeMillis() - 60000)).build()); // 1 minute ago
+
+        DeleteItemRequest complexDelete = DeleteItemRequest.builder()
+                .tableName(TABLE_NAME)
+                .key(key)
+                .expressionAttributeNames(deleteExprAttrNames)
+                .expressionAttributeValues(deleteExprAttrVals)
+                .conditionExpression("(#it = :expectedType AND #env = :expectedEnv) AND " +
+                        "#ver = :expectedVersion AND #status = :activeStatus AND " +
+                        "#team = :expectedTeam AND #lu > :recentTime")
+                .build();
+
+        // Should succeed on both DynamoDB and Phoenix
+        dynamoDbClient.deleteItem(complexDelete);
+        phoenixDBClientV2.deleteItem(complexDelete);
+
+        // Verify the item was deleted
+        GetItemRequest finalGir = GetItemRequest.builder().tableName(TABLE_NAME).key(key).build();
+        Assert.assertEquals("Item should be deleted from both systems",
+                dynamoDbClient.getItem(finalGir).item(),
+                phoenixDBClientV2.getItem(finalGir).item());
+        Assert.assertTrue("Item should be deleted",
+                dynamoDbClient.getItem(finalGir).item() == null || dynamoDbClient.getItem(finalGir).item().isEmpty());
+    }
+
+    @Test
     public void queryTableWithProjectionAndPagination() {
         //insert items with same hk, different sk
         byte[] hk = new byte[15];
