@@ -8,17 +8,19 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.phoenix.ddb.service.utils.ValidationUtil;
-import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.bson.BsonDocument;
 import org.bson.BsonValue;
+import org.bson.RawBsonDocument;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.phoenix.ddb.bson.MapToBsonDocument;
 import org.apache.phoenix.ddb.service.utils.DMLUtils;
+import org.apache.phoenix.ddb.service.utils.ValidationUtil;
+import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.utils.CommonServiceUtils;
+import org.apache.phoenix.expression.util.bson.SQLComparisonExpressionUtils;
 import org.apache.phoenix.jdbc.PhoenixConnection;
 import org.apache.phoenix.schema.PColumn;
 import org.apache.phoenix.schema.PTable;
@@ -64,6 +66,9 @@ public class UpdateItemService {
                     + " COL = CASE WHEN BSON_CONDITION_EXPRESSION(COL,?) "
                     + " THEN BSON_UPDATE_EXPRESSION(COL,?) \n" + " ELSE COL END";
 
+    private static final BsonDocument EMPTY_BSON_DOC = new BsonDocument();
+    private static final RawBsonDocument EMPTY_RAW_BSON_DOC = RawBsonDocument.parse("{}");
+
     public static Map<String, Object> updateItem(Map<String, Object> request,
             String connectionUrl) {
         ValidationUtil.validateUpdateItemRequest(request);
@@ -97,7 +102,6 @@ public class UpdateItemService {
 
     private static StatementInfo getPreparedStatement(Connection conn, Map<String, Object> request,
             List<PColumn> pkCols) throws SQLException {
-        PreparedStatement stmt;
         String tableName = (String) request.get(ApiMetadata.TABLE_NAME);
         String condExpr = (String) request.get(ApiMetadata.CONDITION_EXPRESSION);
         Map<String, String> exprAttrNames =
@@ -132,67 +136,75 @@ public class UpdateItemService {
             updateDoc = CommonServiceUtils.getBsonUpdateExpressionFromAttributeUpdates(
                     attributeUpdates);
         }
+
+        // Extract $SET and $ADD portion from updateDoc for VALUES() clause
+        BsonDocument newItemDoc = extractSetAndAddDocument(updateDoc, request, pkCols);
+
+        // Determine query format to use
+        QueryFormatInfo formatInfo =
+                determineQueryFormat(condExpr, exprAttrNames, pkCols.size());
+
         BsonDocument conditionDoc = null;
-
-        // Extract $SET portion from updateDoc for VALUES() clause
-        BsonDocument setDoc = extractSetDocument(updateDoc, request, pkCols);
-
         if (!StringUtils.isEmpty(condExpr)) {
             conditionDoc = CommonServiceUtils.getBsonConditionExpressionDoc(condExpr, exprAttrNames,
                     exprAttrVals);
-            String queryFormat;
-            if (setDoc != null) {
-                // Use UPDATE when we have $SET document to provide in VALUES()
-                queryFormat = (pkCols.size() == 1) ?
-                        CONDITIONAL_UPDATE_WITH_HASH_KEY :
-                        CONDITIONAL_UPDATE_WITH_HASH_SORT_KEY;
-            } else {
-                // Use UPDATE_ONLY when no $SET document (no initial values for new rows)
-                queryFormat = (pkCols.size() == 1) ?
-                        CONDITIONAL_UPDATE_ONLY_WITH_HASH_KEY :
-                        CONDITIONAL_UPDATE_ONLY_WITH_HASH_SORT_KEY;
-            }
-            stmt = conn.prepareStatement(String.format(queryFormat, "DDB", tableName));
-        } else {
-            String QUERY_FORMAT;
-            if (setDoc != null) {
-                // Use UPDATE when we have $SET document to provide in VALUES()
-                QUERY_FORMAT =
-                        (pkCols.size() == 1) ? UPDATE_WITH_HASH_KEY : UPDATE_WITH_HASH_SORT_KEY;
-            } else {
-                // Use UPDATE_ONLY when no $SET document (no initial values for new rows)
-                QUERY_FORMAT = (pkCols.size() == 1) ?
-                        UPDATE_ONLY_WITH_HASH_KEY :
-                        UPDATE_ONLY_WITH_HASH_SORT_KEY;
-            }
-            stmt = conn.prepareStatement(String.format(QUERY_FORMAT, "DDB", tableName));
         }
-        return new StatementInfo(stmt, conditionDoc, updateDoc, setDoc);
+
+        PreparedStatement stmt =
+                conn.prepareStatement(String.format(formatInfo.queryFormat, "DDB", tableName));
+        return new StatementInfo(stmt, conditionDoc, updateDoc, newItemDoc, formatInfo.needsValuesDoc);
     }
 
     /**
-     * Extract the $SET portion from the update document and merge with primary key values
-     * to use in VALUES() clause for new row creation.
+     * Extract values from the update document to use in VALUES() clause for new row creation.
+     * This includes SET operations, ADD operations (for new item creation), and primary keys.
+     * For DynamoDB compatibility, ADD operations should contribute to initial values when creating new items.
      */
-    private static BsonDocument extractSetDocument(BsonDocument updateDoc,
+    private static BsonDocument extractSetAndAddDocument(BsonDocument updateDoc,
             Map<String, Object> request, List<PColumn> pkCols) {
-        if (updateDoc != null && updateDoc.containsKey("$SET")) {
-            BsonDocument setDoc = updateDoc.getDocument("$SET").clone();
-            Map<String, Object> keyMap = (Map<String, Object>) request.get(ApiMetadata.KEY);
-            if (keyMap != null) {
-                for (PColumn pkCol : pkCols) {
-                    String keyName = pkCol.getName().getString();
-                    Object keyValue = keyMap.get(keyName);
-                    if (keyValue != null && keyValue instanceof Map) {
-                        BsonValue value = MapToBsonDocument.getValueFromMapVal(
-                                (Map<String, Object>) keyValue);
-                        setDoc.put(keyName, value);
-                    }
+        BsonDocument newItemDoc = new BsonDocument();
+
+        // Add primary key values to the set document
+        addKeysToNewItemDoc(newItemDoc, request, pkCols);
+
+        if (updateDoc != null) {
+            // Add SET operations - these always contribute to new item creation
+            if (updateDoc.containsKey("$SET")) {
+                BsonDocument setBsonDoc = updateDoc.getDocument("$SET");
+                newItemDoc.putAll(setBsonDoc);
+            }
+
+            // Add ADD operations - for new item creation, these become initial values
+            // DynamoDB semantics: ADD on non-existing item creates item with ADD value
+            if (updateDoc.containsKey("$ADD")) {
+                BsonDocument addBsonDoc = updateDoc.getDocument("$ADD");
+                newItemDoc.putAll(addBsonDoc);
+            }
+
+            // Note: REMOVE and DELETE operations don't contribute to new item creation
+            // They are no-ops on non-existing items, handled by the update expression
+        }
+
+        return newItemDoc;
+    }
+
+    /**
+     * Helper method to add primary key values to the set document.
+     */
+    private static void addKeysToNewItemDoc(BsonDocument newItemDoc, Map<String, Object> request,
+            List<PColumn> pkCols) {
+        Map<String, Object> keyMap = (Map<String, Object>) request.get(ApiMetadata.KEY);
+        if (keyMap != null) {
+            for (PColumn pkCol : pkCols) {
+                String keyName = pkCol.getName().getString();
+                Object keyValue = keyMap.get(keyName);
+                if (keyValue != null) {
+                    BsonValue value =
+                            MapToBsonDocument.getValueFromMapVal((Map<String, Object>) keyValue);
+                    newItemDoc.put(keyName, value);
                 }
             }
-            return setDoc;
         }
-        return null;
     }
 
     /**
@@ -201,19 +213,100 @@ public class UpdateItemService {
      */
     private static void setValuesOnPreparedStatement(StatementInfo statementInfo,
             List<PColumn> pkCols, Map<String, Object> request) throws SQLException {
+        
         DMLUtils.setKeysOnStatement(statementInfo.stmt, pkCols,
                 (Map<String, Object>) request.get(ApiMetadata.KEY));
         int paramIndex = pkCols.size() + 1;
 
-        // Set the $SET document for VALUES() clause (only for UPDATE flavors, not UPDATE_ONLY)
-        if (statementInfo.setDoc != null) {
-            statementInfo.stmt.setObject(paramIndex++, statementInfo.setDoc);
+        // Set the document for VALUES() clause (only for UPDATE flavors, not UPDATE_ONLY)
+        // This includes SET operations, ADD operations (for new items), and keys
+        if (statementInfo.needsValuesDoc) {
+            statementInfo.stmt.setObject(paramIndex++, statementInfo.newItemDoc);
         }
 
         if (statementInfo.conditionDoc != null) {
             statementInfo.stmt.setObject(paramIndex++, statementInfo.conditionDoc);
         }
         statementInfo.stmt.setObject(paramIndex, statementInfo.updateDoc);
+    }
+
+    /**
+     * Determine the appropriate query format based on conditions and operations.
+     */
+    private static QueryFormatInfo determineQueryFormat(String condExpr,
+            Map<String, String> exprAttrNames, int pkColsSize) {
+
+        boolean hasCondition = !StringUtils.isEmpty(condExpr);
+        boolean canCreateNewItemWithCondition = false;
+
+        if (hasCondition) {
+            // Evaluate if condition can be satisfied on non-existing item
+            canCreateNewItemWithCondition = evaluateConditionOnNonExistingItem(condExpr, exprAttrNames);
+        }
+
+        if (canCreateNewItemWithCondition) {
+            // Can create new item and have values to insert (set/add or even just keys)
+            String format = pkColsSize == 1 ?
+                            CONDITIONAL_UPDATE_WITH_HASH_KEY :
+                            CONDITIONAL_UPDATE_WITH_HASH_SORT_KEY;
+            return new QueryFormatInfo(format, true);
+        } else {
+            if (hasCondition) {
+                // Cannot create new item (condition prevents it) - only update existing
+                String format = (pkColsSize == 1) ?
+                        CONDITIONAL_UPDATE_ONLY_WITH_HASH_KEY :
+                        CONDITIONAL_UPDATE_ONLY_WITH_HASH_SORT_KEY;
+                return new QueryFormatInfo(format, false); // UPDATE_ONLY doesn't use VALUES document
+            } else {
+                // there was no condition to begin with, still allow creation
+                String format = (pkColsSize == 1) ?
+                        UPDATE_WITH_HASH_KEY :
+                        UPDATE_WITH_HASH_SORT_KEY;
+                return new QueryFormatInfo(format, true);
+            }
+        }
+    }
+
+    /**
+     * Evaluate if a condition expression can be satisfied on a non-existing item.
+     * This determines whether UPDATE (allows creation) or UPDATE_ONLY (existing only) should be used.
+     * <p>
+     * DynamoDB semantics:
+     * - Non-existing items are treated as empty documents
+     * - Function calls on non-existing attributes typically return false/null
+     * - Existence checks (attribute_exists) return false
+     * - Value comparisons with non-existing attributes return false
+     * <p>
+     */
+    private static boolean evaluateConditionOnNonExistingItem(String condExpr,
+            Map<String, String> exprAttrNames) {
+        try {
+            BsonDocument exprAttrNamesDoc =
+                    CommonServiceUtils.getExpressionAttributeNamesDoc(exprAttrNames);
+            boolean result = SQLComparisonExpressionUtils.evaluateConditionExpression(condExpr,
+                    EMPTY_RAW_BSON_DOC, EMPTY_BSON_DOC, exprAttrNamesDoc);
+
+            LOGGER.debug("Condition '{}' evaluation on empty document: {}", condExpr, result);
+            return result;
+        } catch (Exception e) {
+            // If condition evaluation fails, be conservative and assume it cannot be satisfied
+            LOGGER.warn("Failed to evaluate condition '{}' on empty document, assuming false: {}",
+                    condExpr, e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Helper class to return query format and whether it needs a VALUES document parameter.
+     */
+    private static class QueryFormatInfo {
+        final String queryFormat;
+        final boolean needsValuesDoc;
+
+        QueryFormatInfo(String queryFormat, boolean needsValuesDoc) {
+            this.queryFormat = queryFormat;
+            this.needsValuesDoc = needsValuesDoc;
+        }
     }
 
     /**
@@ -224,14 +317,16 @@ public class UpdateItemService {
         final PreparedStatement stmt;
         final BsonDocument conditionDoc;
         final BsonDocument updateDoc;
-        final BsonDocument setDoc;
+        final BsonDocument newItemDoc;
+        final boolean needsValuesDoc;
 
         public StatementInfo(PreparedStatement stmt, BsonDocument conditionDoc,
-                BsonDocument updateDoc, BsonDocument setDoc) {
+                BsonDocument updateDoc, BsonDocument newItemDoc, boolean needsValuesDoc) {
             this.stmt = stmt;
             this.conditionDoc = conditionDoc;
             this.updateDoc = updateDoc;
-            this.setDoc = setDoc;
+            this.newItemDoc = newItemDoc;
+            this.needsValuesDoc = needsValuesDoc;
         }
     }
 }

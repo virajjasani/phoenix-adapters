@@ -126,7 +126,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testSet() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         // update item
         Map<String, AttributeValue> key = getKey();
@@ -158,7 +158,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testRemove() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         // update item
         Map<String, AttributeValue> key = getKey();
@@ -187,7 +187,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testAdd() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         // update item
         Map<String, AttributeValue> key = getKey();
@@ -216,7 +216,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testDelete() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         // update item
         Map<String, AttributeValue> key = getKey();
@@ -237,7 +237,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testSetDelete() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         // update item
         Map<String, AttributeValue> key = getKey();
@@ -262,7 +262,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testRemoveAdd() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         // update item
         Map<String, AttributeValue> key = getKey();
@@ -288,7 +288,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testAddSetRemove() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         // update item
         Map<String, AttributeValue> key = getKey();
@@ -316,7 +316,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testDeleteRemoveSetAdd() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         // update item
         Map<String, AttributeValue> key = getKey();
@@ -345,7 +345,7 @@ public class UpdateItemBaseTests {
         validateItem(tableName, key);
     }
 
-    protected void createTableAndPutItem(String tableName) {
+    protected void createTableAndPutItem(String tableName, boolean putItem) {
         //create table
         CreateTableRequest createTableRequest;
         if (isSortKeyPresent) {
@@ -361,12 +361,13 @@ public class UpdateItemBaseTests {
         phoenixDBClientV2.createTable(createTableRequest);
         dynamoDbClient.createTable(createTableRequest);
 
-        //put item
-        Map<String, AttributeValue> item = getItem1();
-        PutItemRequest putItemRequest =
-                PutItemRequest.builder().tableName(tableName).item(item).build();
-        phoenixDBClientV2.putItem(putItemRequest);
-        dynamoDbClient.putItem(putItemRequest);
+        if (putItem) {
+            Map<String, AttributeValue> item = getItem1();
+            PutItemRequest putItemRequest =
+                    PutItemRequest.builder().tableName(tableName).item(item).build();
+            phoenixDBClientV2.putItem(putItemRequest);
+            dynamoDbClient.putItem(putItemRequest);
+        }
     }
 
     protected void validateItem(String tableName, Map<String, AttributeValue> key) {
@@ -402,7 +403,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testAttributeUpdates() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         // Create update request using legacy AttributeUpdates parameter
         Map<String, AttributeValue> key = getKey();
@@ -499,7 +500,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testAttributeUpdatesDefaultAction() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         Map<String, AttributeValue> key = getKey();
 
@@ -529,7 +530,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testAttributeUpdatesValidation() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         Map<String, AttributeValue> key = getKey();
 
@@ -568,7 +569,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testExpectedParameter() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         Map<String, AttributeValue> key = getKey();
 
@@ -607,7 +608,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testExpectedParameterWithOrOperator() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         Map<String, AttributeValue> key = getKey();
 
@@ -648,7 +649,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testExpectedParameterComparisonOperators() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         Map<String, AttributeValue> key = getKey();
 
@@ -689,7 +690,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testExpectedParameterValidation() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         Map<String, AttributeValue> key = getKey();
 
@@ -728,7 +729,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testExpectedParameterExistsConditions1() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         Map<String, AttributeValue> key = getKey();
 
@@ -774,7 +775,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testExpectedParameterExistsConditions2() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         Map<String, AttributeValue> key = getKey();
 
@@ -809,7 +810,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testExpectedParameterBetweenOperator() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         Map<String, AttributeValue> key = getKey();
 
@@ -845,7 +846,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testExpectedParameterInOperator() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         Map<String, AttributeValue> key = getKey();
 
@@ -881,7 +882,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testExpectedParameterContainsOperators() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         Map<String, AttributeValue> key = getKey();
 
@@ -922,7 +923,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testExpectedParameterNumericComparisons() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         Map<String, AttributeValue> key = getKey();
 
@@ -963,7 +964,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testExpectedParameterNotEqualOperator() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         Map<String, AttributeValue> key = getKey();
 
@@ -1004,7 +1005,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testExpectedParameterComplexOrConditions() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         Map<String, AttributeValue> key = getKey();
 
@@ -1051,7 +1052,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testExpectedParameterConditionFailure() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         Map<String, AttributeValue> key = getKey();
 
@@ -1098,7 +1099,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testExpectedParameterMixedDataTypes() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         Map<String, AttributeValue> key = getKey();
 
@@ -1157,7 +1158,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testExpectedParameterNotNullAndNullOperators() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         Map<String, AttributeValue> key = getKey();
 
@@ -1290,7 +1291,7 @@ public class UpdateItemBaseTests {
     @Test(timeout = 120000)
     public void testExpectedParameterWithAttributeValueList() {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
-        createTableAndPutItem(tableName);
+        createTableAndPutItem(tableName, true);
 
         Map<String, AttributeValue> key = getKey();
 
