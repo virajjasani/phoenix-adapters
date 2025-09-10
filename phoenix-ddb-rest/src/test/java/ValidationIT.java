@@ -106,7 +106,7 @@ public class ValidationIT {
     }
 
     @Test
-    public void testStreamViewType() throws Exception {
+    public void testStreamViewType() {
         String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =
                 DDLTestUtils.getCreateTableRequest(tableName, "PK",
@@ -119,68 +119,5 @@ public class ValidationIT {
             Assert.assertEquals(400, e.statusCode());
             Assert.assertTrue(e.getMessage().contains("STREAM_VIEW_TYPE attribute is required"));
         }
-    }
-
-//    @Test
-    public void testLegacyParamsValidation() {
-        String tableName = testName.getMethodName();
-        CreateTableRequest createTableRequest =
-                DDLTestUtils.getCreateTableRequest(tableName, "PK",
-                        ScalarAttributeType.S, null, null);
-        phoenixDBClientV2.createTable(createTableRequest);
-        Map<String, AttributeValue> item = new HashMap<>();
-        item.put("PK", AttributeValue.builder().s("key1").build());
-        Map<String, AttributeValue> key = new HashMap<>();
-        key.put("PK", AttributeValue.builder().s("key1").build());
-        PutItemRequest pir = PutItemRequest.builder().tableName(tableName).item(item).conditionalOperator("AND").build();
-        UpdateItemRequest uir = UpdateItemRequest.builder().tableName(tableName).key(key).updateExpression("REMOVE COL").conditionalOperator("OR").build();
-       DeleteItemRequest dir = DeleteItemRequest.builder().tableName(tableName).key(key).conditionalOperator("AND").build();
-        GetItemRequest get = GetItemRequest.builder().tableName(tableName).key(key).attributesToGet("COL").build();
-        QueryRequest query = QueryRequest.builder().tableName(tableName).attributesToGet("COL").build();
-        ScanRequest scan = ScanRequest.builder().tableName(tableName).attributesToGet("COL").build();
-
-        try {
-            phoenixDBClientV2.putItem(pir);
-            Assert.fail("PutItem with legacy parameter should have given 400 Bad Request.");
-        } catch (SdkServiceException e) {
-            Assert.assertEquals(400, e.statusCode());
-            Assert.assertTrue(e.getMessage().contains("Legacy parameter"));
-        }
-        try {
-            phoenixDBClientV2.updateItem(uir);
-            Assert.fail("UpdateItem with legacy parameter should have given 400 Bad Request.");
-        } catch (SdkServiceException e) {
-            Assert.assertEquals(400, e.statusCode());
-            Assert.assertTrue(e.getMessage().contains("Legacy parameter"));
-        }
-        try {
-            phoenixDBClientV2.deleteItem(dir);
-            Assert.fail("DeleteItem with legacy parameter should have given 400 Bad Request.");
-        } catch (SdkServiceException e) {
-            Assert.assertEquals(400, e.statusCode());
-            Assert.assertTrue(e.getMessage().contains("Legacy parameter"));
-        }
-        try {
-            phoenixDBClientV2.getItem(get);
-            Assert.fail("GetItem with legacy parameter should have given 400 Bad Request.");
-        } catch (SdkServiceException e) {
-            Assert.assertEquals(400, e.statusCode());
-            Assert.assertTrue(e.getMessage().contains("Legacy parameter"));
-        }
-        try {
-            phoenixDBClientV2.query(query);
-            Assert.fail("Query with legacy parameter should have given 400 Bad Request.");
-        } catch (SdkServiceException e) {
-            Assert.assertEquals(400, e.statusCode());
-            Assert.assertTrue(e.getMessage().contains("Legacy parameter"));
-        }
-        try {
-            phoenixDBClientV2.scan(scan);
-            Assert.fail("Scan with legacy parameter should have given 400 Bad Request.");
-        } catch (SdkServiceException e) {
-            Assert.assertEquals(400, e.statusCode());
-            Assert.assertTrue(e.getMessage().contains("Legacy parameter"));
-        }
-
     }
 }
