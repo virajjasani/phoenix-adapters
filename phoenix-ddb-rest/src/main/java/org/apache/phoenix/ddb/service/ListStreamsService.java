@@ -1,12 +1,12 @@
 package org.apache.phoenix.ddb.service;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.phoenix.ddb.ConnectionUtil;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.utils.DDBShimCDCUtils;
 import org.apache.phoenix.util.CDCUtil;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -32,7 +32,7 @@ public class ListStreamsService {
         Map<String, Object> result = new HashMap<>();
         String requestTableName = (String) request.get(ApiMetadata.TABLE_NAME);
         String exclusiveStartStreamArn = (String) request.get(ApiMetadata.EXCLUSIVE_START_STREAM_ARN);
-        try (Connection connection = DriverManager.getConnection(connectionUrl)) {
+        try (Connection connection = ConnectionUtil.getConnection(connectionUrl)) {
             List<Map<String, Object>> streams = new ArrayList<>();
             StringBuilder query = new StringBuilder(STREAM_QUERY);
             if (StringUtils.isEmpty(requestTableName)) {

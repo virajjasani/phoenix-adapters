@@ -1,11 +1,11 @@
 package org.apache.phoenix.ddb.service;
 
+import org.apache.phoenix.ddb.ConnectionUtil;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.utils.DDBShimCDCUtils;
 import org.apache.phoenix.util.EnvironmentEdgeManager;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
@@ -18,7 +18,7 @@ public class GetShardIteratorService {
     public static Map<String, Object> getShardIterator(Map<String, Object> request,
                                                        String connectionUrl) {
         Map<String, Object> result = new HashMap<>();
-        try (Connection conn = DriverManager.getConnection(connectionUrl)) {
+        try (Connection conn = ConnectionUtil.getConnection(connectionUrl)) {
             String streamArn = (String) request.get(ApiMetadata.STREAM_ARN);
             String shardId = (String) request.get(ApiMetadata.SHARD_ID);
             String seqNum = (String) request.get(ApiMetadata.SEQUENCE_NUMBER);

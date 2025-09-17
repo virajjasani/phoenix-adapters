@@ -2,6 +2,7 @@ package org.apache.phoenix.ddb.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 
+import org.apache.phoenix.ddb.ConnectionUtil;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.utils.DDBShimCDCUtils;
 import org.apache.phoenix.ddb.utils.PhoenixShardIterator;
@@ -14,7 +15,6 @@ import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -58,7 +58,7 @@ public class GetRecordsService {
         long partitionEndTime = 0L;
         boolean hasMore = false;
         Map<String, Object> record = new HashMap<>();
-        try (Connection conn = DriverManager.getConnection(connectionUrl)) {
+        try (Connection conn = ConnectionUtil.getConnection(connectionUrl)) {
             String tableName = pIter.getTableName();
             List<PColumn> pkCols = PhoenixUtils.getPKColumns(conn,
                     tableName.startsWith("DDB.") ? tableName.split("DDB.")[1] : tableName);

@@ -202,12 +202,4 @@ public class DQLUtils {
 
         }
     }
-
-    /**
-     * Return DQL specific connection configuration properties.
-     */
-    public static Properties getConnectionProps() {
-        Properties props = PhoenixUtils.getConnectionProps();
-        return props;
-    }
 }

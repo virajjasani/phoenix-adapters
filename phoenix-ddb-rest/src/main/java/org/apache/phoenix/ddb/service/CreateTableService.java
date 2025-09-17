@@ -19,7 +19,6 @@
 package org.apache.phoenix.ddb.service;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -30,9 +29,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.phoenix.ddb.ConnectionUtil;
+import org.apache.phoenix.ddb.TableOptionsConfig;
 import org.apache.phoenix.ddb.service.exceptions.ValidationException;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
-import org.apache.phoenix.ddb.utils.PhoenixUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -165,7 +165,7 @@ public class CreateTableService {
                 "CREATE INDEX \"" + indexName + "\" ON DDB.\"" + tableName
                         + "\" (" + indexOn + ") INCLUDE (COL) WHERE " + indexHashKey + " IS NOT " +
                         "NULL " + ((indexSortKey != null) ? " AND " + indexSortKey + " IS NOT " +
-                        "NULL " : "") + (isAsync ? " ASYNC " : "") + PhoenixUtils.getIndexOptions());
+                        "NULL " : "") + (isAsync ? " ASYNC " : "") + TableOptionsConfig.getIndexOptions());
     }
 
     public static List<String> getIndexDDLs(Map<String, Object> request) {
@@ -318,7 +318,7 @@ public class CreateTableService {
             cols.append(", COL BSON CONSTRAINT pk PRIMARY KEY (").append(pkCols).append(")");
 
             String createTableDDL = "CREATE TABLE DDB.\"" + tableName + "\" (" + cols + ") "
-                    + PhoenixUtils.getTableOptions();
+                    + TableOptionsConfig.getTableOptions();
             LOGGER.debug("Create Table Query: {}", createTableDDL);
 
             List<String> createIndexDDLs = getIndexDDLs(request);
@@ -331,7 +331,7 @@ public class CreateTableService {
                 LOGGER.debug("CDC DDL: " + ddl);
             }
 
-            try (Connection connection = DriverManager.getConnection(connectionUrl)) {
+            try (Connection connection = ConnectionUtil.getConnection(connectionUrl)) {
                 PhoenixConnection phoenixConnection = connection.unwrap(PhoenixConnection.class);
                 try {
                     PTable table = phoenixConnection.getTable(

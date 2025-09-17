@@ -1,6 +1,7 @@
 package org.apache.phoenix.ddb.service;
 
 import org.apache.hadoop.hbase.HConstants;
+import org.apache.phoenix.ddb.ConnectionUtil;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.utils.PhoenixUtils;
 import org.apache.phoenix.jdbc.PhoenixConnection;
@@ -10,7 +11,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
@@ -35,7 +35,7 @@ public class TTLService {
             alterStmt = String.format(ALTER_TTL_STMT, "DDB", tableName, HConstants.FOREVER);
         }
         LOGGER.debug("SQL for UpdateTimeToLive: " + alterStmt);
-        try (Connection connection = DriverManager.getConnection(connectionUrl)) {
+        try (Connection connection = ConnectionUtil.getConnection(connectionUrl)) {
             connection.createStatement().execute(alterStmt);
         } catch (SQLException e) {
             throw new RuntimeException(e);
@@ -49,7 +49,7 @@ public class TTLService {
             String connectionUrl) {
         String tableName = "DDB." + request.get(ApiMetadata.TABLE_NAME);
         Map<String, Object> ttlDesc = new HashMap<>();
-        try (Connection connection = DriverManager.getConnection(connectionUrl)) {
+        try (Connection connection = ConnectionUtil.getConnection(connectionUrl)) {
             PTable pTable = connection.unwrap(PhoenixConnection.class).getTable(tableName);
             String ttlExpression = pTable.getTTLExpression().toString().trim();
             if (ttlExpression.contains("BSON_VALUE")) {

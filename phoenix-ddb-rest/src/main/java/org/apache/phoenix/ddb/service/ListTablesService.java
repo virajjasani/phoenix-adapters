@@ -1,5 +1,6 @@
 package org.apache.phoenix.ddb.service;
 
+import org.apache.phoenix.ddb.ConnectionUtil;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.jdbc.PhoenixResultSet;
 
@@ -7,7 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -34,7 +34,7 @@ public class ListTablesService {
         LOGGER.debug("Query for List Tables: {}", query);
         List<String> tableNames = new ArrayList<>();
         String lastEvaluatedTableName = null;
-        try (Connection connection = DriverManager.getConnection(connectionUrl)) {
+        try (Connection connection = ConnectionUtil.getConnection(connectionUrl)) {
             ResultSet rs = connection.createStatement().executeQuery(query);
             int bytesSize = 0;
             while (rs.next()) {

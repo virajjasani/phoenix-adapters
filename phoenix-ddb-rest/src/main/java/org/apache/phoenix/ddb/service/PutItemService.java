@@ -1,13 +1,13 @@
 package org.apache.phoenix.ddb.service;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.phoenix.ddb.ConnectionUtil;
 import org.apache.phoenix.ddb.service.utils.ValidationUtil;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.rest.metrics.ApiOperation;
@@ -59,7 +59,7 @@ public class PutItemService {
 
     public static Map<String, Object> putItem(Map<String, Object> request, String connectionUrl) {
         Map<String, Object> result;
-        try (Connection connection = DriverManager.getConnection(connectionUrl)) {
+        try (Connection connection = ConnectionUtil.getConnection(connectionUrl)) {
             connection.setAutoCommit(true);
             result = putItemWithConn(connection, request);
         } catch (SQLException e) {

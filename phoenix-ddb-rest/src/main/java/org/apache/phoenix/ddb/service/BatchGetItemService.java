@@ -1,7 +1,6 @@
 package org.apache.phoenix.ddb.service;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -10,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.phoenix.ddb.ConnectionUtil;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.bson.RawBsonDocument;
 import org.slf4j.Logger;
@@ -41,7 +41,7 @@ public class BatchGetItemService {
         Map<String, Object> finalResult = new HashMap<>();
         Map<String, List<Map<String, Object>>> responses = new HashMap<>();
         Map<String, Map<String, Object>> unprocessed = new HashMap<>();
-        try (Connection connection = DriverManager.getConnection(connectionUrl)) {
+        try (Connection connection = ConnectionUtil.getConnection(connectionUrl)) {
             //iterates over each table and executes SQL for all items to query per table
             for (Map.Entry<String, Object> tableEntry : ((Map<String, Object>) request.get(
                     ApiMetadata.REQUEST_ITEMS)).entrySet()) {

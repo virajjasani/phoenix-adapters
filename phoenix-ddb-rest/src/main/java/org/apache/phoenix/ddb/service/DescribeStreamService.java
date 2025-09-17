@@ -1,6 +1,7 @@
 package org.apache.phoenix.ddb.service;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.phoenix.ddb.ConnectionUtil;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.utils.DDBShimCDCUtils;
 import org.apache.phoenix.jdbc.PhoenixConnection;
@@ -11,7 +12,6 @@ import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -37,7 +37,7 @@ public class DescribeStreamService {
         Integer limit = (Integer) request.getOrDefault(ApiMetadata.LIMIT, MAX_LIMIT);
         String tableName = DDBShimCDCUtils.getTableNameFromStreamName(streamName);
         Map<String, Object> streamDesc;
-        try (Connection conn = DriverManager.getConnection(connectionUrl)) {
+        try (Connection conn = ConnectionUtil.getConnection(connectionUrl)) {
             streamDesc = getStreamDescriptionObject(conn, tableName, streamName);
             String streamStatus = DDBShimCDCUtils.getStreamStatus(conn, tableName, streamName);
             streamDesc.put(ApiMetadata.STREAM_STATUS, streamStatus);

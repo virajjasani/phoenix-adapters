@@ -19,7 +19,6 @@
 package org.apache.phoenix.ddb.service;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -27,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.phoenix.ddb.ConnectionUtil;
 import org.apache.phoenix.ddb.service.utils.ValidationUtil;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.bson.RawBsonDocument;
@@ -51,7 +51,7 @@ public class GetItemService {
         CommonServiceUtils.handleLegacyProjectionConversion(request);
         String tableName = (String) request.get(ApiMetadata.TABLE_NAME);
         List<PColumn> tablePKCols = null;
-        try (Connection connection = DriverManager.getConnection(connectionUrl)) {
+        try (Connection connection = ConnectionUtil.getConnection(connectionUrl)) {
             // get PKs from phoenix
             tablePKCols = PhoenixUtils.getPKColumns(connection, tableName);
 

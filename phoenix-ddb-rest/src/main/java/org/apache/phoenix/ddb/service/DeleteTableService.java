@@ -18,10 +18,10 @@
 package org.apache.phoenix.ddb.service;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Map;
 
+import org.apache.phoenix.ddb.ConnectionUtil;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,7 +41,7 @@ public class DeleteTableService {
         String deleteTableDDL = "DROP TABLE DDB.\"" + tableName + "\" CASCADE";
         LOGGER.debug("Delete Table Query: {}", deleteTableDDL);
 
-        try (Connection connection = DriverManager.getConnection(connectionUrl)) {
+        try (Connection connection = ConnectionUtil.getConnection(connectionUrl)) {
             connection.createStatement().execute(deleteTableDDL);
         } catch (SQLException e) {
             throw new RuntimeException(e);

@@ -21,7 +21,6 @@ package org.apache.phoenix.ddb.rest;
 import java.lang.management.ManagementFactory;
 import java.net.UnknownHostException;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -65,6 +64,7 @@ import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.ReflectionUtils;
 import org.apache.hadoop.hbase.util.Strings;
 import org.apache.hadoop.hbase.zookeeper.ZKConfig;
+import org.apache.phoenix.ddb.ConnectionUtil;
 import org.apache.phoenix.ddb.rest.auth.AccessKeyAuthFilter;
 import org.apache.phoenix.ddb.rest.auth.CredentialStore;
 import org.apache.phoenix.ddb.rest.util.Constants;
@@ -282,7 +282,7 @@ public class RESTServer {
     private void validateConnection() throws SQLException {
         String jdbcUrl = PhoenixUtils.URL_ZK_PREFIX + conf.get(Constants.PHOENIX_DDB_ZK_QUORUM);
         LOG.info("Try connecting to SYSTEM.CATALOG using JDBC connection url: {}", jdbcUrl);
-        try (Connection connection = DriverManager.getConnection(jdbcUrl)) {
+        try (Connection connection = ConnectionUtil.getConnection(jdbcUrl)) {
             ResultSet resultSet = connection.createStatement()
                     .executeQuery("SELECT * FROM SYSTEM.CATALOG LIMIT 1");
             resultSet.next();
@@ -293,7 +293,7 @@ public class RESTServer {
         String jdbcUrl = PhoenixUtils.URL_ZK_PREFIX + conf.get(Constants.PHOENIX_DDB_ZK_QUORUM);
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
         scheduler.scheduleAtFixedRate(() -> {
-            try (Connection connection = DriverManager.getConnection(jdbcUrl)) {
+            try (Connection connection = ConnectionUtil.getConnection(jdbcUrl)) {
                 IndexBuildingActivator.activateIndexesForBuilding(connection, 1800000);
             } catch (SQLException e) {
                 LOG.info("Error while running IndexBuildingActivator. ", e);

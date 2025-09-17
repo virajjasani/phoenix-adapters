@@ -1,14 +1,13 @@
 package org.apache.phoenix.ddb.service;
 
-import org.apache.phoenix.ddb.utils.ApiMetadata;
-
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.apache.phoenix.ddb.ConnectionUtil;
+import org.apache.phoenix.ddb.utils.ApiMetadata;
 
 public class BatchWriteItemService {
 
@@ -17,7 +16,7 @@ public class BatchWriteItemService {
     public static Map<String, Object> batchWriteItem(Map<String, Object> request,
             String connectionUrl) {
         Map<String, Object> unprocessedItems = new HashMap<>();
-        try (Connection connection = DriverManager.getConnection(connectionUrl)) {
+        try (Connection connection = ConnectionUtil.getConnection(connectionUrl)) {
             connection.setAutoCommit(false);
             Map<String, List<Map<String, Object>>> requestItems =
                     (Map<String, List<Map<String, Object>>>) request.get(ApiMetadata.REQUEST_ITEMS);

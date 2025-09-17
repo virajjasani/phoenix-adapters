@@ -1,10 +1,8 @@
 package org.apache.phoenix.ddb.utils;
 
-import org.apache.phoenix.ddb.TableOptionsConfig;
 import org.apache.phoenix.jdbc.PhoenixConnection;
 import org.apache.phoenix.jdbc.PhoenixDriver;
 import org.apache.phoenix.monitoring.MetricType;
-import org.apache.phoenix.query.QueryServices;
 import org.apache.phoenix.schema.PColumn;
 import org.apache.phoenix.schema.PTable;
 import org.apache.phoenix.schema.PTableKey;
@@ -21,7 +19,6 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 
 /**
  * Helper methods for Phoenix based functionality.
@@ -114,16 +111,6 @@ public class PhoenixUtils {
     }
 
     /**
-     * Add common phoenix client configuration properties which need to be
-     * set on the connections used in the shim for all operations.
-     */
-    public static Properties getConnectionProps() {
-        Properties props = new Properties();
-        props.put(QueryServices.COLLECT_REQUEST_LEVEL_METRICS, "true");
-        return props;
-    }
-
-    /**
      * Extract the attribute name from the given conditional TTL Expression
      * of the form {@code TTL_EXPRESSION}.
      */
@@ -133,21 +120,5 @@ public class PhoenixUtils {
                         ttlExpression.split("IS NOT NULL")[0]) // pass bson_value part
                 .replaceAll("'", "") // remove single quotes
                 .trim();
-    }
-
-    /**
-     * Get the default table options when creating a new table.
-     * Options are loaded from a configuration file.
-     */
-    public static String getTableOptions() {
-        return TableOptionsConfig.getTableOptions();
-    }
-
-    /**
-     * Get the default index options when creating a new index.
-     * Options are loaded from a configuration file.
-     */
-    public static String getIndexOptions() {
-        return TableOptionsConfig.getIndexOptions();
     }
 }

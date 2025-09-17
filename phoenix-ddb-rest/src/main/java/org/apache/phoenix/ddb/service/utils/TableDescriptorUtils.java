@@ -19,7 +19,6 @@
 package org.apache.phoenix.ddb.service.utils;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -28,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.phoenix.ddb.ConnectionUtil;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.utils.CommonServiceUtils;
 import org.apache.phoenix.ddb.utils.DDBShimCDCUtils;
@@ -132,7 +132,7 @@ public class TableDescriptorUtils {
     public static Map<String, Object> getTableDescription(String tableName, String connectionUrl,
                                                           String topResponseAttribute) {
         Set<Map<String, Object>> attributeDefinitionSet = new LinkedHashSet<>();
-        try (Connection connection = DriverManager.getConnection(connectionUrl)) {
+        try (Connection connection = ConnectionUtil.getConnection(connectionUrl)) {
             PhoenixConnection phoenixConnection = connection.unwrap(PhoenixConnection.class);
             PTable table = phoenixConnection.getTableNoCache(phoenixConnection.getTenantId(),
                     "DDB." + tableName);

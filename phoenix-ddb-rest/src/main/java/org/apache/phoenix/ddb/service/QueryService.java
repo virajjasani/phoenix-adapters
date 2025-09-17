@@ -19,7 +19,6 @@
 package org.apache.phoenix.ddb.service;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.HashMap;
@@ -28,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.hadoop.hbase.util.Pair;
+import org.apache.phoenix.ddb.ConnectionUtil;
 import org.apache.phoenix.ddb.service.utils.ValidationUtil;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.slf4j.Logger;
@@ -59,8 +59,7 @@ public class QueryService {
         String indexName = (String) request.get(ApiMetadata.INDEX_NAME);
         boolean useIndex = !StringUtils.isEmpty(indexName);
         List<PColumn> tablePKCols, indexPKCols = null;
-        try (Connection connection = DriverManager.getConnection(connectionUrl,
-                DQLUtils.getConnectionProps())) {
+        try (Connection connection = ConnectionUtil.getConnection(connectionUrl)) {
             // get PKs from phoenix
             tablePKCols = PhoenixUtils.getPKColumns(connection, tableName);
             if (useIndex) {

@@ -1,7 +1,6 @@
 package org.apache.phoenix.ddb.service;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.HashMap;
@@ -16,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.phoenix.ddb.bson.MapToBsonDocument;
+import org.apache.phoenix.ddb.ConnectionUtil;
 import org.apache.phoenix.ddb.service.utils.DMLUtils;
 import org.apache.phoenix.ddb.service.utils.ValidationUtil;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
@@ -73,7 +73,7 @@ public class UpdateItemService {
     public static Map<String, Object> updateItem(Map<String, Object> request,
             String connectionUrl) {
         ValidationUtil.validateUpdateItemRequest(request);
-        try (Connection connection = DriverManager.getConnection(connectionUrl)) {
+        try (Connection connection = ConnectionUtil.getConnection(connectionUrl)) {
             connection.setAutoCommit(true);
             // get PTable and PK PColumns
             PhoenixConnection phoenixConnection = connection.unwrap(PhoenixConnection.class);

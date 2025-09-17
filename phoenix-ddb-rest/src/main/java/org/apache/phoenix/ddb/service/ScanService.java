@@ -19,7 +19,6 @@
 package org.apache.phoenix.ddb.service;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Collections;
@@ -28,6 +27,7 @@ import java.util.Map;
 import java.util.ArrayList;
 import java.util.HashMap;
 
+import org.apache.phoenix.ddb.ConnectionUtil;
 import org.apache.phoenix.ddb.service.utils.ValidationUtil;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.slf4j.Logger;
@@ -100,7 +100,7 @@ public class ScanService {
             return Collections.emptyMap();
         }
         
-        try (Connection connection = DriverManager.getConnection(connectionUrl, DQLUtils.getConnectionProps())) {
+        try (Connection connection = ConnectionUtil.getConnection(connectionUrl)) {
             return executeScan(connection, request);
         } catch (SQLException e) {
             throw new RuntimeException(e);

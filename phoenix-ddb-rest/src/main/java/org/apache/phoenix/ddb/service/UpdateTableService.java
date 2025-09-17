@@ -1,9 +1,9 @@
 package org.apache.phoenix.ddb.service;
 
+import org.apache.phoenix.ddb.ConnectionUtil;
 import org.apache.phoenix.ddb.service.exceptions.ValidationException;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.service.utils.TableDescriptorUtils;
-import org.apache.phoenix.ddb.utils.PhoenixUtils;
 import org.apache.phoenix.query.QueryServices;
 import org.apache.phoenix.schema.PIndexState;
 import org.slf4j.Logger;
@@ -58,7 +58,7 @@ public class UpdateTableService {
             ddls.addAll(cdcDDLs);
         }
 
-        Properties props = new Properties();
+        Properties props = ConnectionUtil.getMutableProps();
         props.put(QueryServices.INDEX_CREATE_DEFAULT_STATE, PIndexState.CREATE_DISABLE.toString());
         try (Connection connection = DriverManager.getConnection(connectionUrl, props)) {
             for (String ddl : ddls) {
