@@ -2,6 +2,7 @@ package org.apache.phoenix.ddb.service;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.phoenix.ddb.ConnectionUtil;
+import org.apache.phoenix.ddb.service.exceptions.PhoenixServiceException;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.utils.DDBShimCDCUtils;
 import org.apache.phoenix.util.CDCUtil;
@@ -64,7 +65,7 @@ public class ListStreamsService {
             result.put(ApiMetadata.STREAMS, streams);
             result.put(ApiMetadata.LAST_EVALUATED_STREAM_ARN, lastStreamArn);
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new PhoenixServiceException(e);
         }
         return result;
     }

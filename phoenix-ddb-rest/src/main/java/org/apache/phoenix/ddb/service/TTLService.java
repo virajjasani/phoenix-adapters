@@ -2,6 +2,7 @@ package org.apache.phoenix.ddb.service;
 
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.phoenix.ddb.ConnectionUtil;
+import org.apache.phoenix.ddb.service.exceptions.PhoenixServiceException;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.utils.PhoenixUtils;
 import org.apache.phoenix.jdbc.PhoenixConnection;
@@ -26,7 +27,7 @@ public class TTLService {
         Map<String, Object> ttlSpec =
                 (Map<String, Object>) request.get(ApiMetadata.TIME_TO_LIVE_SPECIFICATION);
         String colName = (String) ttlSpec.get(ApiMetadata.ATTRIBUTE_NAME);
-        Boolean enabled = (Boolean) ttlSpec.get(ApiMetadata.TIME_TO_LIVE_ENABLED);
+        boolean enabled = Boolean.TRUE.equals(ttlSpec.get(ApiMetadata.TIME_TO_LIVE_ENABLED));
         String alterStmt;
         if (enabled) {
             String ttlExpression = String.format(PhoenixUtils.TTL_EXPRESSION, colName, colName);
@@ -34,11 +35,11 @@ public class TTLService {
         } else {
             alterStmt = String.format(ALTER_TTL_STMT, "DDB", tableName, HConstants.FOREVER);
         }
-        LOGGER.debug("SQL for UpdateTimeToLive: " + alterStmt);
+        LOGGER.debug("SQL for UpdateTimeToLive: {}", alterStmt);
         try (Connection connection = ConnectionUtil.getConnection(connectionUrl)) {
             connection.createStatement().execute(alterStmt);
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new PhoenixServiceException(e);
         }
         Map<String, Object> response = new HashMap<>();
         response.put(ApiMetadata.TIME_TO_LIVE_SPECIFICATION, ttlSpec);
@@ -60,7 +61,7 @@ public class TTLService {
                 ttlDesc.put(ApiMetadata.TIME_TO_LIVE_STATUS, "DISABLED");
             }
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new PhoenixServiceException(e);
         }
         Map<String, Object> response = new HashMap<>();
         response.put(ApiMetadata.TIME_TO_LIVE_DESCRIPTION, ttlDesc);

@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.phoenix.ddb.ConnectionUtil;
+import org.apache.phoenix.ddb.service.exceptions.PhoenixServiceException;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.bson.RawBsonDocument;
 import org.slf4j.Logger;
@@ -85,7 +86,7 @@ public class BatchGetItemService {
             finalResult.put(ApiMetadata.UNPROCESSED_KEYS, unprocessed);
             return finalResult;
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new PhoenixServiceException(e);
         }
     }
 
@@ -114,8 +115,7 @@ public class BatchGetItemService {
 
         }
         LOGGER.debug("SELECT Query: " + queryBuilder);
-        PreparedStatement stmt = connection.prepareStatement(queryBuilder.toString());
-        return stmt;
+        return connection.prepareStatement(queryBuilder.toString());
     }
 
     /**
@@ -125,7 +125,7 @@ public class BatchGetItemService {
      * @param isSortKeyPresent
      * @return SQL Query
      */
-    private static String buildSQLQueryClause(int numKeysToQuery, Boolean isSortKeyPresent) {
+    private static String buildSQLQueryClause(int numKeysToQuery, boolean isSortKeyPresent) {
         StringBuilder temp = new StringBuilder();
         for (int k = 0; k < numKeysToQuery; k++) {
             if (isSortKeyPresent) {

@@ -177,6 +177,10 @@ public class ApiMetadata {
     public static final String GET_SHARD_ITERATOR = "GetShardIterator";
     public static final String GET_RECORDS = "GetRecords";
 
+    // Response
+    public static final String EXCEPTION_TYPE = "__type";
+    public static final String EXCEPTION_MESSAGE = "Message";
+
     // 1 MB response size max limit
     public static final int MAX_BYTES_SIZE = 1024 * 1024;
 }

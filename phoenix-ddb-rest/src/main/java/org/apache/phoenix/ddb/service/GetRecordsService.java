@@ -3,6 +3,7 @@ package org.apache.phoenix.ddb.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 
 import org.apache.phoenix.ddb.ConnectionUtil;
+import org.apache.phoenix.ddb.service.exceptions.PhoenixServiceException;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.utils.DDBShimCDCUtils;
 import org.apache.phoenix.ddb.utils.PhoenixShardIterator;
@@ -29,7 +30,7 @@ public class GetRecordsService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(GetRecordsService.class);
 
-    private static String GET_RECORDS_QUERY = "SELECT /*+ CDC_INCLUDE(PRE, POST) */ * " +
+    private static final String GET_RECORDS_QUERY = "SELECT /*+ CDC_INCLUDE(PRE, POST) */ * " +
             " FROM %s.\"%s\" WHERE PARTITION_ID() = ? " +
             " AND PHOENIX_ROW_TIMESTAMP() >= CAST(CAST(? AS BIGINT) AS TIMESTAMP) LIMIT ? ";
 
@@ -105,7 +106,7 @@ public class GetRecordsService {
                             "Index: 0, Size: 0"))) {
                 LOGGER.debug("Hit end of region, avoiding offset bug.");
             } else {
-                throw new RuntimeException(e);
+                throw new PhoenixServiceException(e);
             }
         }
         // set next shard iterator by incrementing offset on the timestamp of the last record

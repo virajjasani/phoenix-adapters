@@ -59,6 +59,7 @@ import org.apache.phoenix.ddb.service.TTLService;
 import org.apache.phoenix.ddb.service.UpdateItemService;
 import org.apache.phoenix.ddb.service.UpdateTableService;
 import org.apache.phoenix.ddb.service.exceptions.ConditionCheckFailedException;
+import org.apache.phoenix.ddb.service.exceptions.PhoenixServiceException;
 import org.apache.phoenix.ddb.service.exceptions.ValidationException;
 import org.apache.phoenix.ddb.service.utils.TableDescriptorUtils;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
@@ -255,8 +256,8 @@ public class RootResource {
 
     private static Response getResponseForInvalidApiName(String api) {
         Map<String, Object> respObj = new HashMap<>();
-        respObj.put("__type", "com.amazonaws.dynamodb.v20120810#ValidationException");
-        respObj.put("message",
+        respObj.put(ApiMetadata.EXCEPTION_TYPE, "com.amazonaws.dynamodb.v20120810#ValidationException");
+        respObj.put(ApiMetadata.EXCEPTION_MESSAGE,
                 "Invalid API format. Expected format: <Service>.<Operation>, got: " + api);
         return Response.status(Response.Status.BAD_REQUEST).entity(respObj).build();
     }
@@ -267,16 +268,16 @@ public class RootResource {
 
     private static Response getResponseForTableNotFoundFailure() {
         Map<String, Object> respObj = new HashMap<>();
-        respObj.put("__type", "com.amazonaws.dynamodb.v20120810#ResourceNotFoundException");
-        respObj.put("Message", "Cannot do operations on a non-existent table");
+        respObj.put(ApiMetadata.EXCEPTION_TYPE, "com.amazonaws.dynamodb.v20120810#ResourceNotFoundException");
+        respObj.put(ApiMetadata.EXCEPTION_MESSAGE, "Cannot do operations on a non-existent table");
         return Response.status(Response.Status.BAD_REQUEST).entity(respObj).build();
     }
 
     private static Response getResponseForConditionCheckFailure(ConditionCheckFailedException e) {
         Map<String, Object> item = e.getItem();
         Map<String, Object> respObj = new HashMap<>();
-        respObj.put("__type", "com.amazonaws.dynamodb.v20120810#ConditionalCheckFailedException");
-        respObj.put("Message", "The conditional request failed");
+        respObj.put(ApiMetadata.EXCEPTION_TYPE, "com.amazonaws.dynamodb.v20120810#ConditionalCheckFailedException");
+        respObj.put(ApiMetadata.EXCEPTION_MESSAGE, "The conditional request failed");
         if (item != null) {
             respObj.put("Item", item);
         }
@@ -285,8 +286,8 @@ public class RootResource {
 
     private static Response getResponseForValidationException(ValidationException e) {
         Map<String, Object> respObj = new HashMap<>();
-        respObj.put("__type", "com.amazonaws.dynamodb.v20120810#ValidationException");
-        respObj.put("Message", e.getMessage());
+        respObj.put(ApiMetadata.EXCEPTION_TYPE, "com.amazonaws.dynamodb.v20120810#ValidationException");
+        respObj.put(ApiMetadata.EXCEPTION_MESSAGE, e.getMessage());
         return Response.status(Response.Status.BAD_REQUEST).entity(respObj).build();
     }
 

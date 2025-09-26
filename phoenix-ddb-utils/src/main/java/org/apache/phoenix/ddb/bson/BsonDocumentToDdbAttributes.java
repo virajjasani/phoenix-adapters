@@ -147,10 +147,9 @@ public class BsonDocumentToDdbAttributes {
   }
 
   private static AttributeValue getNumber(BsonNumber bsonNumber) {
-    AttributeValue attributeValue = AttributeValue.builder()
-            .n(BsonNumberConversionUtil.numberToString(
-                    BsonNumberConversionUtil.getNumberFromBsonNumber(bsonNumber))).build();
-    return attributeValue;
+      return AttributeValue.builder()
+              .n(BsonNumberConversionUtil.numberToString(
+                      BsonNumberConversionUtil.getNumberFromBsonNumber(bsonNumber))).build();
   }
 
 }

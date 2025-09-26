@@ -1,6 +1,7 @@
 package org.apache.phoenix.ddb.service;
 
 import org.apache.phoenix.ddb.ConnectionUtil;
+import org.apache.phoenix.ddb.service.exceptions.PhoenixServiceException;
 import org.apache.phoenix.ddb.service.exceptions.ValidationException;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.service.utils.TableDescriptorUtils;
@@ -20,7 +21,7 @@ import java.util.Properties;
 public class UpdateTableService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(UpdateTableService.class);
-    private static String DROP_INDEX_SQL = "ALTER INDEX \"%s\" ON %s.\"%s\" DISABLE";
+    private static final String DROP_INDEX_SQL = "ALTER INDEX \"%s\" ON %s.\"%s\" DISABLE";
 
     public static Map<String, Object> updateTable(Map<String, Object> request, String connectionUrl) {
         String tableName = (String) request.get(ApiMetadata.TABLE_NAME);
@@ -65,7 +66,7 @@ public class UpdateTableService {
                 connection.createStatement().execute(ddl);
             }
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new PhoenixServiceException(e);
         }
         return TableDescriptorUtils.getTableDescription(tableName, connectionUrl, ApiMetadata.TABLE_DESCRIPTION);
     }

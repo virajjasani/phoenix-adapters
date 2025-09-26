@@ -1,6 +1,7 @@
 package org.apache.phoenix.ddb.service;
 
 import org.apache.phoenix.ddb.ConnectionUtil;
+import org.apache.phoenix.ddb.service.exceptions.PhoenixServiceException;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.jdbc.PhoenixResultSet;
 
@@ -19,7 +20,7 @@ public class ListTablesService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ListTablesService.class);
     // TODO: we will use TABLE_SCHEM later on to differentiate ddb tables
-    private static String SYSCAT_QUERY =
+    private static final String SYSCAT_QUERY =
             "SELECT TABLE_NAME FROM SYSTEM.CATALOG WHERE TENANT_ID IS NULL AND TABLE_SCHEM = 'DDB'"
                     + " AND COLUMN_NAME IS NULL AND COLUMN_FAMILY IS NULL AND "
                     + "TABLE_TYPE = 'u' %s LIMIT %d";
@@ -47,7 +48,7 @@ public class ListTablesService {
                 }
             }
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new PhoenixServiceException(e);
         }
         Map<String, Object> response = new HashMap<>();
         response.put(ApiMetadata.TABLE_NAMES, tableNames);

@@ -22,6 +22,7 @@ import java.sql.SQLException;
 import java.util.Map;
 
 import org.apache.phoenix.ddb.ConnectionUtil;
+import org.apache.phoenix.ddb.service.exceptions.PhoenixServiceException;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,7 +45,7 @@ public class DeleteTableService {
         try (Connection connection = ConnectionUtil.getConnection(connectionUrl)) {
             connection.createStatement().execute(deleteTableDDL);
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new PhoenixServiceException(e);
         }
 
         return tableDescription;

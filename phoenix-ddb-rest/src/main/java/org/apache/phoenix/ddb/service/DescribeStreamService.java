@@ -2,6 +2,7 @@ package org.apache.phoenix.ddb.service;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.phoenix.ddb.ConnectionUtil;
+import org.apache.phoenix.ddb.service.exceptions.PhoenixServiceException;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.utils.DDBShimCDCUtils;
 import org.apache.phoenix.jdbc.PhoenixConnection;
@@ -27,7 +28,7 @@ public class DescribeStreamService {
     private static final Logger LOGGER = LoggerFactory.getLogger(DescribeStreamService.class);
     private static final int MAX_LIMIT = 100;
 
-    private static String DESCRIBE_STREAM_QUERY
+    private static final String DESCRIBE_STREAM_QUERY
             = "SELECT PARTITION_ID, PARENT_PARTITION_ID, PARTITION_START_TIME, PARTITION_END_TIME FROM "
             + SYSTEM_CDC_STREAM_NAME + " WHERE TABLE_NAME = '%s' AND STREAM_NAME = '%s' ";
 
@@ -51,7 +52,7 @@ public class DescribeStreamService {
                 }
                 sb.append(" LIMIT ");
                 sb.append(limit);
-                LOGGER.debug("Describe Stream Query: " + sb);
+                LOGGER.debug("Describe Stream Query: {}", sb);
                 List<Map<String, Object>> shards = new ArrayList<>();
                 String lastEvaluatedShardId = null;
                 ResultSet rs = conn.createStatement().executeQuery(sb.toString());
@@ -64,7 +65,7 @@ public class DescribeStreamService {
                 streamDesc.put(ApiMetadata.LAST_EVALUATED_SHARD_ID, lastEvaluatedShardId);
             }
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new PhoenixServiceException(e);
         }
         Map<String, Object> result = new HashMap<>();
         result.put(ApiMetadata.STREAM_DESCRIPTION, streamDesc);

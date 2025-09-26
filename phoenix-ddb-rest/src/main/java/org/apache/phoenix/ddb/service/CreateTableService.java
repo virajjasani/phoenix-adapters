@@ -31,6 +31,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.phoenix.ddb.ConnectionUtil;
 import org.apache.phoenix.ddb.TableOptionsConfig;
+import org.apache.phoenix.ddb.service.exceptions.PhoenixServiceException;
 import org.apache.phoenix.ddb.service.exceptions.ValidationException;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.slf4j.Logger;
@@ -352,7 +353,7 @@ public class CreateTableService {
                 }
             } catch (SQLException e) {
                 if (!(e instanceof TableAlreadyExistsException)) {
-                    throw new RuntimeException(e);
+                    throw new PhoenixServiceException(e);
                 }
             }
 

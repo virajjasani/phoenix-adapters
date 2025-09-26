@@ -34,8 +34,6 @@ import org.apache.phoenix.ddb.rest.util.Constants;
 
 public class RESTServlet {
 
-    private static final Logger LOG = LoggerFactory.getLogger(RESTServlet.class);
-
     private static RESTServlet INSTANCE;
     private final Configuration conf;
     private final ConnectionCache connectionCache;
@@ -50,7 +48,7 @@ public class RESTServlet {
     /**
      * Returns the RESTServlet singleton instance
      */
-    public synchronized static RESTServlet getInstance() {
+    public static synchronized RESTServlet getInstance() {
         assert (INSTANCE != null);
         return INSTANCE;
     }
@@ -67,7 +65,7 @@ public class RESTServlet {
      * @param userProvider the login user provider
      * @return the RESTServlet singleton instance
      */
-    public synchronized static RESTServlet getInstance(Configuration conf,
+    public static synchronized RESTServlet getInstance(Configuration conf,
             UserProvider userProvider) throws IOException {
         if (INSTANCE == null) {
             INSTANCE = new RESTServlet(conf, userProvider);
@@ -75,7 +73,7 @@ public class RESTServlet {
         return INSTANCE;
     }
 
-    public synchronized static void stop() {
+    public static synchronized void stop() {
         if (INSTANCE != null) {
             INSTANCE.shutdown();
             INSTANCE = null;

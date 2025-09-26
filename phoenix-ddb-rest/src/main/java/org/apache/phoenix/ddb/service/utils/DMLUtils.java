@@ -73,7 +73,7 @@ public class DMLUtils {
                 if (returnStatus == 0 && hasCondExp) {
                     throw new ConditionCheckFailedException();
                 }
-                return null;
+                return Collections.emptyMap();
             }
             Pair<Integer, ResultSet> resultPair;
             if (ApiMetadata.ALL_OLD.equals(returnValue)

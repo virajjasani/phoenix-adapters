@@ -82,9 +82,13 @@ public class RESTServer {
     private final Configuration conf;
     private final UserProvider userProvider;
     private Server server;
-    //    private InfoServer infoServer;
     private ServerName serverName;
     private ExecutorService indexBuildingActivator;
+    private static final String ZK_QUORUM = "zkquorum";
+    private static final String PORT = "port";
+    private static final String START = "start";
+    private static final String STOP = "stop";
+    private static final String SERVER_NOT_RUNNING_ERR_MSG = "Server is not running";
 
     public RESTServer(Configuration conf) {
         this.conf = conf;
@@ -103,9 +107,9 @@ public class RESTServer {
 
     private static void parseCommandLine(String[] args, Configuration conf) {
         Options options = new Options();
-        options.addOption("p", "port", true,
+        options.addOption("p", PORT, true,
                 "Port to bind to [default: " + Constants.DEFAULT_LISTEN_PORT + "]");
-        options.addOption("z", "zkquorum", true, "ZK Quorum to be used for Phoenix Connection");
+        options.addOption("z", ZK_QUORUM, true, "ZK Quorum to be used for Phoenix Connection");
 
         CommandLine commandLine = null;
         try {
@@ -116,15 +120,15 @@ public class RESTServer {
         }
 
         // check for user-defined port setting, if so override the conf
-        if (commandLine != null && commandLine.hasOption("port")) {
-            String val = commandLine.getOptionValue("port");
+        if (commandLine != null && commandLine.hasOption(PORT)) {
+            String val = commandLine.getOptionValue(PORT);
             conf.setInt(Constants.PHOENIX_DDB_REST_PORT, Integer.parseInt(val));
             LOG.debug("port set to {}", val);
         }
 
         // check for user-defined zookeeper quorum setting, if so override the conf
-        if (commandLine != null && commandLine.hasOption("zkquorum")) {
-            String val = commandLine.getOptionValue("zkquorum");
+        if (commandLine != null && commandLine.hasOption(ZK_QUORUM)) {
+            String val = commandLine.getOptionValue(ZK_QUORUM);
             conf.set(Constants.PHOENIX_DDB_ZK_QUORUM, val);
             LOG.debug("ZK Quorum set to {}", val);
         }
@@ -136,9 +140,9 @@ public class RESTServer {
         }
 
         String command = remainingArgs.get(0);
-        if ("start".equals(command)) {
+        if (START.equals(command)) {
             // continue and start container
-        } else if ("stop".equals(command)) {
+        } else if (STOP.equals(command)) {
             System.exit(1);
         } else {
             printUsageAndExit(options, 1);
@@ -224,7 +228,6 @@ public class RESTServer {
         httpConfig.setRequestHeaderSize(Constants.DEFAULT_HTTP_MAX_HEADER_SIZE);
         httpConfig.setResponseHeaderSize(Constants.DEFAULT_HTTP_MAX_HEADER_SIZE);
         httpConfig.setSendServerVersion(false);
-        //        httpConfig.setSendDateHeader(false);
 
         ServerConnector serverConnector;
         serverConnector = new ServerConnector(server, new HttpConnectionFactory(httpConfig));
@@ -311,14 +314,14 @@ public class RESTServer {
 
     public synchronized void join() throws Exception {
         if (server == null) {
-            throw new IllegalStateException("Server is not running");
+            throw new IllegalStateException(SERVER_NOT_RUNNING_ERR_MSG);
         }
         server.join();
     }
 
     public synchronized void stop() throws Exception {
         if (server == null) {
-            throw new IllegalStateException("Server is not running");
+            throw new IllegalStateException(SERVER_NOT_RUNNING_ERR_MSG);
         }
         if (indexBuildingActivator != null) {
             indexBuildingActivator.shutdown();
@@ -330,7 +333,7 @@ public class RESTServer {
 
     public synchronized int getPort() {
         if (server == null) {
-            throw new IllegalStateException("Server is not running");
+            throw new IllegalStateException(SERVER_NOT_RUNNING_ERR_MSG);
         }
         return ((ServerConnector) server.getConnectors()[0]).getLocalPort();
     }

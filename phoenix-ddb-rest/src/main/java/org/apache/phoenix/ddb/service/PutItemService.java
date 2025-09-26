@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.phoenix.ddb.ConnectionUtil;
+import org.apache.phoenix.ddb.service.exceptions.PhoenixServiceException;
 import org.apache.phoenix.ddb.service.utils.ValidationUtil;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.rest.metrics.ApiOperation;
@@ -63,7 +64,7 @@ public class PutItemService {
             connection.setAutoCommit(true);
             result = putItemWithConn(connection, request);
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new PhoenixServiceException(e);
         }
         return result;
     }
@@ -121,30 +122,29 @@ public class PutItemService {
             condExpr = CommonServiceUtils.convertExpectedToConditionExpression(expected,
                     conditionalOperator, exprAttrNames, exprAttrVals);
         }
-        
+
+        String queryFormat;
         if (!StringUtils.isEmpty(condExpr)) {
             conditionDoc =
                     CommonServiceUtils.getBsonConditionExpressionDoc(condExpr, exprAttrNames,
                             exprAttrVals);
             BsonDocument exprAttrNamesDoc =
                     CommonServiceUtils.getExpressionAttributeNamesDoc(exprAttrNames);
+
             if (shouldUseUpdateForAtomicPut(condExpr, exprAttrNamesDoc)) {
-                String QUERY_FORMAT = (pkCols.size() == 1) ?
+                queryFormat = (pkCols.size() == 1) ?
                         CONDITIONAL_PUT_UPDATE_WITH_HASH_KEY :
                         CONDITIONAL_PUT_UPDATE_WITH_HASH_SORT_KEY;
-                stmt = conn.prepareStatement(String.format(QUERY_FORMAT, "DDB", tableName));
                 setItemTwice = true;
             } else {
-                String QUERY_FORMAT = (pkCols.size() == 1) ?
+                queryFormat = (pkCols.size() == 1) ?
                         CONDITIONAL_PUT_UPDATE_ONLY_WITH_HASH_KEY :
                         CONDITIONAL_PUT_UPDATE_ONLY_WITH_HASH_SORT_KEY;
-                stmt = conn.prepareStatement(String.format(QUERY_FORMAT, "DDB", tableName));
             }
         } else {
-            String QUERY_FORMAT = (pkCols.size() == 1) ? PUT_WITH_HASH_KEY : PUT_WITH_HASH_SORT_KEY;
-            stmt = conn.prepareStatement(String.format(QUERY_FORMAT, "DDB", tableName));
+            queryFormat = (pkCols.size() == 1) ? PUT_WITH_HASH_KEY : PUT_WITH_HASH_SORT_KEY;
         }
-        
+        stmt = conn.prepareStatement(String.format(queryFormat, "DDB", tableName));
         return new StatementInfo(setItemTwice, stmt, conditionDoc);
     }
 

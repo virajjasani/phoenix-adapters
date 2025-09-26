@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.phoenix.ddb.ConnectionUtil;
+import org.apache.phoenix.ddb.service.exceptions.PhoenixServiceException;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.utils.CommonServiceUtils;
 import org.apache.phoenix.ddb.utils.DDBShimCDCUtils;
@@ -152,7 +153,7 @@ public class TableDescriptorUtils {
 
             return tableDescriptionResponse;
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new PhoenixServiceException(e);
         }
     }
 

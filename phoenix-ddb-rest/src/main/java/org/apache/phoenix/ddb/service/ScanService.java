@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 import org.apache.phoenix.ddb.ConnectionUtil;
+import org.apache.phoenix.ddb.service.exceptions.PhoenixServiceException;
 import org.apache.phoenix.ddb.service.exceptions.ValidationException;
 import org.apache.phoenix.ddb.service.utils.ValidationUtil;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
@@ -107,7 +108,7 @@ public class ScanService {
         try (Connection connection = ConnectionUtil.getConnection(connectionUrl)) {
             return executeScan(connection, request);
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new PhoenixServiceException(e);
         }
     }
 

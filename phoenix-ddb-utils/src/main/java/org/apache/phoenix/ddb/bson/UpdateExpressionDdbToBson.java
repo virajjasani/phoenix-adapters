@@ -85,9 +85,9 @@ public class UpdateExpressionDdbToBson {
           if (attributeVal.contains("+") || attributeVal.contains("-")) {
             setBsonDoc.put(attributeKey, getArithmeticExpVal(attributeVal, comparisonValue));
           } else if (attributeVal.startsWith("if_not_exists")) {
-            // attributeVal = if_not_exists ( path
+            // attributeVal --> if_not_exists ( path
             String ifNotExistsPath = attributeVal.split("\\(")[1].trim();
-            // next setExpression = value)
+            // next setExpression --> value)
             String fallBackValue = setExpressions[i+1].split("\\)")[0].trim();
             BsonValue fallBackValueBson = comparisonValue.get(fallBackValue);
             BsonDocument fallBackDoc = new BsonDocument();
@@ -156,9 +156,7 @@ public class UpdateExpressionDdbToBson {
   private static BsonString getArithmeticExpVal(String attributeVal,
       BsonDocument comparisonValuesDocument) {
     String[] tokens = attributeVal.split("\\s+");
-    //      Pattern pattern = Pattern.compile(":?[a-zA-Z0-9]+");
     Pattern pattern = Pattern.compile("[#:$]?[^\\s\\n]+");
-    Number newNum = null;
     StringBuilder val = new StringBuilder();
     for (String token : tokens) {
       if (token.equals("+")) {

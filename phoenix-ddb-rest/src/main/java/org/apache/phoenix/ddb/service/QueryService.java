@@ -28,6 +28,7 @@ import java.util.Map;
 
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.phoenix.ddb.ConnectionUtil;
+import org.apache.phoenix.ddb.service.exceptions.PhoenixServiceException;
 import org.apache.phoenix.ddb.service.exceptions.ValidationException;
 import org.apache.phoenix.ddb.service.utils.ValidationUtil;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
@@ -59,7 +60,8 @@ public class QueryService {
         String tableName = (String) request.get(ApiMetadata.TABLE_NAME);
         String indexName = (String) request.get(ApiMetadata.INDEX_NAME);
         boolean useIndex = !StringUtils.isEmpty(indexName);
-        List<PColumn> tablePKCols, indexPKCols = null;
+        List<PColumn> tablePKCols;
+        List<PColumn> indexPKCols = null;
         try (Connection connection = ConnectionUtil.getConnection(connectionUrl)) {
             // get PKs from phoenix
             tablePKCols = PhoenixUtils.getPKColumns(connection, tableName);
@@ -77,7 +79,7 @@ public class QueryService {
                     getProjectionAttributes(request), useIndex, tablePKCols, indexPKCols, tableName,
                     isSingleRowExpected, false, countOnly);
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new PhoenixServiceException(e);
         }
     }
 
@@ -116,7 +118,6 @@ public class QueryService {
         KeyConditionsHolder keyConditions = new KeyConditionsHolder(keyCondExpr, exprAttrNames,
                 useIndex ? indexPKCols : tablePKCols, useIndex);
         PColumn sortKeyPKCol = keyConditions.getSortKeyPKCol();
-        PColumn partitionKeyPKCol = keyConditions.getPartitionKeyPKCol();
 
         // append all conditions for WHERE clause
         // TODO: Validate exclusiveStartKey against sortKey range in key condition expression

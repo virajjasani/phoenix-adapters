@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.phoenix.ddb.ConnectionUtil;
+import org.apache.phoenix.ddb.service.exceptions.PhoenixServiceException;
+import org.apache.phoenix.ddb.service.exceptions.ValidationException;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 
 public class BatchWriteItemService {
@@ -39,7 +41,7 @@ public class BatchWriteItemService {
                         deleteRequest.put(ApiMetadata.TABLE_NAME, requestItemEntry.getKey());
                         DeleteItemService.deleteItemWithConn(connection, deleteRequest);
                     } else {
-                        throw new RuntimeException(
+                        throw new ValidationException(
                                 "WriteRequest should have either a PutRequest or a DeleteRequest.");
                     }
                 }
@@ -50,7 +52,7 @@ public class BatchWriteItemService {
             }
             connection.commit();
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new PhoenixServiceException(e);
         }
         Map<String, Object> unprocessedItemsMap = new HashMap<>();
         unprocessedItemsMap.put(ApiMetadata.UNPROCESSED_ITEMS, unprocessedItems);

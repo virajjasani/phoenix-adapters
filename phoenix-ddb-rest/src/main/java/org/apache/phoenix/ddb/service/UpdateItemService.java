@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.phoenix.ddb.bson.MapToBsonDocument;
 import org.apache.phoenix.ddb.ConnectionUtil;
+import org.apache.phoenix.ddb.service.exceptions.PhoenixServiceException;
 import org.apache.phoenix.ddb.service.utils.DMLUtils;
 import org.apache.phoenix.ddb.service.utils.ValidationUtil;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
@@ -91,13 +92,12 @@ public class UpdateItemService {
             boolean hasCondExp = (request.get(ApiMetadata.CONDITION_EXPRESSION) != null) || (
                     request.get(ApiMetadata.EXPECTED) != null);
 
-            Map<String, Object> returnAttrs = DMLUtils.executeUpdate(statementInfo.stmt,
+            return DMLUtils.executeUpdate(statementInfo.stmt,
                     (String) request.get(ApiMetadata.RETURN_VALUES),
                     (String) request.get(ApiMetadata.RETURN_VALUES_ON_CONDITION_CHECK_FAILURE),
                     hasCondExp, pkCols, ApiOperation.UPDATE_ITEM);
-            return returnAttrs;
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new PhoenixServiceException(e);
         }
     }
 

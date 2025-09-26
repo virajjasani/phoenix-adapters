@@ -36,12 +36,12 @@ public class DDBShimCDCUtils {
     public static final int MAX_NUM_CHANGES_AT_TIMESTAMP = (int) Math.pow(10, OFFSET_LENGTH);
 
     // shardIterator/<tableName>/<cdcObject>/<streamType>/<partitionID>/<startSeqNum>
-    public static String SHARD_ITERATOR_FORMAT = "shardIterator/%s/%s/%s/%s/%s";
-    public static String SHARD_ITERATOR_DELIM = "/";
-    public static int SHARD_ITERATOR_NUM_PARTS = 6;
+    public static final String SHARD_ITERATOR_FORMAT = "shardIterator/%s/%s/%s/%s/%s";
+    public static final String SHARD_ITERATOR_DELIM = "/";
+    public static final int SHARD_ITERATOR_NUM_PARTS = 6;
     // phoenix/cdc/stream/{tableName}/{cdc object name}/{cdc index timestamp}/{creation datetime}
-    public static String STREAM_NAME_DELIM = "/";
-    public static int STREAM_NAME_NUM_PARTS = 7;
+    public static final String STREAM_NAME_DELIM = "/";
+    public static final int STREAM_NAME_NUM_PARTS = 7;
 
     private static final String STREAM_NAME_QUERY
             = "SELECT STREAM_NAME FROM " + SYSTEM_CDC_STREAM_STATUS_NAME

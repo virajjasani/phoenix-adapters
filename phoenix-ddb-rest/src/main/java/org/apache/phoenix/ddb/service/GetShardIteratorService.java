@@ -1,6 +1,8 @@
 package org.apache.phoenix.ddb.service;
 
 import org.apache.phoenix.ddb.ConnectionUtil;
+import org.apache.phoenix.ddb.service.exceptions.PhoenixServiceException;
+import org.apache.phoenix.ddb.service.exceptions.ValidationException;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.utils.DDBShimCDCUtils;
 import org.apache.phoenix.util.EnvironmentEdgeManager;
@@ -31,7 +33,7 @@ public class GetShardIteratorService {
             result.put(ApiMetadata.SHARD_ITERATOR, String.format(SHARD_ITERATOR_FORMAT, tableName,
                     cdcObj, streamType, shardId, startSeqNum));
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new PhoenixServiceException(e);
         }
         return result;
     }
@@ -59,6 +61,8 @@ public class GetShardIteratorService {
                         conn, tableName, streamName, shardId);
                 startSeqNum = String.valueOf(partitionStartTime * MAX_NUM_CHANGES_AT_TIMESTAMP);
                 break;
+        default:
+                throw new ValidationException("Invalid shard iterator type: " + type);
         }
         return startSeqNum;
     }

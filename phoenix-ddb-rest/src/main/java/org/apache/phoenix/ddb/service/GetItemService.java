@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.phoenix.ddb.ConnectionUtil;
+import org.apache.phoenix.ddb.service.exceptions.PhoenixServiceException;
 import org.apache.phoenix.ddb.service.utils.ValidationUtil;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.bson.RawBsonDocument;
@@ -59,7 +60,7 @@ public class GetItemService {
             PreparedStatement stmt = getPreparedStatement(connection, request, tablePKCols);
             return executeQuery(stmt, request);
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new PhoenixServiceException(e);
         }
     }
 
