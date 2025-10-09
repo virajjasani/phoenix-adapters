@@ -23,6 +23,7 @@ import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.phoenix.ddb.bson.MapToBsonDocument;
 import org.apache.phoenix.ddb.bson.UpdateExpressionDdbToBson;
+import org.apache.phoenix.schema.PColumn;
 import org.apache.phoenix.schema.types.PDataType;
 import org.apache.phoenix.schema.types.PDecimal;
 import org.apache.phoenix.schema.types.PDouble;
@@ -60,6 +61,26 @@ public class CommonServiceUtils {
         } else {
             throw new IllegalStateException("Invalid data type: " + pDataType.toString());
         }
+    }
+
+    /**
+     * Return the column name from the given PColumn.
+     * For tables, return name with quotes.
+     * For indexes, return BSON_VALUE expression after trimming the : prefix.
+     */
+    public static String getColumnExprFromPCol(PColumn column, boolean useIndex) {
+        String name = column.getName().toString();
+        return useIndex ? name.substring(1) : CommonServiceUtils.getEscapedArgument(name);
+    }
+
+    /**
+     * Return the column name from the given PColumn.
+     * For tables, return name as is.
+     * For indexes, extract column name from BSON_VALUE expression.
+     */
+    public static String getColumnNameFromPCol(PColumn column, boolean useIndex) {
+        String keyName = column.getName().toString();
+        return useIndex ? CommonServiceUtils.getKeyNameFromBsonValueFunc(keyName) : keyName;
     }
 
     public static String getKeyNameFromBsonValueFunc(String keyName) {

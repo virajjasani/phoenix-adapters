@@ -45,7 +45,6 @@ import org.apache.phoenix.ddb.service.utils.ScanSegmentInfo;
 import org.apache.phoenix.ddb.utils.CommonServiceUtils;
 import org.apache.phoenix.ddb.utils.PhoenixUtils;
 import org.apache.phoenix.schema.PColumn;
-import org.apache.phoenix.schema.types.PDouble;
 
 public class ScanService {
 
@@ -218,7 +217,7 @@ public class ScanService {
         addSegmentBoundaryConditions(queryBuilder, config, hasFilterCondition || hasKeyConditions);
 
         // Add order by clause
-        addOrderByClause(queryBuilder, config, hasFilterCondition);
+        addOrderByClause(queryBuilder, config);
 
         // Add limit clause
         addLimitClause(queryBuilder, config.getLimit());
@@ -276,7 +275,8 @@ public class ScanService {
             queryBuilder.append(" WHERE ");
         }
         
-        String partitionKeyName = getColumnNameForQuery(config.getPartitionKeyCol(), config.useIndex());
+        String partitionKeyName = CommonServiceUtils.getColumnExprFromPCol(
+                config.getPartitionKeyCol(), config.useIndex());
         
         switch (config.getType()) {
             case SINGLE_KEY_CONTINUATION:
@@ -284,7 +284,8 @@ public class ScanService {
                 queryBuilder.append(partitionKeyName).append(" > ? ");
                 break;
             case TWO_KEY_FIRST_QUERY:
-                String sortKeyName = getColumnNameForQuery(config.getSortKeyCol(), config.useIndex());
+                String sortKeyName = CommonServiceUtils.getColumnExprFromPCol(
+                        config.getSortKeyCol(), config.useIndex());
                 queryBuilder.append("( ").append(partitionKeyName).append(" = ? AND ")
                            .append(sortKeyName).append(" > ? ) ");
                 break;
@@ -299,19 +300,16 @@ public class ScanService {
         queryBuilder.append(" LIMIT ").append(limit);
     }
 
-    /**
-     * Add ORDER BY clause to query.
-     * If leading key is double, rows can be returned in a different order than number ordering
-     * since a query without ORDER BY uses ROUND ROBIN FULL SCAN.
-     */
-    private static void addOrderByClause(StringBuilder queryBuilder, ScanConfig config,
-            boolean hasFilterCondition) {
-        if (hasFilterCondition && config.getPartitionKeyCol().getDataType() == PDouble.INSTANCE) {
-            String partitionKeyName = config.useIndex()
-                    ? config.getPartitionKeyCol().getName().getString().substring(1)
-                    : CommonServiceUtils.getEscapedArgument(config.getPartitionKeyCol().getName().getString());
-            queryBuilder.append(" ORDER BY ").append(partitionKeyName).append(" ");
+    private static void addOrderByClause(StringBuilder queryBuilder, ScanConfig config) {
+        String partitionKeyName = CommonServiceUtils.getColumnExprFromPCol(
+                config.getPartitionKeyCol(), config.useIndex());
+        queryBuilder.append(" ORDER BY ").append(partitionKeyName);
+        if (config.getSortKeyCol() != null) {
+            String sortKeyName = CommonServiceUtils.getColumnExprFromPCol(
+                    config.getSortKeyCol(), config.useIndex());
+            queryBuilder.append(", ").append(sortKeyName);
         }
+        queryBuilder.append(" ");
     }
 
     /**
@@ -325,7 +323,7 @@ public class ScanService {
             // Set key condition parameters first
             Map<String, Object> exclusiveStartKey =
                     (Map<String, Object>) request.get(ApiMetadata.EXCLUSIVE_START_KEY);
-            String partitionKeyName = getKeyNameFromColumn(config.getPartitionKeyCol(), config.useIndex());
+            String partitionKeyName = CommonServiceUtils.getColumnNameFromPCol(config.getPartitionKeyCol(), config.useIndex());
 
             switch (config.getType()) {
             case SINGLE_KEY_CONTINUATION:
@@ -335,7 +333,7 @@ public class ScanService {
                 break;
 
             case TWO_KEY_FIRST_QUERY:
-                String sortKeyName = getKeyNameFromColumn(config.getSortKeyCol(), config.useIndex());
+                String sortKeyName = CommonServiceUtils.getColumnNameFromPCol(config.getSortKeyCol(), config.useIndex());
                 // Set pk1 = ?
                 DQLUtils.setKeyValueOnStatement(stmt, paramIndex++,
                         (Map<String, Object>) exclusiveStartKey.get(partitionKeyName), false);
@@ -353,22 +351,6 @@ public class ScanService {
             stmt.setBytes(paramIndex++, startKey);
             stmt.setBytes(paramIndex++, endKey);
         }
-    }
-
-    /**
-     * Get column name for SQL query
-     */
-    private static String getColumnNameForQuery(PColumn column, boolean useIndex) {
-        String name = column.getName().toString();
-        return useIndex ? name.substring(1) : CommonServiceUtils.getEscapedArgument(name);
-    }
-
-    /**
-     * Get key name from column for parameter mapping
-     */
-    private static String getKeyNameFromColumn(PColumn column, boolean useIndex) {
-        String keyName = column.getName().toString();
-        return useIndex ? CommonServiceUtils.getKeyNameFromBsonValueFunc(keyName) : keyName;
     }
 
     /**

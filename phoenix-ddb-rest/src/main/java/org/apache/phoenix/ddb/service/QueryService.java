@@ -128,9 +128,7 @@ public class QueryService {
                 sortKeyPKCol, scanIndexForward);
         DQLUtils.addFilterCondition(true, queryBuilder, (String) request.get(ApiMetadata.FILTER_EXPRESSION),
                 exprAttrNames, exprAttrValues);
-        if (!scanIndexForward && sortKeyPKCol != null) {
-            addScanIndexForwardCondition(queryBuilder, useIndex, sortKeyPKCol);
-        }
+        addOrderByClause(queryBuilder, useIndex, tablePKCols, indexPKCols, scanIndexForward);
         DQLUtils.addLimit(queryBuilder, (Integer) request.get(ApiMetadata.LIMIT), MAX_QUERY_LIMIT);
         LOGGER.debug("SELECT Query: " + queryBuilder);
 
@@ -140,15 +138,20 @@ public class QueryService {
         return Pair.newPair(stmt, sortKeyPKCol == null);
     }
 
-    /**
-     * If the QueryRequest has ScanIndexForward set to False and there is a sortKey,
-     * add an ORDER BY sortKey DESC clause to the query.
-     * When using an index, use the BSON_VALUE expression.
-     */
-    private static void addScanIndexForwardCondition(StringBuilder queryBuilder, boolean useIndex, PColumn sortKeyPKCol) {
-        String name = sortKeyPKCol.getName().getString();
-        name = (useIndex) ? name.substring(1) : CommonServiceUtils.getEscapedArgument(name);
-        queryBuilder.append(" ORDER BY ").append(name).append(" DESC ");
+    private static void addOrderByClause(StringBuilder queryBuilder, boolean useIndex,
+            List<PColumn> tablePKCols, List<PColumn> indexPKCols, boolean scanIndexForward) {
+        List<PColumn> relevantPKCols = useIndex ? indexPKCols : tablePKCols;
+        PColumn partitionKeyCol = relevantPKCols.get(0);
+        PColumn sortKeyCol = (relevantPKCols.size() > 1) ? relevantPKCols.get(1) : null;
+
+        String partitionKeyName =
+                CommonServiceUtils.getColumnExprFromPCol(partitionKeyCol, useIndex);
+        queryBuilder.append(" ORDER BY ").append(partitionKeyName).append(" ASC");
+        if (sortKeyCol != null) {
+            String sortKeyName = CommonServiceUtils.getColumnExprFromPCol(sortKeyCol, useIndex);
+            queryBuilder.append(", ").append(sortKeyName)
+                    .append(scanIndexForward ? " ASC " : " DESC ");
+        }
     }
 
     /**
@@ -186,10 +189,9 @@ public class QueryService {
             }
         }
         if (exclusiveStartKey != null && !exclusiveStartKey.isEmpty() && sortKeyPKCol != null) {
-            String name = sortKeyPKCol.getName().toString();
-            name = (useIndex) ? CommonServiceUtils.getKeyNameFromBsonValueFunc(name) : name;
+            String sortKeyName = CommonServiceUtils.getColumnNameFromPCol(sortKeyPKCol, useIndex);
             DQLUtils.setKeyValueOnStatement(stmt, index,
-                    (Map<String, Object>) exclusiveStartKey.get(name), false);
+                    (Map<String, Object>) exclusiveStartKey.get(sortKeyName), false);
         }
     }
 
