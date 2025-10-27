@@ -19,6 +19,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -30,11 +31,17 @@ public class GetRecordsService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(GetRecordsService.class);
 
-    private static final String GET_RECORDS_QUERY = "SELECT /*+ CDC_INCLUDE(PRE, POST) */ * " +
-            " FROM %s WHERE PARTITION_ID() = ? " +
-            " AND PHOENIX_ROW_TIMESTAMP() >= CAST(CAST(? AS BIGINT) AS TIMESTAMP) LIMIT ? ";
+    private static final String GET_RECORDS_QUERY =
+            "SELECT /*+ CDC_INCLUDE(PRE, POST) */ * "
+                    + " FROM %s WHERE PARTITION_ID() = ?"
+                    + " AND PHOENIX_ROW_TIMESTAMP() >= ?"
+                    + " ORDER BY PARTITION_ID() ASC, PHOENIX_ROW_TIMESTAMP() ASC LIMIT ? ";
 
-    private static final int MAX_GET_RECORDS_LIMIT = 100;
+    /**
+     * CRUD APIs have max limit of 100, therefore GetRecords should use 50 as it consists of
+     * pre- and post-images.
+     */
+    private static final int MAX_GET_RECORDS_LIMIT = 50;
     private static final String OLD_IMAGE = "OLD_IMAGE";
     private static final String NEW_IMAGE = "NEW_IMAGE";
     private static final String NEW_AND_OLD_IMAGES = "NEW_AND_OLD_IMAGES";
@@ -132,7 +139,7 @@ public class GetRecordsService {
         }
         PreparedStatement ps = conn.prepareStatement(sb.toString());
         ps.setString(1, phoenixShardIterator.getPartitionId());
-        ps.setLong(2, phoenixShardIterator.getTimestamp());
+        ps.setTimestamp(2, new Timestamp(phoenixShardIterator.getTimestamp()));
         ps.setInt(3, limit);
         if (phoenixShardIterator.getOffset() > 0) {
             ps.setInt(4, phoenixShardIterator.getOffset());
