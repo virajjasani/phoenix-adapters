@@ -25,8 +25,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantLock;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
@@ -35,32 +36,23 @@ import org.apache.phoenix.ddb.TableOptionsConfig;
 import org.apache.phoenix.ddb.service.exceptions.PhoenixServiceException;
 import org.apache.phoenix.ddb.service.exceptions.ResourceInUseException;
 import org.apache.phoenix.ddb.service.exceptions.ValidationException;
-import org.apache.phoenix.ddb.utils.ApiMetadata;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.phoenix.ddb.service.utils.TableDescriptorUtils;
+import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.utils.CommonServiceUtils;
 import org.apache.phoenix.ddb.utils.PhoenixUtils;
+import org.apache.phoenix.exception.SQLExceptionCode;
 import org.apache.phoenix.jdbc.PhoenixConnection;
 import org.apache.phoenix.schema.PTable;
-import org.apache.phoenix.schema.PTableKey;
-import org.apache.phoenix.schema.TableAlreadyExistsException;
 import org.apache.phoenix.schema.TableNotFoundException;
 import org.apache.phoenix.thirdparty.com.google.common.base.Preconditions;
-import org.apache.phoenix.thirdparty.com.google.common.cache.Cache;
-import org.apache.phoenix.thirdparty.com.google.common.cache.CacheBuilder;
 
 public class CreateTableService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CreateTableService.class);
 
-    private static final String CREATE_CDC_DDL = "CREATE CDC \"CDC_%s\" on %s";
+    private static final String CREATE_CDC_DDL = "CREATE CDC IF NOT EXISTS \"CDC_%s\" on %s";
     private static final String ALTER_TABLE_STREAM_TYPE_DDL =
             "ALTER TABLE %s set SCHEMA_VERSION = '%s'";
-
-    private static final Cache<String, ReentrantLock> CREATE_TABLE_LOCKS =
-            CacheBuilder.newBuilder().expireAfterAccess(5, TimeUnit.MINUTES).build();
 
     public static Map<String, Object> getCreateTableResponse(final String tableName,
                                                              final String connectionUrl) {
@@ -166,11 +158,12 @@ public class CreateTableService {
         }
 
         final String finalIndexName = PhoenixUtils.getInternalIndexName(tableName, indexName);
-        indexDDLs.add("CREATE INDEX \"" + finalIndexName + "\" ON " + PhoenixUtils.getFullTableName(
-                tableName, true) + " (" + indexOn + ") INCLUDE (COL) WHERE " + indexHashKey
-                + " IS NOT " + "NULL " + ((indexSortKey != null) ?
-                " AND " + indexSortKey + " IS NOT " + "NULL " :
-                "") + (isAsync ? " ASYNC " : "") + TableOptionsConfig.getIndexOptions());
+        indexDDLs.add("CREATE INDEX IF NOT EXISTS \"" + finalIndexName + "\" ON "
+                + PhoenixUtils.getFullTableName(tableName, true) + " (" + indexOn
+                + ") INCLUDE (COL) WHERE " + indexHashKey + " IS NOT " + "NULL " + ((indexSortKey
+                != null) ? " AND " + indexSortKey + " IS NOT " + "NULL " : "") + (isAsync ?
+                " ASYNC " :
+                "") + TableOptionsConfig.getIndexOptions());
     }
 
     public static List<String> getIndexDDLs(Map<String, Object> request) {
@@ -226,52 +219,83 @@ public class CreateTableService {
             final String connectionUrl) {
         final String tableName = (String) request.get(ApiMetadata.TABLE_NAME);
 
-        CREATE_TABLE_LOCKS.asMap().putIfAbsent(tableName, new ReentrantLock());
-        CREATE_TABLE_LOCKS.asMap().get(tableName).lock();
-        try {
+        List<Map<String, Object>> keySchemaElements =
+                (List<Map<String, Object>>) request.get(ApiMetadata.KEY_SCHEMA);
+        List<Map<String, Object>> attributeDefinitions =
+                (List<Map<String, Object>>) request.get(ApiMetadata.ATTRIBUTE_DEFINITIONS);
 
-            List<Map<String, Object>> keySchemaElements =
-                    (List<Map<String, Object>>) request.get(ApiMetadata.KEY_SCHEMA);
-            List<Map<String, Object>> attributeDefinitions =
-                    (List<Map<String, Object>>) request.get(ApiMetadata.ATTRIBUTE_DEFINITIONS);
+        StringBuilder cols = new StringBuilder();
+        StringBuilder pkCols = new StringBuilder();
+        Set<String> pkColsSet = new HashSet<>();
 
-            StringBuilder cols = new StringBuilder();
-            StringBuilder pkCols = new StringBuilder();
-            Set<String> pkColsSet = new HashSet<>();
-
-            Map<String, Object> hashKey = keySchemaElements.get(0);
-            // re-arrange hash and sort keys if required
-            if ("RANGE".equals(hashKey.get(ApiMetadata.KEY_TYPE))) {
-                if (keySchemaElements.size() != 2) {
-                    throw new IllegalArgumentException(
-                            "Range key attribute present but key schema element size is not 2");
-                }
-                Map<String, Object> sortKey = keySchemaElements.get(0);
-                hashKey = keySchemaElements.get(1);
-                keySchemaElements = new ArrayList<>(2);
-                keySchemaElements.add(hashKey);
-                keySchemaElements.add(sortKey);
+        Map<String, Object> hashKey = keySchemaElements.get(0);
+        // re-arrange hash and sort keys if required
+        if ("RANGE".equals(hashKey.get(ApiMetadata.KEY_TYPE))) {
+            if (keySchemaElements.size() != 2) {
+                throw new IllegalArgumentException(
+                        "Range key attribute present but key schema element size is not 2");
             }
-            Preconditions.checkArgument("HASH".equals(hashKey.get(ApiMetadata.KEY_TYPE)),
-                    "Hash key not present");
+            Map<String, Object> sortKey = keySchemaElements.get(0);
+            hashKey = keySchemaElements.get(1);
+            keySchemaElements = new ArrayList<>(2);
+            keySchemaElements.add(hashKey);
+            keySchemaElements.add(sortKey);
+        }
+        Preconditions.checkArgument("HASH".equals(hashKey.get(ApiMetadata.KEY_TYPE)),
+                "Hash key not present");
 
-            String hashKeyQuoted =
-                    CommonServiceUtils.getEscapedArgument((String) hashKey.get(ApiMetadata.ATTRIBUTE_NAME));
-            cols.append(hashKeyQuoted).append(" ");
-            pkCols.append(hashKeyQuoted);
+        String hashKeyQuoted = CommonServiceUtils.getEscapedArgument(
+                (String) hashKey.get(ApiMetadata.ATTRIBUTE_NAME));
+        cols.append(hashKeyQuoted).append(" ");
+        pkCols.append(hashKeyQuoted);
 
-            String hashKeyType = null;
+        String hashKeyType = null;
+        for (Map<String, Object> attributeDef : attributeDefinitions) {
+            if (hashKey.get(ApiMetadata.ATTRIBUTE_NAME)
+                    .equals(attributeDef.get(ApiMetadata.ATTRIBUTE_NAME))) {
+                hashKeyType = (String) attributeDef.get(ApiMetadata.ATTRIBUTE_TYPE);
+                break;
+            }
+        }
+        Preconditions.checkArgument(hashKeyType != null, "Hash key attribute should be defined");
+
+        pkColsSet.add((String) hashKey.get(ApiMetadata.ATTRIBUTE_NAME));
+        switch (hashKeyType) {
+            case "S":
+                cols.append("VARCHAR NOT NULL");
+                break;
+            case "N":
+                cols.append("DOUBLE NOT NULL");
+                break;
+            case "B":
+                cols.append("VARBINARY_ENCODED NOT NULL");
+                break;
+            default:
+                throw new IllegalArgumentException(
+                        "Attribute Type " + hashKeyType + " is not " + "correct type");
+        }
+
+        if (keySchemaElements.size() == 2) {
+            cols.append(", ");
+            Map<String, Object> rangeKey = keySchemaElements.get(1);
+            String rangeKeyQuoted = CommonServiceUtils.getEscapedArgument(
+                    (String) rangeKey.get(ApiMetadata.ATTRIBUTE_NAME));
+            cols.append(rangeKeyQuoted).append(" ");
+            pkCols.append(",").append(rangeKeyQuoted);
+
+            String rangeKeyType = null;
             for (Map<String, Object> attributeDef : attributeDefinitions) {
-                if (hashKey.get(ApiMetadata.ATTRIBUTE_NAME).equals(attributeDef.get(ApiMetadata.ATTRIBUTE_NAME))) {
-                    hashKeyType = (String) attributeDef.get(ApiMetadata.ATTRIBUTE_TYPE);
+                if (rangeKey.get(ApiMetadata.ATTRIBUTE_NAME)
+                        .equals(attributeDef.get(ApiMetadata.ATTRIBUTE_NAME))) {
+                    rangeKeyType = (String) attributeDef.get(ApiMetadata.ATTRIBUTE_TYPE);
                     break;
                 }
             }
-            Preconditions.checkArgument(hashKeyType != null,
-                    "Hash key attribute should be defined");
+            Preconditions.checkArgument(rangeKeyType != null,
+                    "Range key attribute should be defined");
 
-            pkColsSet.add((String) hashKey.get(ApiMetadata.ATTRIBUTE_NAME));
-            switch (hashKeyType) {
+            pkColsSet.add((String) rangeKey.get(ApiMetadata.ATTRIBUTE_NAME));
+            switch (rangeKeyType) {
                 case "S":
                     cols.append("VARCHAR NOT NULL");
                     break;
@@ -283,111 +307,81 @@ public class CreateTableService {
                     break;
                 default:
                     throw new IllegalArgumentException(
-                            "Attribute Type " + hashKeyType + " is not " + "correct type");
+                            "Attribute Type " + rangeKeyType + " is " + "not correct type");
             }
-
-            if (keySchemaElements.size() == 2) {
-                cols.append(", ");
-                Map<String, Object> rangeKey = keySchemaElements.get(1);
-                String rangeKeyQuoted = CommonServiceUtils.getEscapedArgument(
-                        (String) rangeKey.get(ApiMetadata.ATTRIBUTE_NAME));
-                cols.append(rangeKeyQuoted).append(" ");
-                pkCols.append(",").append(rangeKeyQuoted);
-
-                String rangeKeyType = null;
-                for (Map<String, Object> attributeDef : attributeDefinitions) {
-                    if (rangeKey.get(ApiMetadata.ATTRIBUTE_NAME).equals(attributeDef.get(ApiMetadata.ATTRIBUTE_NAME))) {
-                        rangeKeyType = (String) attributeDef.get(ApiMetadata.ATTRIBUTE_TYPE);
-                        break;
-                    }
-                }
-                Preconditions.checkArgument(rangeKeyType != null,
-                        "Range key attribute should be defined");
-
-                pkColsSet.add((String) rangeKey.get(ApiMetadata.ATTRIBUTE_NAME));
-                switch (rangeKeyType) {
-                    case "S":
-                        cols.append("VARCHAR NOT NULL");
-                        break;
-                    case "N":
-                        cols.append("DOUBLE NOT NULL");
-                        break;
-                    case "B":
-                        cols.append("VARBINARY_ENCODED NOT NULL");
-                        break;
-                    default:
-                        throw new IllegalArgumentException(
-                                "Attribute Type " + rangeKeyType + " is " + "not correct type");
-                }
-            }
-            cols.append(", COL BSON CONSTRAINT pk PRIMARY KEY (").append(pkCols).append(")");
-
-            List<String> createCdcDDLs = getCdcDDL(request);
-            String createTableDDL = "CREATE TABLE " + PhoenixUtils.getFullTableName(tableName, true)
-                    + " (" + cols + ") " + TableOptionsConfig.getTableOptions(createCdcDDLs.isEmpty());
-            List<String> createIndexDDLs = getIndexDDLs(request);
-
-            try (Connection connection = ConnectionUtil.getConnection(connectionUrl)) {
-                connection.setAutoCommit(true);
-                PhoenixConnection phoenixConnection = connection.unwrap(PhoenixConnection.class);
-                Map<String, Object> response =
-                        checkTableExistence(connectionUrl, phoenixConnection, tableName);
-                if (response != null) {
-                    return response;
-                }
-                LOGGER.debug("Create Table Query: {}", createTableDDL);
-                connection.createStatement().execute(createTableDDL);
-                for (String createIndexDDL : createIndexDDLs) {
-                    LOGGER.debug("Create Index Query: {}", createIndexDDL);
-                    connection.createStatement().execute(createIndexDDL);
-                }
-                for (String ddl : createCdcDDLs) {
-                    LOGGER.debug("CDC DDL: {}", ddl);
-                    connection.createStatement().execute(ddl);
-                }
-            } catch (SQLException e) {
-                if (!(e instanceof TableAlreadyExistsException)) {
-                    throw new PhoenixServiceException(e);
-                } else {
-                    LOGGER.error("Error while creating table {}", tableName, e);
-                    try (Connection connection = ConnectionUtil.getConnection(connectionUrl)) {
-                        PhoenixConnection phoenixConnection =
-                                connection.unwrap(PhoenixConnection.class);
-                        Map<String, Object> response =
-                                checkTableExistence(connectionUrl, phoenixConnection, tableName);
-                        if (response != null) {
-                            return response;
-                        }
-                    } catch (SQLException ex) {
-                        throw new PhoenixServiceException(e);
-                    }
-                }
-            }
-            return getCreateTableResponse(tableName, connectionUrl);
-        } finally {
-            CREATE_TABLE_LOCKS.asMap().get(tableName).unlock();
         }
+        cols.append(", COL BSON CONSTRAINT pk PRIMARY KEY (").append(pkCols).append(")");
+
+        List<String> createCdcDDLs = getCdcDDL(request);
+        String createTableDDL =
+                "CREATE TABLE IF NOT EXISTS " + PhoenixUtils.getFullTableName(tableName, true)
+                        + " (" + cols + ") " + TableOptionsConfig.getTableOptions(
+                        createCdcDDLs.isEmpty());
+        List<String> createIndexDDLs = getIndexDDLs(request);
+
+        try (Connection connection = ConnectionUtil.getConnection(connectionUrl)) {
+            connection.setAutoCommit(true);
+            boolean tableExists =
+                    createTable(tableName, createTableDDL, createIndexDDLs, createCdcDDLs,
+                            connection, false);
+            if (tableExists) {
+                throw new ResourceInUseException("Table " + tableName + " already exists");
+            }
+        } catch (SQLException e) {
+            throw new PhoenixServiceException(e);
+        }
+        return getCreateTableResponse(tableName, connectionUrl);
     }
 
-    private static Map<String, Object> checkTableExistence(String connectionUrl,
-            PhoenixConnection phoenixConnection, String tableName) throws SQLException {
+    private static boolean createTable(String tableName, String createTableDDL,
+            List<String> createIndexDDLs, List<String> createCdcDDLs, Connection connection,
+            boolean isRetry) {
+        boolean tableExists = false;
+        try {
+            PhoenixConnection phoenixConnection = connection.unwrap(PhoenixConnection.class);
+            tableExists = checkTableExistence(phoenixConnection, tableName);
+            LOGGER.debug("Create Table Query: {}", createTableDDL);
+            connection.createStatement().execute(createTableDDL);
+            for (String createIndexDDL : createIndexDDLs) {
+                LOGGER.debug("Create Index Query: {}", createIndexDDL);
+                connection.createStatement().execute(createIndexDDL);
+            }
+            for (String ddl : createCdcDDLs) {
+                LOGGER.debug("CDC DDL: {}", ddl);
+                connection.createStatement().execute(ddl);
+            }
+        } catch (SQLException e) {
+            LOGGER.error("Error with table creation", e);
+            // TODO : remove this if condition once "CREATE CDC IF NOT EXISTS" no longer
+            // throws CDC_ALREADY_ENABLED. The error code CDC_ALREADY_ENABLED should be
+            // thrown only if "IF NOT EXISTS" is not used with "CREATE CDC".
+            if (SQLExceptionCode.CDC_ALREADY_ENABLED.getErrorCode() != e.getErrorCode()) {
+                throw new PhoenixServiceException(e);
+            }
+            if (SQLExceptionCode.TABLE_ALREADY_EXIST.getErrorCode() == e.getErrorCode()) {
+                if (!isRetry) {
+                    return createTable(tableName, createTableDDL, createIndexDDLs, createCdcDDLs,
+                            connection, true);
+                }
+                throw new PhoenixServiceException(e);
+            }
+        }
+        return tableExists;
+    }
+
+    private static boolean checkTableExistence(PhoenixConnection phoenixConnection,
+            String tableName) throws SQLException {
         try {
             PTable table = phoenixConnection.getTableNoCache(phoenixConnection.getTenantId(),
                     PhoenixUtils.getFullTableName(tableName, false));
             if (table != null) {
                 long tableTimestamp = table.getTimeStamp();
                 long elapsedMillis = EnvironmentEdgeManager.currentTime() - tableTimestamp;
-                if (elapsedMillis > 5000) {
-                    throw new ResourceInUseException("Table " + tableName + " already exists");
-                }
-                LOGGER.info("Table {} already exists but within 5 second window. "
-                        + "Returning success for idempotent behavior. Elapsed time after "
-                        + "table creation: {}ms", tableName, elapsedMillis);
-                return getCreateTableResponse(tableName, connectionUrl);
+                return elapsedMillis > 5000;
             }
         } catch (TableNotFoundException e) {
             // ignore
         }
-        return null;
+        return false;
     }
 }

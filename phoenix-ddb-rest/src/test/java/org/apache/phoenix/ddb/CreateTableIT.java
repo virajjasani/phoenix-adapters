@@ -26,6 +26,11 @@ import java.sql.DriverManager;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -44,6 +49,7 @@ import software.amazon.awssdk.services.dynamodb.model.BillingMode;
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
 import software.amazon.awssdk.services.dynamodb.model.CreateTableResponse;
 import software.amazon.awssdk.services.dynamodb.model.DescribeTableRequest;
+import software.amazon.awssdk.services.dynamodb.model.DescribeTableResponse;
 import software.amazon.awssdk.services.dynamodb.model.GlobalSecondaryIndex;
 import software.amazon.awssdk.services.dynamodb.model.KeySchemaElement;
 import software.amazon.awssdk.services.dynamodb.model.KeyType;
@@ -324,32 +330,28 @@ public class CreateTableIT {
         final String tableName = testName.getMethodName().toUpperCase();
 
         CreateTableRequest request =
-                DDLTestUtils.getCreateTableRequest(tableName, "HK", ScalarAttributeType.B, null,
-                        null);
+                DDLTestUtils.getCreateTableRequest(tableName, "HK", ScalarAttributeType.B, "sk",
+                        ScalarAttributeType.S);
+        request = DDLTestUtils.addIndexToRequest(true, request, "gIdx1" + tableName, "idx_key1",
+                ScalarAttributeType.B, null, null);
+        request = DDLTestUtils.addIndexToRequest(false, request, "lIdx1" + tableName, "HK",
+                ScalarAttributeType.B, "sk2", ScalarAttributeType.B);
+        request = DDLTestUtils.addStreamSpecToRequest(request, "OLD_IMAGE");
 
         dynamoDbClient.createTable(request);
         phoenixDBClientV2.createTable(request);
 
-        try {
-            phoenixDBClientV2.createTable(request);
-            // Should succeed within 5 seconds
-        } catch (ResourceInUseException e) {
-            Assert.fail("Should not throw ResourceInUseException within 5 seconds"
-                    + " of table creation");
-        }
-
         Thread.sleep(6000);
-
         try {
             dynamoDbClient.createTable(request);
-            Assert.fail("Expected ResourceInUseException from DynamoDB after 5 seconds");
+            Assert.fail("Expected ResourceInUseException from DynamoDB");
         } catch (ResourceInUseException e) {
             Assert.assertEquals(400, e.statusCode());
         }
 
         try {
             phoenixDBClientV2.createTable(request);
-            Assert.fail("Expected ResourceInUseException from Phoenix REST after 5 seconds");
+            Assert.fail("Expected ResourceInUseException from Phoenix");
         } catch (ResourceInUseException e) {
             Assert.assertEquals(400, e.statusCode());
         }
@@ -417,5 +419,71 @@ public class CreateTableIT {
 
                         )).build();
         db.createTable(createTableRequest);
+    }
+
+    @Test(timeout = 120000)
+    public void createTableWithIndexesAndCDCInParallel() throws Exception {
+        final String tableName = testName.getMethodName().toUpperCase();
+        final int numThreads = 5;
+
+        ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
+        final AtomicInteger successCount = new AtomicInteger(0);
+        final AtomicInteger failureCount = new AtomicInteger(0);
+        final CountDownLatch latch = new CountDownLatch(numThreads);
+
+        CreateTableRequest createTableRequest =
+                DDLTestUtils.getCreateTableRequest(tableName, "HK",
+                        ScalarAttributeType.B, "SK", ScalarAttributeType.S);
+        createTableRequest =
+                DDLTestUtils.addIndexToRequest(true, createTableRequest,
+                        "GIDX1_" + tableName, "GCOL1", ScalarAttributeType.N,
+                        "GCOL2", ScalarAttributeType.B);
+        createTableRequest =
+                DDLTestUtils.addIndexToRequest(true, createTableRequest,
+                        "GIDX2_" + tableName, "GCOL3", ScalarAttributeType.S,
+                        "GCOL4", ScalarAttributeType.N);
+        createTableRequest =
+                DDLTestUtils.addIndexToRequest(false, createTableRequest,
+                        "LIDX1_" + tableName, "HK", ScalarAttributeType.B, "LCOL1",
+                        ScalarAttributeType.B);
+        createTableRequest = DDLTestUtils.addStreamSpecToRequest(createTableRequest,
+                "NEW_AND_OLD_IMAGES");
+
+        try {
+            dynamoDbClient.createTable(createTableRequest);
+            CreateTableRequest finalCreateTableRequest = createTableRequest;
+            for (int i = 0; i < numThreads; i++) {
+                executorService.submit(() -> {
+                    try {
+                        phoenixDBClientV2.createTable(finalCreateTableRequest);
+                        successCount.incrementAndGet();
+                    } catch (Exception e) {
+                        failureCount.incrementAndGet();
+                        LOGGER.info("Table {} already exists in thread {}: {}", tableName,
+                                Thread.currentThread().getName(), e.getMessage());
+                    } finally {
+                        latch.countDown();
+                    }
+                });
+            }
+
+            boolean completed = latch.await(1, TimeUnit.MINUTES);
+            Assert.assertTrue("All create table requests should be completed", completed);
+            LOGGER.info("Success count: {}, Failure count: {}", successCount.get(),
+                    failureCount.get());
+            Assert.assertEquals("Should not encounter errors", 0, failureCount.get());
+
+            DescribeTableRequest dtr = DescribeTableRequest.builder().tableName(tableName).build();
+            DescribeTableResponse describeTableResult1 = dynamoDbClient.describeTable(dtr);
+            DescribeTableResponse describeTableResult2 = phoenixDBClientV2.describeTable(dtr);
+
+            DDLTestUtils.assertTableDescriptions(describeTableResult1.table(),
+                    describeTableResult2.table());
+        } finally {
+            executorService.shutdown();
+            if (!executorService.awaitTermination(30, TimeUnit.SECONDS)) {
+                executorService.shutdownNow();
+            }
+        }
     }
 }

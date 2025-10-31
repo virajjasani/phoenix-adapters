@@ -42,7 +42,9 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.TimeZone;
 
 /**
@@ -153,22 +155,41 @@ public class DDLTestUtils {
                 || (indexDescriptions1!=null && indexDescriptions2!=null));
 
         if (indexDescriptions1 != null) {
-            Assert.assertEquals(indexDescriptions1.size(), indexDescriptions2.size());
+            Assert.assertEquals("Global index count mismatch", indexDescriptions1.size(),
+                    indexDescriptions2.size());
 
-            for (int i = 0; i < indexDescriptions1.size(); i++) {
-                Assert.assertEquals(indexDescriptions1.get(i).indexName(),
-                        indexDescriptions2.get(i).indexName());
-                Assert.assertEquals(indexDescriptions1.get(i).indexStatus(),
-                        indexDescriptions2.get(i).indexStatus());
-                Assert.assertEquals(indexDescriptions1.get(i).keySchema().size(),
-                        indexDescriptions2.get(i).keySchema().size());
-                for (int j = 0; j < indexDescriptions1.get(i).keySchema().size(); j++) {
+            Map<String, GlobalSecondaryIndexDescription> indexMap2 = new HashMap<>();
+            for (GlobalSecondaryIndexDescription idx : indexDescriptions2) {
+                indexMap2.put(idx.indexName(), idx);
+            }
+
+            for (GlobalSecondaryIndexDescription idx1 : indexDescriptions1) {
+                String indexName = idx1.indexName();
+                Assert.assertTrue("Index " + indexName + " not found in second description",
+                        indexMap2.containsKey(indexName));
+
+                GlobalSecondaryIndexDescription idx2 = indexMap2.get(indexName);
+                Assert.assertEquals("Index status mismatch for " + indexName, idx1.indexStatus(),
+                        idx2.indexStatus());
+                Assert.assertEquals("Key schema size mismatch for index " + indexName,
+                        idx1.keySchema().size(), idx2.keySchema().size());
+
+                Map<KeyType, KeySchemaElement> keyMap1 = new HashMap<>();
+                Map<KeyType, KeySchemaElement> keyMap2 = new HashMap<>();
+                for (KeySchemaElement key : idx1.keySchema()) {
+                    keyMap1.put(key.keyType(), key);
+                }
+                for (KeySchemaElement key : idx2.keySchema()) {
+                    keyMap2.put(key.keyType(), key);
+                }
+
+                for (KeyType keyType : keyMap1.keySet()) {
+                    Assert.assertTrue("Key type " + keyType + " not found in index " + indexName,
+                            keyMap2.containsKey(keyType));
                     Assert.assertEquals(
-                            indexDescriptions1.get(i).keySchema().get(j).attributeName(),
-                            indexDescriptions2.get(i).keySchema().get(j).attributeName());
-                    Assert.assertEquals(
-                            indexDescriptions1.get(i).keySchema().get(j).keyType(),
-                            indexDescriptions2.get(i).keySchema().get(j).keyType());
+                            "Attribute name mismatch for " + keyType + " key in index " + indexName,
+                            keyMap1.get(keyType).attributeName(),
+                            keyMap2.get(keyType).attributeName());
                 }
             }
         }
@@ -178,25 +199,44 @@ public class DDLTestUtils {
                 tableDescription1.localSecondaryIndexes();
         List<LocalSecondaryIndexDescription> localIndexDescriptions2 =
                 tableDescription2.localSecondaryIndexes();
-        Assert.assertTrue((localIndexDescriptions1==null && localIndexDescriptions2==null)
-                || (localIndexDescriptions1!=null && localIndexDescriptions2!=null));
-
+        Assert.assertTrue((localIndexDescriptions1 == null && localIndexDescriptions2 == null) || (
+                localIndexDescriptions1 != null && localIndexDescriptions2 != null));
 
         if (localIndexDescriptions1 != null) {
-            Assert.assertEquals(localIndexDescriptions1.size(), localIndexDescriptions2.size());
+            Assert.assertEquals("Local index count mismatch", localIndexDescriptions1.size(),
+                    localIndexDescriptions2.size());
 
-            for (int i = 0; i < localIndexDescriptions1.size(); i++) {
-                Assert.assertEquals(localIndexDescriptions1.get(i).indexName(),
-                        localIndexDescriptions2.get(i).indexName());
-                Assert.assertEquals(localIndexDescriptions1.get(i).keySchema().size(),
-                        localIndexDescriptions2.get(i).keySchema().size());
-                for (int j = 0; j < localIndexDescriptions1.get(i).keySchema().size(); j++) {
+            Map<String, LocalSecondaryIndexDescription> localIndexMap2 = new HashMap<>();
+            for (LocalSecondaryIndexDescription idx : localIndexDescriptions2) {
+                localIndexMap2.put(idx.indexName(), idx);
+            }
+
+            for (LocalSecondaryIndexDescription idx1 : localIndexDescriptions1) {
+                String indexName = idx1.indexName();
+                Assert.assertTrue("Local index " + indexName + " not found in second description",
+                        localIndexMap2.containsKey(indexName));
+
+                LocalSecondaryIndexDescription idx2 = localIndexMap2.get(indexName);
+                Assert.assertEquals("Key schema size mismatch for local index " + indexName,
+                        idx1.keySchema().size(), idx2.keySchema().size());
+
+                Map<KeyType, KeySchemaElement> keyMap1 = new HashMap<>();
+                Map<KeyType, KeySchemaElement> keyMap2 = new HashMap<>();
+                for (KeySchemaElement key : idx1.keySchema()) {
+                    keyMap1.put(key.keyType(), key);
+                }
+                for (KeySchemaElement key : idx2.keySchema()) {
+                    keyMap2.put(key.keyType(), key);
+                }
+
+                for (KeyType keyType : keyMap1.keySet()) {
+                    Assert.assertTrue(
+                            "Key type " + keyType + " not found in local index " + indexName,
+                            keyMap2.containsKey(keyType));
                     Assert.assertEquals(
-                            localIndexDescriptions1.get(i).keySchema().get(j).attributeName(),
-                            localIndexDescriptions2.get(i).keySchema().get(j).attributeName());
-                    Assert.assertEquals(
-                            localIndexDescriptions1.get(i).keySchema().get(j).keyType(),
-                            localIndexDescriptions2.get(i).keySchema().get(j).keyType());
+                            "Attribute name mismatch for " + keyType + " key in local index "
+                                    + indexName, keyMap1.get(keyType).attributeName(),
+                            keyMap2.get(keyType).attributeName());
                 }
             }
         }
