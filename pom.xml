@@ -32,6 +32,7 @@
     <module>phoenix-ddb-shim</module>
     <module>phoenix-ddb-rest</module>
     <module>phoenix-ddb-utils</module>
+    <module>phoenix-ddb-assembly</module>
   </modules>
 
   <groupId>org.apache.phoenixshim</groupId>

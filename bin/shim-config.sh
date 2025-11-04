@@ -37,7 +37,22 @@ bin=`cd "$bin">/dev/null; pwd`
 this="$bin/$script"
 
 if [ -z "$PHOENIX_SHIM_HOME" ]; then
-  export PHOENIX_SHIM_HOME=`dirname "$this"`/..
+  bin_dir=$(cd "$bin" && pwd)
+  export PHOENIX_SHIM_HOME=$(dirname "$bin_dir")
+fi
+
+echo "PHOENIX_SHIM_HOME is set to: $PHOENIX_SHIM_HOME"
+
+if [ -z "$PHOENIX_SHIM_CONF_DIR" ]; then
+  export PHOENIX_SHIM_CONF_DIR="$PHOENIX_SHIM_HOME/conf"
+fi
+
+if [ -z "$PHOENIX_SHIM_LOG_DIR" ]; then
+  export PHOENIX_SHIM_LOG_DIR="$PHOENIX_SHIM_HOME/logs"
+fi
+
+if [ -z "$PHOENIX_SHIM_PID_DIR" ]; then
+  export PHOENIX_SHIM_PID_DIR="$PHOENIX_SHIM_HOME/pid"
 fi
 
 export GREP="${GREP-grep}"

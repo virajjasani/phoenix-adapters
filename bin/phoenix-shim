@@ -20,61 +20,31 @@
 #
 # Environment Variables:
 #
-#   JAVA_HOME               The java implementation to use.  Overrides JAVA_HOME.
-#
-#   PHOENIX_REST_HEAPSIZE   The maximum amount of heap to use.
-#                           Default is unset and uses the JVMs default setting
-#                           (usually 1/4th of the available memory).
-#
-#   PHOENIX_REST_OPTS       Extra Java runtime options.
-
+#   JAVA_HOME                The java implementation to use.  Overrides JAVA_HOME.
+#   PHOENIX_SHIM_HOME        The phoenix-shim installation directory.
+#   PHOENIX_SHIM_CONF_DIR    The phoenix-shim configuration directory.
+#   PHOENIX_SHIM_LOG_DIR     The phoenix-shim log directory.
+#   PHOENIX_SHIM_PID_DIR     The phoenix-shim pid directory.
+#   PHOENIX_REST_HEAPSIZE    The maximum amount of heap to use.
+#   PHOENIX_REST_OFFHEAPSIZE The maximum amount of off-heap memory to use.
+#   PHOENIX_REST_OPTS        Extra Java runtime options.
+#   PHOENIX_DDB_REST_OPTS    Extra Java runtime options for REST server.
 
 bin=`dirname "$0"`
 bin=`cd "$bin">/dev/null; pwd`
+CLASS=""
+REST_CLASSPATH=""
 
-read -d '' options_string << EOF
-Options:
-  --config DIR         Configuration direction to use. Default: ./conf
-  --help or -h         Print this help message
-EOF
-
-show_usage() {
-  echo "Usage: phoenix-shim [<options>] <command> [<args>]"
-  echo "$options_string"
-  echo ""
-  echo "Commands:"
-  echo "Some commands take arguments. Pass no args or -h for usage."
-  echo "  CLASSNAME        Run the class named CLASSNAME"
+# Helper functions
+function append_path() {
+  if [ -z "$1" ]; then
+    echo "$2"
+  else
+    echo "$1:$2"
+  fi
 }
 
-if [ "--help" = "$1" ] || [ "-h" = "$1" ]; then
-  show_usage
-  exit 0
-fi
-
-# This will set PHOENIX_SHIM_HOME, etc.
-. "$bin"/shim-config.sh
-
-# if no args specified, show usage
-if [ $# = 0 ]; then
-  show_usage
-  exit 1
-fi
-
-# get arguments
-COMMAND=$1
-shift
-
-JAVA=$JAVA_HOME/bin/java
-
-# establish a default value for PHOENIX_REST_OPTS if it's not already set. For now,
-# all we set is the garbage collector.
-if [ -z "${PHOENIX_REST_OPTS}" ] ; then
-  PHOENIX_REST_OPTS="-XX:+UseG1GC"
-  export PHOENIX_REST_OPTS
-fi
-
-add_size_suffix() {
+function add_size_suffix() {
     # add an 'm' suffix if the argument is missing one, otherwise use whats there
     local val="$1"
     local lastchar=${val: -1}
@@ -85,6 +55,144 @@ add_size_suffix() {
     fi
 }
 
+function validate_config() {
+    if [ -z "$JAVA_HOME" ]; then
+        echo "Error: JAVA_HOME is not set"
+        exit 1
+    fi
+
+    if [ -z "$PHOENIX_SHIM_HOME" ]; then
+        echo "Error: PHOENIX_SHIM_HOME is not set"
+        exit 1
+    fi
+
+    if [ ! -d "$PHOENIX_SHIM_HOME" ]; then
+        echo "Error: PHOENIX_SHIM_HOME directory does not exist: $PHOENIX_SHIM_HOME"
+        exit 1
+    fi
+
+    mkdir -p "$PHOENIX_SHIM_LOG_DIR"
+    mkdir -p "$PHOENIX_SHIM_PID_DIR"
+
+    if [ ! -w "$PHOENIX_SHIM_LOG_DIR" ]; then
+        echo "Error: Cannot write to log directory: $PHOENIX_SHIM_LOG_DIR"
+        exit 1
+    fi
+
+    if [ ! -w "$PHOENIX_SHIM_PID_DIR" ]; then
+        echo "Error: Cannot write to pid directory: $PHOENIX_SHIM_PID_DIR"
+        exit 1
+    fi
+}
+
+function check_before_start() {
+    if [ -f "$PHOENIX_SHIM_PID_DIR/$COMMAND.pid" ]; then
+        pid=$(cat "$PHOENIX_SHIM_PID_DIR/$COMMAND.pid")
+        if kill -0 $pid 2>/dev/null; then
+            echo "$COMMAND is already running (pid: $pid)"
+            exit 1
+        else
+            echo "Removing stale pid file"
+            rm -f "$PHOENIX_SHIM_PID_DIR/$COMMAND.pid"
+        fi
+    fi
+}
+
+function start_daemon() {
+    local args=("$@")
+    echo "Starting $COMMAND daemon"
+    echo "Using JAVA: $JAVA"
+    echo "Using CLASS: $CLASS"
+    echo "Using CLASSPATH: $CLASSPATH"
+    echo "Using HEAP_SETTINGS: $HEAP_SETTINGS"
+    echo "Using PHOENIX_REST_OPTS: $PHOENIX_REST_OPTS"
+    echo "Using arguments: ${args[@]}"
+    
+    "$JAVA" -Dproc_$COMMAND -XX:OnOutOfMemoryError="kill -9 %p" $HEAP_SETTINGS $PHOENIX_REST_OPTS $CLASS "${args[@]}" > "$PHOENIX_SHIM_LOG_DIR/phoenix-shim.log" 2>&1 &
+    echo $! > "$PHOENIX_SHIM_PID_DIR/$COMMAND.pid"
+    echo "Started $COMMAND daemon (pid: $!)"
+}
+
+function stop_daemon() {
+    if [ -f "$PHOENIX_SHIM_PID_DIR/$COMMAND.pid" ]; then
+        pid=$(cat "$PHOENIX_SHIM_PID_DIR/$COMMAND.pid")
+        echo "Stopping $COMMAND daemon (pid: $pid)"
+        kill $pid
+        rm -f "$PHOENIX_SHIM_PID_DIR/$COMMAND.pid"
+    else
+        echo "No $COMMAND daemon running"
+    fi
+}
+
+function status_daemon() {
+    if [ -f "$PHOENIX_SHIM_PID_DIR/$COMMAND.pid" ]; then
+        pid=$(cat "$PHOENIX_SHIM_PID_DIR/$COMMAND.pid")
+        if kill -0 $pid 2>/dev/null; then
+            echo "$COMMAND daemon is running (pid: $pid)"
+            return 0
+        else
+            echo "$COMMAND daemon is not running (stale pid file)"
+            return 1
+        fi
+    else
+        echo "$COMMAND daemon is not running"
+        return 1
+    fi
+}
+
+function show_usage() {
+  echo "Usage: phoenix-shim [<options>] <command> [<args>]"
+  echo "$options_string"
+  echo ""
+  echo "Commands:"
+  echo "  rest <subcommand>   REST server commands"
+  echo "    start            Start the REST server"
+  echo "    stop             Stop the REST server"
+  echo "    status           Check REST server status"
+  echo "    restart          Restart the REST server"
+  echo ""
+  echo "  CLASSNAME          Run the class named CLASSNAME"
+  echo ""
+  echo "Examples:"
+  echo "  phoenix-shim rest start     # Start the REST server"
+  echo "  phoenix-shim rest stop      # Stop the REST server"
+  echo "  phoenix-shim rest status    # Check REST server status"
+  echo "  phoenix-shim rest restart   # Restart the REST server"
+  echo ""
+  echo "Environment Variables:"
+  echo "  JAVA_HOME                The java implementation to use"
+  echo "  PHOENIX_SHIM_HOME        The phoenix-shim installation directory"
+  echo "  PHOENIX_SHIM_CONF_DIR    The phoenix-shim configuration directory"
+  echo "  PHOENIX_SHIM_LOG_DIR     The phoenix-shim log directory"
+  echo "  PHOENIX_SHIM_PID_DIR     The phoenix-shim pid directory"
+  echo "  PHOENIX_REST_HEAPSIZE    The maximum amount of heap to use"
+  echo "  PHOENIX_REST_OFFHEAPSIZE The maximum amount of off-heap memory to use"
+  echo "  PHOENIX_REST_OPTS        Extra Java runtime options"
+  echo "  PHOENIX_DDB_REST_OPTS    Extra Java runtime options for REST server"
+}
+
+# Define options string
+read -d '' options_string << EOF
+Options:
+  --help or -h         Print this help message
+EOF
+
+# Handle help option
+if [ "--help" = "$1" ] || [ "-h" = "$1" ]; then
+  show_usage
+  exit 0
+fi
+
+# Load configuration
+. "$bin"/shim-config.sh
+
+# Validate configuration
+validate_config
+
+# Set up Java environment
+JAVA="$JAVA_HOME/bin/java"
+
+# Set up heap settings
 if [[ -n "$PHOENIX_REST_HEAPSIZE" ]]; then
     JAVA_HEAP_MAX="-Xmx$(add_size_suffix $PHOENIX_REST_HEAPSIZE)"
 fi
@@ -93,60 +201,143 @@ if [[ -n "$PHOENIX_REST_OFFHEAPSIZE" ]]; then
     JAVA_OFFHEAP_MAX="-XX:MaxDirectMemorySize=$(add_size_suffix $PHOENIX_REST_OFFHEAPSIZE)"
 fi
 
-# so that filenames w/ spaces are handled correctly in loops below
-ORIG_IFS=$IFS
-IFS=
-
-CLASSPATH=${CLASSPATH}:$JAVA_HOME/lib/tools.jar
-
-add_to_cp_if_exists() {
-  if [ -d "$@" ]; then
-    CLASSPATH=${CLASSPATH}:"$@"
-  fi
-}
-
-REST_CLASSPATH=""
-if [ "$COMMAND" = "rest" ] ; then
-  REST_CLASSPATH="${PHOENIX_SHIM_HOME}/phoenix-ddb-rest/target/*"
-fi
-
-function append_path() {
-  if [ -z "$1" ]; then
-    echo "$2"
-  else
-    echo "$1:$2"
-  fi
-}
-
-JAVA_PLATFORM=""
-
-# restore ordinary behaviour
-unset IFS
-
-# figure out which class to run
-if [ "$COMMAND" = "rest" ] ; then
-  CLASS='org.apache.phoenix.ddb.rest.RESTServer'
-  if [ "$1" != "stop" ] ; then
-    PHOENIX_REST_OPTS="$PHOENIX_REST_OPTS $PHOENIX_DDB_REST_OPTS"
-  fi
-fi
-
-if [ "x$JAVA_LIBRARY_PATH" != "x" ]; then
-  PHOENIX_REST_OPTS="$PHOENIX_REST_OPTS -Djava.library.path=$JAVA_LIBRARY_PATH"
-  export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$JAVA_LIBRARY_PATH"
-fi
-
 HEAP_SETTINGS="$JAVA_HEAP_MAX $JAVA_OFFHEAP_MAX"
 
-CLASSPATH=${CLASSPATH}:${REST_CLASSPATH}
+# Initialize CLASSPATH
+CLASSPATH="${PHOENIX_SHIM_CONF_DIR}:$JAVA_HOME/lib/tools.jar"
 
-export CLASSPATH
+# Set up logging options
+if [ -z "${PHOENIX_SHIM_LOGGING_OPTS}" ]; then
+    PHOENIX_SHIM_LOGGING_OPTS="-Dlog4j.configuration=file:$PHOENIX_SHIM_CONF_DIR/log4j.properties"
+    export PHOENIX_SHIM_LOGGING_OPTS
+fi
 
-echo "classpath=${CLASSPATH}" >&2
-PHOENIX_REST_OPTS="${PHOENIX_REST_OPTS} -Xdiag"
-echo "PHOENIX_REST_OPTS=${PHOENIX_REST_OPTS}"
+# Set up REST options
+if [ -z "${PHOENIX_REST_OPTS}" ] ; then
+    PHOENIX_REST_OPTS="-XX:+UseG1GC"
+    PHOENIX_REST_OPTS="$PHOENIX_REST_OPTS -XX:+HeapDumpOnOutOfMemoryError"
+    PHOENIX_REST_OPTS="$PHOENIX_REST_OPTS -XX:HeapDumpPath=$PHOENIX_SHIM_LOG_DIR"
+    PHOENIX_REST_OPTS="$PHOENIX_REST_OPTS -XX:+UseGCLogFileRotation"
+    PHOENIX_REST_OPTS="$PHOENIX_REST_OPTS -XX:NumberOfGCLogFiles=5"
+    PHOENIX_REST_OPTS="$PHOENIX_REST_OPTS -XX:GCLogFileSize=20M"
+    PHOENIX_REST_OPTS="$PHOENIX_REST_OPTS -XX:+PrintGCDetails"
+    PHOENIX_REST_OPTS="$PHOENIX_REST_OPTS -XX:+PrintGCDateStamps"
+    PHOENIX_REST_OPTS="$PHOENIX_REST_OPTS -Xloggc:$PHOENIX_SHIM_LOG_DIR/gc.log"
+    export PHOENIX_REST_OPTS
+fi
 
-CMD_ARGS=("$@")
+# Handle command line arguments
+if [ $# = 0 ]; then
+  show_usage
+  exit 1
+fi
 
-export JVM_PID="$$"
-exec "$JAVA" -Dproc_$COMMAND -XX:OnOutOfMemoryError="kill -9 %p" $HEAP_SETTINGS $PHOENIX_REST_OPTS $CLASS "${CMD_ARGS[@]}"
+COMMAND=$1
+shift
+
+# Handle 'rest' command
+if [ "$COMMAND" = "rest" ]; then
+    SUBCOMMAND=$1
+    shift
+    if [ -z "$SUBCOMMAND" ]; then
+        echo "Error: No subcommand specified for 'rest'"
+        show_usage
+        exit 1
+    fi
+
+    # Handle Java library path if set
+    if [ "x$JAVA_LIBRARY_PATH" != "x" ]; then
+        PHOENIX_REST_OPTS="$PHOENIX_REST_OPTS -Djava.library.path=$JAVA_LIBRARY_PATH"
+        export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$JAVA_LIBRARY_PATH"
+    fi
+
+    
+    # Set up REST server specific variables
+    CLASS="org.apache.phoenix.ddb.rest.RESTServer"
+    REST_CLASSPATH="${PHOENIX_SHIM_HOME}/lib/*"
+    CLASSPATH="${CLASSPATH}:${REST_CLASSPATH}"
+
+    export CLASSPATH
+
+    echo "Using the classpath: $CLASSPATH"
+    
+    REST_CMD_ARGS=()
+    
+    # Parse remaining arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -z|--zkquorum)
+                REST_CMD_ARGS+=("-z" "$2")
+                shift 2
+                ;;
+            -p|--port)
+                REST_CMD_ARGS+=("-p" "$2")
+                shift 2
+                ;;
+            -i|--infoport)
+                REST_CMD_ARGS+=("-i" "$2")
+                shift 2
+                ;;
+            *)
+                echo "Unknown option: $1"
+                show_usage
+                exit 1
+                ;;
+        esac
+    done
+    
+    # Add the subcommand to the arguments
+    REST_CMD_ARGS=("$SUBCOMMAND" "${REST_CMD_ARGS[@]}")
+    
+    if [ "$SUBCOMMAND" != "stop" ] ; then
+        PHOENIX_REST_OPTS="$PHOENIX_REST_OPTS $PHOENIX_DDB_REST_OPTS"
+    fi
+    
+    case "$SUBCOMMAND" in
+        start)
+            check_before_start
+            start_daemon "${REST_CMD_ARGS[@]}"
+            ;;
+        stop)
+            stop_daemon
+            ;;
+        status)
+            status_daemon
+            ;;
+        restart)
+            stop_daemon
+            sleep 2  # Give the process time to stop
+            start_daemon "${REST_CMD_ARGS[@]}"
+            ;;
+        *)
+            echo "Unknown subcommand: $SUBCOMMAND"
+            show_usage
+            exit 1
+            ;;
+    esac
+else
+    # Handle other commands
+    CMD_ARGS=("$@")
+    case "$COMMAND" in
+        start)
+            check_before_start
+            start_daemon "${CMD_ARGS[@]}"
+            ;;
+        stop)
+            stop_daemon
+            ;;
+        status)
+            status_daemon
+            ;;
+        restart)
+            stop_daemon
+            sleep 2
+            start_daemon "${CMD_ARGS[@]}"
+            ;;
+        *)
+            echo "Unknown command: $COMMAND"
+            show_usage
+            exit 1
+            ;;
+    esac
+fi

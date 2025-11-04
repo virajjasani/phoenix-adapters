@@ -3,6 +3,102 @@
 
 A frontend layer that mimics NoSQL APIs for different databases while always using **Salesforce Phoenix** (on HBase) as the persistent store.
 
+### Building Distribution Tarball
+
+To build a distribution tarball that includes all components:
+
+```
+mvn clean package
+```
+
+This will generate a tarball in `phoenix-ddb-assembly/target/phoenix-shim-*-bin.tar.gz`
+
+## Installation
+
+1. Extract the distribution tarball:
+```bash
+tar xzf phoenix-shim-<version>-bin.tar.gz
+cd phoenix-shim-<version>
+```
+
+2. Configure the environment variables in `conf/phoenix-shim-env.sh`:
+```bash
+export JAVA_HOME=/path/to/java
+export PHOENIX_SHIM_HOME=/path/to/extracted/phoenix-shim
+```
+
+## Configuration
+
+### Environment Variables
+
+The following environment variables can be configured:
+
+- `JAVA_HOME`: Path to Java installation
+- `PHOENIX_SHIM_HOME`: Path to Phoenix Shim installation
+- `PHOENIX_SHIM_CONF_DIR`: Configuration directory (default: $PHOENIX_SHIM_HOME/conf)
+- `PHOENIX_SHIM_LOG_DIR`: Log directory (default: $PHOENIX_SHIM_HOME/logs)
+- `PHOENIX_SHIM_PID_DIR`: PID directory (default: /var/run/phoenix-shim)
+- `PHOENIX_REST_HEAPSIZE`: Maximum heap size (e.g., "2g")
+- `PHOENIX_REST_OFFHEAPSIZE`: Maximum off-heap memory size (e.g., "1g")
+- `PHOENIX_REST_OPTS`: Additional JVM options
+- `PHOENIX_DDB_REST_OPTS`: Additional JVM options for REST server
+
+### Logging Configuration
+
+Logging can be configured in `conf/log4j.properties`. The default configuration includes:
+- Console logging
+- File logging with rotation
+- GC logging
+- Heap dumps on OutOfMemoryError
+
+## Running the Server
+
+### Starting the Server
+
+To start the REST server as a daemon:
+
+```bash
+bin/phoenix-shim.sh start rest
+```
+
+To start in foreground mode (for debugging):
+
+```bash
+bin/phoenix-shim.sh rest
+```
+
+### Checking Server Status
+
+To check if the server is running:
+
+```bash
+bin/phoenix-shim.sh status rest
+```
+
+### Stopping the Server
+
+To stop the server:
+
+```bash
+bin/phoenix-shim.sh stop rest
+```
+
+### Restarting the Server
+
+To restart the server:
+
+```bash
+bin/phoenix-shim.sh restart rest
+```
+
+## Logs
+
+Logs are stored in the following locations:
+- Main log: `$PHOENIX_SHIM_LOG_DIR/rest.log`
+- GC log: `$PHOENIX_SHIM_LOG_DIR/gc.log`
+- Heap dumps: `$PHOENIX_SHIM_LOG_DIR/` (on OutOfMemoryError)
+
+
 
 ## 📖 Overview
 It can be challenging for Salesforce applications/services to maintain different codebases for different substrates if they use the substrate-native NoSQL database. These databases also do not have built-in SOR or Org Migration support.
