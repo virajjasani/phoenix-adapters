@@ -1,6 +1,5 @@
-import java.io.IOException;
 import java.sql.DriverManager;
-import java.sql.SQLException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -12,12 +11,21 @@ import org.junit.Test;
 import org.junit.rules.TestName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.model.AttributeDefinition;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.BillingMode;
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
+import software.amazon.awssdk.services.dynamodb.model.GlobalSecondaryIndex;
+import software.amazon.awssdk.services.dynamodb.model.KeySchemaElement;
+import software.amazon.awssdk.services.dynamodb.model.KeyType;
+import software.amazon.awssdk.services.dynamodb.model.Projection;
+import software.amazon.awssdk.services.dynamodb.model.ProjectionType;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.ReturnConsumedCapacity;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 
 import org.apache.hadoop.conf.Configuration;
@@ -82,6 +90,99 @@ public class GetItemIT {
             ServerMetadataCacheTestImpl.resetCache();
         }
         System.setProperty("java.io.tmpdir", tmpDir);
+    }
+
+    @Test(timeout = 120000)
+    public void testGetWithConditionPut() throws Exception {
+        CreateTableRequest request = CreateTableRequest.builder().tableName("Xyzzz..--__")
+                .billingMode(BillingMode.PAY_PER_REQUEST).globalSecondaryIndexes(Arrays.asList(
+                        GlobalSecondaryIndex.builder().indexName("outstanding_tasks").keySchema(
+                                        Arrays.asList(KeySchemaElement.builder()
+                                                        .attributeName("outstanding_tasks_hk").keyType(
+                                                                KeyType.HASH)
+                                                        .build(),
+                                                KeySchemaElement.builder().attributeName("execute_after")
+                                                        .keyType(KeyType.RANGE).build()
+
+                                        )).projection(
+                                        Projection.builder().projectionType(ProjectionType.ALL).build())
+                                .build()
+
+                )).attributeDefinitions(Arrays.asList(
+                        AttributeDefinition.builder().attributeName("hk")
+                                .attributeType(ScalarAttributeType.B).build(),
+                        AttributeDefinition.builder().attributeName("sk")
+                                .attributeType(ScalarAttributeType.B).build(),
+                        AttributeDefinition.builder().attributeName("outstanding_tasks_hk")
+                                .attributeType(ScalarAttributeType.B).build(),
+                        AttributeDefinition.builder().attributeName("execute_after")
+                                .attributeType(ScalarAttributeType.B).build()
+
+                )).keySchema(Arrays.asList(
+                        KeySchemaElement.builder().attributeName("hk").keyType(KeyType.HASH)
+                                .build(),
+                        KeySchemaElement.builder().attributeName("sk").keyType(KeyType.RANGE)
+                                .build()
+
+                )).build();
+        dynamoDbClient.createTable(request);
+        phoenixDBClientV2.createTable(request);
+
+        Map<String, AttributeValue> map = new HashMap<>();
+        map.put("hk", AttributeValue.builder().b(SdkBytes.fromByteArray(
+                        new byte[] {3, 83, 72, 65, 82, 69, 68, 46, 109, 101, 116, 97, 100, 97, 116, 97, 46,
+                                100, 101, 118, 46, 68, 111, 99, 117, 109, 101, 110, 116, 115, 0, 1}))
+                .build());
+        map.put("sk", AttributeValue.builder().b(SdkBytes.fromByteArray(new byte[] {0})).build());
+        map.put("submitted_datetime", AttributeValue.builder()
+                .b(SdkBytes.fromByteArray(new byte[] {-47, -121, 37, -84, 75, -64})).build());
+        map.put("task_count", AttributeValue.builder().n("1").build());
+        map.put("outstanding_tasks", AttributeValue.builder().ns(Arrays.asList("0")).build());
+        map.put("custom_params", AttributeValue.builder()
+                .b(SdkBytes.fromByteArray(new byte[] {1, -128, 0, 0, 0, -128, 0, 0, 1})).build());
+
+        Map<String, String> expressionAttributes = new HashMap<>();
+        expressionAttributes.put("#0", "hk");
+        expressionAttributes.put("#1", "sk");
+
+        PutItemRequest putItemRequest = PutItemRequest.builder().tableName("Xyzzz..--__")
+                .item(map)
+                .returnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
+//                TODO : remove this comment while fixing ON DUPLICATE KEY IGNORE case
+//                .conditionExpression("attribute_not_exists(#0) AND attribute_not_exists(#1)")
+//                .expressionAttributeNames(expressionAttributes)
+                .build();
+        dynamoDbClient.putItem(putItemRequest);
+        phoenixDBClientV2.putItem(putItemRequest);
+
+        Map<String, AttributeValue> keys = new HashMap<>();
+        keys.put("hk", AttributeValue.builder().b(SdkBytes.fromByteArray(
+                        new byte[] {3, 83, 72, 65, 82, 69, 68, 46, 109, 101, 116, 97, 100, 97, 116, 97, 46,
+                                100, 101, 118, 46, 68, 111, 99, 117, 109, 101, 110, 116, 115, 0, 1}))
+                .build());
+        keys.put("sk", AttributeValue.builder().b(SdkBytes.fromByteArray(new byte[] {0})).build());
+
+        GetItemRequest getItemRequest =
+                GetItemRequest.builder().tableName("Xyzzz..--__").key(keys).consistentRead(true)
+                        .returnConsumedCapacity(ReturnConsumedCapacity.TOTAL).build();
+        GetItemResponse getItemResponse1 = dynamoDbClient.getItem(getItemRequest);
+        GetItemResponse getItemResponse2 = phoenixDBClientV2.getItem(getItemRequest);
+
+        Assert.assertEquals(getItemResponse2.item(), getItemResponse1.item());
+
+        keys.put("hk", AttributeValue.builder().b(SdkBytes.fromByteArray(
+                        new byte[] {3, 83, 72, 65, 82, 69, 68, 46, 109, 101, 116, 97, 100, 97, 116, 97, 46,
+                                100, 101, 118, 46, 68, 111, 99, 117, 109, 101, 110, 116, 115, 0, 1}))
+                .build());
+        keys.put("sk", AttributeValue.builder().b(SdkBytes.fromByteArray(new byte[] {0, 0})).build());
+        getItemRequest =
+                GetItemRequest.builder().tableName("Xyzzz..--__").key(keys).consistentRead(true)
+                        .returnConsumedCapacity(ReturnConsumedCapacity.TOTAL).build();
+        getItemResponse1 = dynamoDbClient.getItem(getItemRequest);
+        getItemResponse2 = phoenixDBClientV2.getItem(getItemRequest);
+
+        Assert.assertEquals(getItemResponse2.item(), getItemResponse1.item());
+
     }
 
     @Test(timeout = 120000)

@@ -44,7 +44,9 @@ public final class BsonDocumentToMap {
     }
 
     private static void updateMapWithDocAttributes(Map<String, Object> map, BsonDocument document) {
-        document.forEach((key, value) -> map.put(key, getValueFromBsonVal(value)));
+        if (document != null) {
+            document.forEach((key, value) -> map.put(key, getValueFromBsonVal(value)));
+        }
     }
 
     private static Map<String, Object> getValueFromBsonVal(BsonValue value) {
