@@ -95,24 +95,28 @@ public class CreateTableService {
         Preconditions.checkArgument(hashKeyType != null, "Hash key attribute should be defined");
 
         String hashKeyAttributeName = (String) hashKey.get("AttributeName");
+        final String hashKeyDataType;
         switch (hashKeyType) {
             case "S":
                 indexOn.append("BSON_VALUE(COL,'").append(hashKeyAttributeName)
                         .append("','VARCHAR')");
+                hashKeyDataType = "VARCHAR";
                 break;
             case "N":
                 indexOn.append("BSON_VALUE(COL,'").append(hashKeyAttributeName)
                         .append("','DOUBLE')");
+                hashKeyDataType = "DOUBLE";
                 break;
             case "B":
                 indexOn.append("BSON_VALUE(COL,'").append(hashKeyAttributeName)
                         .append("','VARBINARY_ENCODED')");
+                hashKeyDataType = "VARBINARY_ENCODED";
                 break;
             default:
                 throw new IllegalArgumentException(
                         "Attribute Type " + hashKeyType + " is not " + "correct type");
         }
-        indexHashKey = "BSON_VALUE(COL,'" + hashKeyAttributeName + "','VARCHAR')";
+        indexHashKey = "BSON_VALUE(COL,'" + hashKeyAttributeName + "','" + hashKeyDataType + "')";
 
         if (keySchemaElements.size() == 2) {
             Map<String, Object> rangeKey = keySchemaElements.get(1);
@@ -129,24 +133,29 @@ public class CreateTableService {
                     "Global Index Range key attribute should be defined");
 
             String rangeKeyAttributeName = (String) rangeKey.get("AttributeName");
+            final String rangeKeyDataType;
             switch (rangeKeyType) {
                 case "S":
                     indexOn.append("BSON_VALUE(COL,'").append(rangeKeyAttributeName)
                             .append("','VARCHAR')");
+                    rangeKeyDataType = "VARCHAR";
                     break;
                 case "N":
                     indexOn.append("BSON_VALUE(COL,'").append(rangeKeyAttributeName)
                             .append("','DOUBLE')");
+                    rangeKeyDataType = "DOUBLE";
                     break;
                 case "B":
                     indexOn.append("BSON_VALUE(COL,'").append(rangeKeyAttributeName)
                             .append("','VARBINARY_ENCODED')");
+                    rangeKeyDataType = "VARBINARY_ENCODED";
                     break;
                 default:
                     throw new IllegalArgumentException(
                             "Attribute Type " + rangeKeyType + " is not " + "correct type");
             }
-            indexSortKey = "BSON_VALUE(COL,'" + rangeKeyAttributeName + "','VARCHAR')";
+            indexSortKey =
+                    "BSON_VALUE(COL,'" + rangeKeyAttributeName + "','" + rangeKeyDataType + "')";
         }
 
         indexDDLs.add(
