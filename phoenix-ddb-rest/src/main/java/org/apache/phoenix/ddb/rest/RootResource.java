@@ -43,6 +43,7 @@ import org.apache.phoenix.ddb.service.UpdateItemService;
 import org.apache.phoenix.ddb.service.utils.TableDescriptorUtils;
 import org.apache.phoenix.ddb.service.utils.exceptions.ConditionCheckFailedException;
 import org.apache.phoenix.ddb.utils.PhoenixUtils;
+import org.apache.phoenix.schema.TableNotFoundException;
 
 @Path("/")
 public class RootResource {
@@ -185,6 +186,7 @@ public class RootResource {
         } catch (Exception e) {
             LOG.error("Error... Content Type: {}, api: {}, Request: {} ", contentType, api,
                     request, e);
+            // TODO : metrics for error response
             switch (api) {
                 case "DynamoDB_20120810.CreateTable": {
                     servlet.getMetrics().incrementCreateTableFailedRequests(1);
@@ -214,8 +216,19 @@ public class RootResource {
                 default: {
                 }
             }
+            if (e.getCause() != null && e.getCause() instanceof TableNotFoundException) {
+                return getResponseForTableNotFoundFailure();
+            }
             throw e;
         }
+    }
+
+    private static Response getResponseForTableNotFoundFailure() {
+        Map<String, Object> respObj = new HashMap<>();
+        respObj.put("__type",
+                "com.amazonaws.dynamodb.v20120810#ResourceNotFoundException");
+        respObj.put("Message", "Cannot do operations on a non-existent table");
+        return Response.status(Response.Status.BAD_REQUEST).entity(respObj).build();
     }
 
     private static Response getResponseForConditionCheckFailure(ConditionCheckFailedException e) {

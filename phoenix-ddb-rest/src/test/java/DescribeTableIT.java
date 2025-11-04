@@ -16,11 +16,8 @@
  * limitations under the License.
  */
 
-
-import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.sql.SQLException;
 
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -34,6 +31,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
 import software.amazon.awssdk.services.dynamodb.model.DescribeTableRequest;
 import software.amazon.awssdk.services.dynamodb.model.DescribeTableResponse;
+import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 import software.amazon.awssdk.services.dynamodb.model.StreamSpecification;
 
@@ -57,6 +55,8 @@ import static org.apache.phoenix.query.BaseTest.setUpConfigForMiniCluster;
 public class DescribeTableIT {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(DescribeTableIT.class);
+    public static final String NON_EXISTENT_TABLE_ERROR =
+            "Cannot do operations on a non-existent table (Service: DynamoDb, Status Code: 400,";
 
     private static HBaseTestingUtility utility = null;
     private static String tmpDir;
@@ -111,6 +111,21 @@ public class DescribeTableIT {
     @Test(timeout = 120000)
     public void describeTableTest() throws Exception {
         final String tableName = testName.getMethodName().toUpperCase();
+
+        DescribeTableRequest dt = DescribeTableRequest.builder().tableName(tableName).build();
+        try {
+            dynamoDbClient.describeTable(dt).table();
+            Assert.fail("should have thrown an exception");
+        } catch (ResourceNotFoundException e) {
+            Assert.assertTrue(e.getMessage().startsWith(NON_EXISTENT_TABLE_ERROR));
+        }
+        try {
+            phoenixDBClientV2.describeTable(dt).table();
+            Assert.fail("should have thrown an exception");
+        } catch (ResourceNotFoundException e) {
+            Assert.assertTrue(e.getMessage().startsWith(NON_EXISTENT_TABLE_ERROR));
+        }
+
         // create table request
         CreateTableRequest createTableRequest = DDLTestUtils.getCreateTableRequest(tableName,
                 "PK1", ScalarAttributeType.B, "PK2", ScalarAttributeType.S);
