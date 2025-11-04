@@ -297,7 +297,9 @@ public class RESTServer {
         final Configuration conf = HBaseConfiguration.create();
 
         String zkQuorum = System.getenv("ZOO_KEEPER_QUORUM");
-        conf.set(Constants.PHOENIX_DDB_ZK_QUORUM, zkQuorum);
+        if (zkQuorum != null) {
+            conf.set(Constants.PHOENIX_DDB_ZK_QUORUM, zkQuorum);
+        }
 
         parseCommandLine(args, conf);
         RESTServer server = new RESTServer(conf);

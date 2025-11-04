@@ -441,7 +441,7 @@ public class QueryIT {
         }
     }
 
-    private static Map<String, AttributeValue> getItem1() {
+    public static Map<String, AttributeValue> getItem1() {
         Map<String, AttributeValue> item = new HashMap<>();
         item.put("attr_0", AttributeValue.builder().s("A").build());
         item.put("attr_1", AttributeValue.builder().n("1").build());
@@ -457,7 +457,7 @@ public class QueryIT {
         return item;
     }
 
-    private static Map<String, AttributeValue> getItem2() {
+    public static Map<String, AttributeValue> getItem2() {
         Map<String, AttributeValue> item = new HashMap<>();
         item.put("attr_0", AttributeValue.builder().s("B").build());
         item.put("attr_1", AttributeValue.builder().n("2").build());
@@ -477,7 +477,7 @@ public class QueryIT {
         return item;
     }
 
-    private static Map<String, AttributeValue> getItem3() {
+    public static Map<String, AttributeValue> getItem3() {
         Map<String, AttributeValue> item = new HashMap<>();
         item.put("attr_0", AttributeValue.builder().s("B").build());
         item.put("attr_1", AttributeValue.builder().n("3").build());
@@ -493,7 +493,7 @@ public class QueryIT {
         return item;
     }
 
-    private static Map<String, AttributeValue> getItem4() {
+    public static Map<String, AttributeValue> getItem4() {
         Map<String, AttributeValue> item = new HashMap<>();
         item.put("attr_0", AttributeValue.builder().s("B").build());
         item.put("attr_1", AttributeValue.builder().n("4").build());

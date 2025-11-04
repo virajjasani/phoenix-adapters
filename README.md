@@ -34,3 +34,15 @@ endpoint.
 
 ### MongoDB
 TBD
+
+### How to bring up REST Server in dev env?
+
+1. Clone phoenix-shim repo.
+2. Build the project with: `mvn clean install -DskipTests`
+3. Start the REST Server with: `bin/phoenix-shim rest start -p <port> -z <zk-quorum>`
+   e.g. `bin/phoenix-shim rest start -p 8842 -z localhost:2181` to start the server at
+   port 8842 with zk-quorum localhost:2181.
+   Alternative to `-z <zk-quorum>` is env variable `ZOO_KEEPER_QUORUM`.
+4. Optional step: To confirm the server is started and functional,
+   run class `TestWithLocalRestService` by adjusting the endpoint.
+

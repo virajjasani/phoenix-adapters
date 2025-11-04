@@ -5,3 +5,4 @@
 /phoenix-ddb-rest/target/
 /phoenix-ddb-rest/dynamodb-local-metadata.json
 /phoenix-ddb-utils/target/
+/dynamodb-local-metadata.json
