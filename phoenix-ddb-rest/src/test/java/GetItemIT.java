@@ -25,6 +25,8 @@ import software.amazon.awssdk.services.dynamodb.model.KeyType;
 import software.amazon.awssdk.services.dynamodb.model.Projection;
 import software.amazon.awssdk.services.dynamodb.model.ProjectionType;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
+import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 import software.amazon.awssdk.services.dynamodb.model.ReturnConsumedCapacity;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 
@@ -182,6 +184,215 @@ public class GetItemIT {
 
         Assert.assertEquals(getItemResponse2.item(), getItemResponse1.item());
 
+    }
+
+    @Test(timeout = 120000)
+    public void testBinaryGetItemAndQuery() {
+        CreateTableRequest request = CreateTableRequest.builder()
+                .tableName("Tablex2048hfg.shLinux")
+                .billingMode(BillingMode.PAY_PER_REQUEST)
+                .globalSecondaryIndexes(Arrays.asList(
+                        GlobalSecondaryIndex.builder()
+                                .indexName("outstanding_tasks")
+                                .keySchema(Arrays.asList(
+                                        KeySchemaElement.builder()
+                                                .attributeName("outstanding_tasks_hk")
+                                                .keyType(KeyType.HASH)
+                                                .build(),
+                                        KeySchemaElement.builder()
+                                                .attributeName("execute_after")
+                                                .keyType(KeyType.RANGE)
+                                                .build()
+                                ))
+                                .projection(Projection.builder()
+                                        .projectionType(ProjectionType.ALL)
+                                        .build())
+                                .build()
+                ))
+                .attributeDefinitions(Arrays.asList(
+                        AttributeDefinition.builder()
+                                .attributeName("hk")
+                                .attributeType(ScalarAttributeType.B)
+                                .build(),
+                        AttributeDefinition.builder()
+                                .attributeName("sk")
+                                .attributeType(ScalarAttributeType.B)
+                                .build(),
+                        AttributeDefinition.builder()
+                                .attributeName("outstanding_tasks_hk")
+                                .attributeType(ScalarAttributeType.B)
+                                .build(),
+                        AttributeDefinition.builder()
+                                .attributeName("execute_after")
+                                .attributeType(ScalarAttributeType.B)
+                                .build()
+                ))
+                .keySchema(Arrays.asList(
+                        KeySchemaElement.builder()
+                                .attributeName("hk")
+                                .keyType(KeyType.HASH)
+                                .build(),
+                        KeySchemaElement.builder()
+                                .attributeName("sk")
+                                .keyType(KeyType.RANGE)
+                                .build()
+                ))
+                .build();
+        dynamoDbClient.createTable(request);
+        phoenixDBClientV2.createTable(request);
+
+        Map<String, AttributeValue> keyMap = new HashMap<>();
+        keyMap.put("hk", AttributeValue.builder()
+                .b(SdkBytes.fromByteArray(new byte[]{7, 83, 72, 65, 82, 69, 68, 46, 115, 99,
+                        111, 112, 101, 115, 46, 68, 101, 118, 84, 101, 110, 97, 110, 116,
+                        115, 0, 1}))
+                .build());
+        keyMap.put("sk", AttributeValue.builder()
+                .b(SdkBytes.fromByteArray(new byte[]{0}))
+                .build());
+
+        GetItemRequest getItemRequest = GetItemRequest.builder()
+                .tableName("Tablex2048hfg.shLinux")
+                .key(keyMap)
+                .consistentRead(true)
+                .returnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
+                .build();
+        GetItemResponse getItemResponse1 = dynamoDbClient.getItem(getItemRequest);
+        GetItemResponse getItemResponse2 = phoenixDBClientV2.getItem(getItemRequest);
+        Assert.assertEquals(getItemResponse2.item(), getItemResponse1.item());
+
+        keyMap = new HashMap<>();
+        keyMap.put("hk", AttributeValue.builder()
+                .b(SdkBytes.fromByteArray(new byte[]{7, 83, 72, 65, 82, 69, 68, 46, 115, 99, 111,
+                        112, 101, 115, 46, 67, 108, 111, 117, 100, 115, 0, 1}))
+                .build());
+        keyMap.put("sk", AttributeValue.builder()
+                .b(SdkBytes.fromByteArray(new byte[]{0}))
+                .build());
+
+        getItemRequest = GetItemRequest.builder()
+                .tableName("Tablex2048hfg.shLinux")
+                .key(keyMap)
+                .consistentRead(true)
+                .returnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
+                .build();
+        getItemResponse1 = dynamoDbClient.getItem(getItemRequest);
+        getItemResponse2 = phoenixDBClientV2.getItem(getItemRequest);
+        Assert.assertEquals(getItemResponse2.item(), getItemResponse1.item());
+
+        Map<String, AttributeValue> itemMap = new HashMap<>();
+        itemMap.put("hk", AttributeValue.builder()
+                .b(SdkBytes.fromByteArray(new byte[]{7, 83, 72, 65, 82, 69, 68, 46, 115, 99, 111,
+                        112, 101, 115, 46, 68, 101, 118, 84, 101, 110, 97, 110, 116, 115, 0, 1}))
+                .build());
+        itemMap.put("sk", AttributeValue.builder()
+                .b(SdkBytes.fromByteArray(new byte[]{0, -128}))
+                .build());
+        itemMap.put("outstanding_tasks_hk", AttributeValue.builder()
+                .b(SdkBytes.fromByteArray(new byte[]{0}))
+                .build());
+        itemMap.put("execute_after", AttributeValue.builder()
+                .b(SdkBytes.fromByteArray(new byte[]{-47, -121, 46, -95, 74, -48}))
+                .build());
+        itemMap.put("scheduled_execute_after", AttributeValue.builder()
+                .b(SdkBytes.fromByteArray(new byte[]{-47, -121, 46, -95, 74, -48}))
+                .build());
+
+        Map<String, String> expressionAttributeNamesMap = new HashMap<>();
+        expressionAttributeNamesMap.put("#0", "hk");
+        expressionAttributeNamesMap.put("#1", "sk");
+
+        PutItemRequest putItemRequest = PutItemRequest.builder()
+                .tableName("Tablex2048hfg.shLinux")
+                .item(itemMap)
+                .returnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
+                .conditionExpression("attribute_not_exists(#0) AND attribute_not_exists(#1)")
+                .expressionAttributeNames(expressionAttributeNamesMap)
+                .build();
+        dynamoDbClient.putItem(putItemRequest);
+        phoenixDBClientV2.putItem(putItemRequest);
+
+        keyMap = new HashMap<>();
+        keyMap.put("hk", AttributeValue.builder()
+                .b(SdkBytes.fromByteArray(new byte[]{7, 83, 72, 65, 82, 69, 68, 46, 115, 99, 111,
+                        112, 101, 115, 46, 68, 101, 118, 84, 101, 110, 97, 110, 116, 115, 0, 1}))
+                .build());
+        keyMap.put("sk", AttributeValue.builder()
+                .b(SdkBytes.fromByteArray(new byte[]{0}))
+                .build());
+
+        getItemRequest = GetItemRequest.builder()
+                .tableName("Tablex2048hfg.shLinux")
+                .key(keyMap)
+                .consistentRead(true)
+                .returnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
+                .build();
+        getItemResponse1 = dynamoDbClient.getItem(getItemRequest);
+        getItemResponse2 = phoenixDBClientV2.getItem(getItemRequest);
+        Assert.assertEquals(getItemResponse2.item(), getItemResponse1.item());
+
+        keyMap = new HashMap<>();
+        keyMap.put("hk", AttributeValue.builder()
+                .b(SdkBytes.fromByteArray(new byte[]{7, 83, 72, 65, 82, 69, 68, 46, 115, 99, 111,
+                        112, 101, 115, 46, 68, 101, 118, 84, 101, 110, 97, 110, 116, 115, 0, 1}))
+                .build());
+        keyMap.put("sk", AttributeValue.builder()
+                .b(SdkBytes.fromByteArray(new byte[]{0, -128}))
+                .build());
+
+        getItemRequest = GetItemRequest.builder()
+                .tableName("Tablex2048hfg.shLinux")
+                .key(keyMap)
+                .consistentRead(true)
+                .returnConsumedCapacity(ReturnConsumedCapacity.TOTAL)
+                .build();
+        getItemResponse1 = dynamoDbClient.getItem(getItemRequest);
+        getItemResponse2 = phoenixDBClientV2.getItem(getItemRequest);
+        Assert.assertEquals(getItemResponse2.item(), getItemResponse1.item());
+
+        QueryRequest.Builder qr = QueryRequest.builder().tableName("Tablex2048hfg.shLinux");
+        qr.indexName("outstanding_tasks");
+        qr.keyConditionExpression("#0 = :v0 AND #1 = :v1");
+        Map<String, String> exprAttrNames = new HashMap<>();
+        exprAttrNames.put("#0", "outstanding_tasks_hk");
+        exprAttrNames.put("#1", "execute_after");
+        qr.expressionAttributeNames(exprAttrNames);
+        Map<String, AttributeValue> exprAttrVal = new HashMap<>();
+        exprAttrVal.put(":v0", AttributeValue.builder()
+                .b(SdkBytes.fromByteArray(new byte[]{0}))
+                .build());
+        exprAttrVal.put(":v1", AttributeValue.builder()
+                .b(SdkBytes.fromByteArray(new byte[]{-47, -121, 46, -95, 74, -48}))
+                .build());
+        qr.expressionAttributeValues(exprAttrVal);
+
+        QueryResponse phoenixResult = phoenixDBClientV2.query(qr.build());
+        QueryResponse dynamoResult = dynamoDbClient.query(qr.build());
+        Assert.assertEquals(dynamoResult.count(), phoenixResult.count());
+        Assert.assertEquals(new Integer(1), phoenixResult.count());
+        Assert.assertEquals(dynamoResult.items().get(0), phoenixResult.items().get(0));
+        Assert.assertEquals(dynamoResult.scannedCount(), phoenixResult.scannedCount());
+
+        qr = QueryRequest.builder().tableName("Tablex2048hfg.shLinux");
+        qr.indexName("outstanding_tasks");
+        qr.keyConditionExpression("#0 = :v0 AND #1 = :v1");
+        exprAttrNames = new HashMap<>();
+        exprAttrNames.put("#0", "outstanding_tasks_hk");
+        exprAttrNames.put("#1", "execute_after");
+        qr.expressionAttributeNames(exprAttrNames);
+        exprAttrVal = new HashMap<>();
+        exprAttrVal.put(":v0", AttributeValue.builder()
+                .b(SdkBytes.fromByteArray(new byte[]{0}))
+                .build());
+        exprAttrVal.put(":v1", AttributeValue.builder()
+                .b(SdkBytes.fromByteArray(new byte[]{-47, -121, 46, -95, 74, -48, 0}))
+                .build());
+        qr.expressionAttributeValues(exprAttrVal);
+
+        phoenixResult = phoenixDBClientV2.query(qr.build());
+        dynamoResult = dynamoDbClient.query(qr.build());
+        Assert.assertEquals(dynamoResult.count(), phoenixResult.count());
+        Assert.assertEquals(new Integer(0), phoenixResult.count());
     }
 
     @Test(timeout = 120000)
