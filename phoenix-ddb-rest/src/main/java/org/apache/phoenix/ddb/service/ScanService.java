@@ -47,7 +47,8 @@ public class ScanService {
             PreparedStatement stmt =
                     getPreparedStatement(connection, request, useIndex, tablePKCols, indexPKCols);
             return DQLUtils.executeStatementReturnResult(false, stmt,
-                    getProjectionAttributes(request), useIndex, tablePKCols, indexPKCols, tableName);
+                    getProjectionAttributes(request), useIndex, tablePKCols, indexPKCols,
+                    tableName, false);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }

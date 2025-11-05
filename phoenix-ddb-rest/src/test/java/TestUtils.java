@@ -53,7 +53,7 @@ public class TestUtils {
             indexPKCols = PhoenixUtils.getOnlyIndexPKColumns(connection, indexName, tableName);
             PreparedStatement ps =
                     QueryService.getPreparedStatement(connection, getQueryRequest(qr), true,
-                            tablePKCols, indexPKCols);
+                            tablePKCols, indexPKCols).getFirst();
             ExplainPlan plan =
                     ps.unwrap(PhoenixPreparedStatement.class).optimizeQuery().getExplainPlan();
             ExplainPlanAttributes explainPlanAttributes = plan.getPlanStepsAsAttributes();

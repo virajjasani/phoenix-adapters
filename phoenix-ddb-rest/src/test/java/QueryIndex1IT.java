@@ -133,8 +133,8 @@ public class QueryIndex1IT {
         Assert.assertEquals(dynamoResult.scannedCount(), phoenixResult.scannedCount());
 
         // check last evaluated key
-        Map<String, AttributeValue> lastKey = phoenixResult.lastEvaluatedKey();
-        Assert.assertEquals("101.01", lastKey.get("IdS").s());
+        Assert.assertEquals(0, phoenixResult.lastEvaluatedKey().size());
+        Assert.assertEquals(0, dynamoResult.lastEvaluatedKey().size());
 
         // explain plan
         TestUtils.validateIndexUsed(qr.build(), url);
@@ -186,8 +186,8 @@ public class QueryIndex1IT {
         Assert.assertEquals(dynamoResult.items().get(0), phoenixResult.items().get(0));
 
         // check last evaluated key
-        Map<String, AttributeValue> lastKey = phoenixResult.lastEvaluatedKey();
-        Assert.assertEquals("101.01", lastKey.get("IdS").s());
+        Assert.assertEquals(0, phoenixResult.lastEvaluatedKey().size());
+        Assert.assertEquals(0, dynamoResult.lastEvaluatedKey().size());
 
         // explain plan
         TestUtils.validateIndexUsed(qr.build(), url);

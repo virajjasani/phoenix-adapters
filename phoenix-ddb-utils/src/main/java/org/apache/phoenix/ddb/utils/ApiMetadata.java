@@ -1,7 +1,7 @@
 package org.apache.phoenix.ddb.utils;
 
 /**
- * Request and Response parameters for DynamoDB APIs.
+ * Request and Response parameters for various APIs.
  */
 public class ApiMetadata {
 

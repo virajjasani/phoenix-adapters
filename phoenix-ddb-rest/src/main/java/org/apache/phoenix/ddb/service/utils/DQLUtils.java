@@ -32,7 +32,8 @@ public class DQLUtils {
      */
     public static Map<String, Object> executeStatementReturnResult(boolean isQuery,
             PreparedStatement stmt, List<String> projectionAttributes, boolean useIndex,
-            List<PColumn> tablePKCols, List<PColumn> indexPKCols, String tableName) throws SQLException {
+            List<PColumn> tablePKCols, List<PColumn> indexPKCols, String tableName,
+            boolean isSingleRowExpected) throws SQLException {
         int count = 0;
         List<Map<String, Object>> items = new ArrayList<>();
         RawBsonDocument lastBsonDoc = null;
@@ -44,8 +45,8 @@ public class DQLUtils {
                 items.add(item);
                 count++;
             }
-            Map<String, Object> lastKey =
-                    DQLUtils.getKeyFromDoc(lastBsonDoc, useIndex, tablePKCols, indexPKCols);
+            Map<String, Object> lastKey = isSingleRowExpected ? null
+                    : DQLUtils.getKeyFromDoc(lastBsonDoc, useIndex, tablePKCols, indexPKCols);
             int countRowsScanned = (int) PhoenixUtils.getRowsScanned(rs);
             Map<String, Object> response = new HashMap<>();
             response.put(ApiMetadata.ITEMS, items);
@@ -64,8 +65,9 @@ public class DQLUtils {
      */
     public static Map<String, Object> getKeyFromDoc(BsonDocument lastBsonDoc, boolean useIndex,
             List<PColumn> tablePKCols, List<PColumn> indexPKCols) {
-        if (lastBsonDoc == null)
+        if (lastBsonDoc == null) {
             return null;
+        }
         List<String> keys = new ArrayList<>();
         for (PColumn pkCol : tablePKCols) {
             keys.add(pkCol.getName().toString());

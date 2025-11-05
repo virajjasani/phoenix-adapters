@@ -1,6 +1,7 @@
 import java.sql.DriverManager;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -22,6 +23,7 @@ import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.phoenix.ddb.rest.RESTServer;
 import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
 import org.apache.phoenix.jdbc.PhoenixDriver;
@@ -490,6 +492,96 @@ public class QueryIT {
             phoenixResult = phoenixDBClientV2.query(qr.build());
             dynamoResult = dynamoDbClient.query(qr.build());
         }
+    }
+
+    @Test(timeout = 120000)
+    public void querySinglePartitionKeyTest() {
+        final String tableName = testName.getMethodName();
+        CreateTableRequest createTableRequest =
+                DDLTestUtils.getCreateTableRequest(tableName, "partition_id", ScalarAttributeType.S,
+                        null, null);
+        phoenixDBClientV2.createTable(createTableRequest);
+        dynamoDbClient.createTable(createTableRequest);
+
+        Map<String, AttributeValue>[] items = new Map[5];
+        for (int i = 0; i < 5; i++) {
+            items[i] = new HashMap<>();
+            items[i].put("partition_id", AttributeValue.builder().s("pk" + i).build());
+            items[i].put("value", AttributeValue.builder().s("value" + i).build());
+            items[i].put("n0123", AttributeValue.builder().n(String.valueOf(i * 100)).build());
+            items[i].put("ss00", AttributeValue.builder().s(UUID.randomUUID().toString()).build());
+            items[i].put("b012", AttributeValue.builder()
+                    .b(SdkBytes.fromByteArray(Bytes.toBytes(UUID.randomUUID().toString())))
+                    .build());
+
+            PutItemRequest putItemRequest =
+                    PutItemRequest.builder().tableName(tableName).item(items[i]).build();
+
+            phoenixDBClientV2.putItem(putItemRequest);
+            dynamoDbClient.putItem(putItemRequest);
+        }
+
+        for (int i = 0; i < 5; i++) {
+            QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
+            qr.keyConditionExpression("partition_id = :pk");
+            Map<String, AttributeValue> exprAttrVal = new HashMap<>();
+            exprAttrVal.put(":pk", AttributeValue.builder().s("pk" + i).build());
+            qr.expressionAttributeValues(exprAttrVal);
+
+            Map<String, AttributeValue> lastEvaluatedKey = null;
+
+            do {
+                qr.exclusiveStartKey(lastEvaluatedKey);
+
+                QueryResponse phoenixResult = phoenixDBClientV2.query(qr.build());
+                QueryResponse dynamoResult = dynamoDbClient.query(qr.build());
+
+                Assert.assertEquals(dynamoResult.count(), phoenixResult.count());
+                if (dynamoResult.count() > 0) {
+                    Assert.assertEquals("Number of items should match",
+                        dynamoResult.items().size(), phoenixResult.items().size());
+                    for (int j = 0; j < dynamoResult.items().size(); j++) {
+                        Assert.assertTrue("Items at position " + j + " should match",
+                            ItemComparator.areItemsEqual(dynamoResult.items().get(j), 
+                                phoenixResult.items().get(j)));
+                    }
+                }
+                Assert.assertEquals(dynamoResult.scannedCount(), phoenixResult.scannedCount());
+
+                lastEvaluatedKey = phoenixResult.lastEvaluatedKey();
+            } while (!lastEvaluatedKey.isEmpty());
+        }
+
+        QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
+        qr.keyConditionExpression("partition_id = :pk");
+        Map<String, AttributeValue> exprAttrVal = new HashMap<>();
+        exprAttrVal.put(":pk", AttributeValue.builder().s("non_existent").build());
+        qr.expressionAttributeValues(exprAttrVal);
+
+        Map<String, AttributeValue> lastEvaluatedKey = null;
+
+        do {
+            if (lastEvaluatedKey != null) {
+                qr.exclusiveStartKey(lastEvaluatedKey);
+            }
+
+            QueryResponse phoenixResult = phoenixDBClientV2.query(qr.build());
+            QueryResponse dynamoResult = dynamoDbClient.query(qr.build());
+
+            Assert.assertEquals(dynamoResult.count(), phoenixResult.count());
+            if (dynamoResult.count() > 0) {
+                Assert.assertEquals("Number of items should match",
+                    dynamoResult.items().size(), phoenixResult.items().size());
+                for (int j = 0; j < dynamoResult.items().size(); j++) {
+                    Assert.assertTrue("Items at position " + j + " should match",
+                        ItemComparator.areItemsEqual(dynamoResult.items().get(j), 
+                            phoenixResult.items().get(j)));
+                }
+            }
+            Assert.assertEquals(dynamoResult.scannedCount(), phoenixResult.scannedCount());
+
+            lastEvaluatedKey = phoenixResult.lastEvaluatedKey();
+        } while (!lastEvaluatedKey.isEmpty());
     }
 
     public static Map<String, AttributeValue> getItem1() {

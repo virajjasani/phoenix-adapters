@@ -7,6 +7,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.hadoop.hbase.util.Pair;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,7 +18,6 @@ import org.apache.phoenix.ddb.utils.CommonServiceUtils;
 import org.apache.phoenix.ddb.utils.KeyConditionsHolder;
 import org.apache.phoenix.ddb.utils.PhoenixUtils;
 import org.apache.phoenix.schema.PColumn;
-import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 
 public class QueryService {
 
@@ -43,20 +43,32 @@ public class QueryService {
             }
 
             // build PreparedStatement and execute
-            PreparedStatement stmt =
+            Pair<PreparedStatement, Boolean> pairVal =
                     getPreparedStatement(connection, request, useIndex, tablePKCols, indexPKCols);
+            PreparedStatement stmt = pairVal.getFirst();
+            boolean isSingleRowExpected = pairVal.getSecond();
             return DQLUtils.executeStatementReturnResult(true, stmt,
-                    getProjectionAttributes(request), useIndex, tablePKCols, indexPKCols, tableName);
+                    getProjectionAttributes(request), useIndex, tablePKCols, indexPKCols, tableName,
+                    isSingleRowExpected);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
     }
 
     /**
-     * Build the SELECT query based on the query request parameters.
-     * Return a PreparedStatement with values set.
+     * Builds and returns a PreparedStatement for executing the Query operation.
+     *
+     * @param conn The database connection to use
+     * @param request The query request parameters
+     * @param useIndex Whether to use a secondary index for the query
+     * @param tablePKCols List of primary key columns for the table
+     * @param indexPKCols List of primary key columns for the index (if using an index)
+     * @return A Pair containing:
+     *         - The prepared SQL statement with all conditions and values set
+     *         - A boolean indicating if a single row is expected
+     * @throws SQLException If there is an error preparing the statement
      */
-    public static PreparedStatement getPreparedStatement(Connection conn,
+    public static Pair<PreparedStatement, Boolean> getPreparedStatement(Connection conn,
             Map<String, Object> request, boolean useIndex, List<PColumn> tablePKCols,
             List<PColumn> indexPKCols) throws SQLException {
         String tableName = (String) request.get(ApiMetadata.TABLE_NAME);
@@ -98,7 +110,7 @@ public class QueryService {
         // Set values on the PreparedStatement
         PreparedStatement stmt = conn.prepareStatement(queryBuilder.toString());
         setPreparedStatementValues(stmt, request, keyConditions, useIndex, sortKeyPKCol);
-        return stmt;
+        return Pair.newPair(stmt, sortKeyPKCol == null);
     }
 
     /**
