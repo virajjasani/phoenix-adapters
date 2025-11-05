@@ -1,4 +1,3 @@
-import java.io.IOException;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.HashMap;
@@ -12,9 +11,11 @@ import org.junit.Test;
 import org.junit.rules.TestName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
+import software.amazon.awssdk.services.dynamodb.model.DynamoDbException;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
@@ -418,6 +419,418 @@ public class QueryIndex2IT {
 
         // explain plan
         TestUtils.validateIndexUsed(qr.build(), url);
+    }
+
+    @Test(timeout = 120000)
+    public void testQueryWithBeginsWithFilter() throws SQLException {
+        final String tableName = testName.getMethodName();
+        final String indexName = "idx.123_" + tableName;
+        CreateTableRequest createTableRequest =
+                DDLTestUtils.getCreateTableRequest(tableName, "Title", ScalarAttributeType.S, "num",
+                        ScalarAttributeType.N);
+        createTableRequest =
+                DDLTestUtils.addIndexToRequest(true, createTableRequest, indexName, "Attr_0",
+                        ScalarAttributeType.S, "attr_1", ScalarAttributeType.N);
+        phoenixDBClientV2.createTable(createTableRequest);
+        dynamoDbClient.createTable(createTableRequest);
+
+        Map<String, AttributeValue> item1 = new HashMap<>();
+        item1.put("Title", AttributeValue.builder().s("item1").build());
+        item1.put("num", AttributeValue.builder().n("1").build());
+        item1.put("Attr_0", AttributeValue.builder().s("test_prefix").build());
+        item1.put("attr_1", AttributeValue.builder().n("10").build());
+        item1.put("str_attr", AttributeValue.builder().s("hello_world").build());
+        item1.put("bin_attr",
+                AttributeValue.builder().b(SdkBytes.fromByteArray(new byte[] {0x01, 0x02, 0x03}))
+                        .build());
+        item1.put("category", AttributeValue.builder().s("A").build());
+
+        Map<String, AttributeValue> item2 = new HashMap<>();
+        item2.put("Title", AttributeValue.builder().s("item2").build());
+        item2.put("num", AttributeValue.builder().n("2").build());
+        item2.put("Attr_0", AttributeValue.builder().s("test_prefix").build());
+        item2.put("attr_1", AttributeValue.builder().n("20").build());
+        item2.put("str_attr", AttributeValue.builder().s("hello_universe").build());
+        item2.put("bin_attr",
+                AttributeValue.builder().b(SdkBytes.fromByteArray(new byte[] {0x01, 0x02, 0x04}))
+                        .build());
+        item2.put("category", AttributeValue.builder().s("B").build());
+
+        Map<String, AttributeValue> item3 = new HashMap<>();
+        item3.put("Title", AttributeValue.builder().s("item3").build());
+        item3.put("num", AttributeValue.builder().n("3").build());
+        item3.put("Attr_0", AttributeValue.builder().s("test_prefix").build());
+        item3.put("attr_1", AttributeValue.builder().n("30").build());
+        item3.put("str_attr", AttributeValue.builder().s("goodbye_world").build());
+        item3.put("bin_attr",
+                AttributeValue.builder().b(SdkBytes.fromByteArray(new byte[] {0x05, 0x06, 0x07}))
+                        .build());
+        item3.put("category", AttributeValue.builder().s("A").build());
+
+        Map<String, AttributeValue> item4 = new HashMap<>();
+        item4.put("Title", AttributeValue.builder().s("item4").build());
+        item4.put("num", AttributeValue.builder().n("4").build());
+        item4.put("Attr_0", AttributeValue.builder().s("test_prefix").build());
+        item4.put("attr_1", AttributeValue.builder().n("40").build());
+        item4.put("str_attr", AttributeValue.builder().s("hi_there").build());
+        item4.put("bin_attr",
+                AttributeValue.builder().b(SdkBytes.fromByteArray(new byte[] {0x01, 0x03, 0x05}))
+                        .build());
+        item4.put("category", AttributeValue.builder().s("C").build());
+
+        // Put items into both DynamoDB and Phoenix
+        PutItemRequest putItemRequest1 =
+                PutItemRequest.builder().tableName(tableName).item(item1).build();
+        PutItemRequest putItemRequest2 =
+                PutItemRequest.builder().tableName(tableName).item(item2).build();
+        PutItemRequest putItemRequest3 =
+                PutItemRequest.builder().tableName(tableName).item(item3).build();
+        PutItemRequest putItemRequest4 =
+                PutItemRequest.builder().tableName(tableName).item(item4).build();
+
+        phoenixDBClientV2.putItem(putItemRequest1);
+        phoenixDBClientV2.putItem(putItemRequest2);
+        phoenixDBClientV2.putItem(putItemRequest3);
+        phoenixDBClientV2.putItem(putItemRequest4);
+        dynamoDbClient.putItem(putItemRequest1);
+        dynamoDbClient.putItem(putItemRequest2);
+        dynamoDbClient.putItem(putItemRequest3);
+        dynamoDbClient.putItem(putItemRequest4);
+
+        // Test 1: begins_with with String attribute using FilterExpression
+        QueryRequest.Builder qr1 = QueryRequest.builder().tableName(tableName);
+        qr1.indexName(indexName);
+        qr1.keyConditionExpression("#0 = :v0");
+        qr1.filterExpression("begins_with(#1, :v1)");
+        Map<String, String> exprAttrNames1 = new HashMap<>();
+        exprAttrNames1.put("#0", "Attr_0");
+        exprAttrNames1.put("#1", "str_attr");
+        qr1.expressionAttributeNames(exprAttrNames1);
+        Map<String, AttributeValue> exprAttrVal1 = new HashMap<>();
+        exprAttrVal1.put(":v0", AttributeValue.builder().s("test_prefix").build());
+        exprAttrVal1.put(":v1", AttributeValue.builder().s("hello").build());
+        qr1.expressionAttributeValues(exprAttrVal1);
+
+        QueryResponse dynamoResult1 = dynamoDbClient.query(qr1.build());
+        QueryResponse phoenixResult1 = phoenixDBClientV2.query(qr1.build());
+        Assert.assertEquals(dynamoResult1.count(), phoenixResult1.count());
+        Assert.assertEquals(2, phoenixResult1.count().intValue());
+        Assert.assertEquals(dynamoResult1.scannedCount(), phoenixResult1.scannedCount());
+        Assert.assertEquals(dynamoResult1.items(), phoenixResult1.items());
+
+        // Test 2: begins_with with Binary attribute using FilterExpression
+        QueryRequest.Builder qr2 = QueryRequest.builder().tableName(tableName);
+        qr2.indexName(indexName);
+        qr2.keyConditionExpression("#0 = :v0");
+        qr2.filterExpression("begins_with(#1, :v1)");
+        Map<String, String> exprAttrNames2 = new HashMap<>();
+        exprAttrNames2.put("#0", "Attr_0");
+        exprAttrNames2.put("#1", "bin_attr");
+        qr2.expressionAttributeNames(exprAttrNames2);
+        Map<String, AttributeValue> exprAttrVal2 = new HashMap<>();
+        exprAttrVal2.put(":v0", AttributeValue.builder().s("test_prefix").build());
+        exprAttrVal2.put(":v1",
+                AttributeValue.builder().b(SdkBytes.fromByteArray(new byte[] {0x01, 0x02}))
+                        .build());
+        qr2.expressionAttributeValues(exprAttrVal2);
+
+        QueryResponse dynamoResult2 = dynamoDbClient.query(qr2.build());
+        QueryResponse phoenixResult2 = phoenixDBClientV2.query(qr2.build());
+        Assert.assertEquals(dynamoResult2.count(), phoenixResult2.count());
+        Assert.assertEquals(2, phoenixResult2.count().intValue());
+        Assert.assertEquals(dynamoResult2.scannedCount(), phoenixResult2.scannedCount());
+        Assert.assertEquals(dynamoResult2.items(), phoenixResult2.items());
+
+        // Test 3: begins_with with String attribute - negative case (no matches)
+        QueryRequest.Builder qr3 = QueryRequest.builder().tableName(tableName);
+        qr3.indexName(indexName);
+        qr3.keyConditionExpression("#0 = :v0");
+        qr3.filterExpression("begins_with(#1, :v1)");
+        Map<String, String> exprAttrNames3 = new HashMap<>();
+        exprAttrNames3.put("#0", "Attr_0");
+        exprAttrNames3.put("#1", "str_attr");
+        qr3.expressionAttributeNames(exprAttrNames3);
+        Map<String, AttributeValue> exprAttrVal3 = new HashMap<>();
+        exprAttrVal3.put(":v0", AttributeValue.builder().s("test_prefix").build());
+        exprAttrVal3.put(":v1", AttributeValue.builder().s("xyz").build());
+        qr3.expressionAttributeValues(exprAttrVal3);
+
+        QueryResponse dynamoResult3 = dynamoDbClient.query(qr3.build());
+        QueryResponse phoenixResult3 = phoenixDBClientV2.query(qr3.build());
+        Assert.assertEquals(dynamoResult3.count(), phoenixResult3.count());
+        Assert.assertEquals(0, phoenixResult3.count().intValue());
+        Assert.assertEquals(dynamoResult3.scannedCount(), phoenixResult3.scannedCount());
+        Assert.assertEquals(dynamoResult3.items(), phoenixResult3.items());
+
+        // Test 4: begins_with combined with AND condition in FilterExpression
+        QueryRequest.Builder qr4 = QueryRequest.builder().tableName(tableName);
+        qr4.indexName(indexName);
+        qr4.keyConditionExpression("#0 = :v0");
+        qr4.filterExpression("begins_with(#1, :v1) AND #2 = :v2");
+        Map<String, String> exprAttrNames4 = new HashMap<>();
+        exprAttrNames4.put("#0", "Attr_0");
+        exprAttrNames4.put("#1", "str_attr");
+        exprAttrNames4.put("#2", "category");
+        qr4.expressionAttributeNames(exprAttrNames4);
+        Map<String, AttributeValue> exprAttrVal4 = new HashMap<>();
+        exprAttrVal4.put(":v0", AttributeValue.builder().s("test_prefix").build());
+        exprAttrVal4.put(":v1", AttributeValue.builder().s("hello").build());
+        exprAttrVal4.put(":v2", AttributeValue.builder().s("A").build());
+        qr4.expressionAttributeValues(exprAttrVal4);
+
+        QueryResponse dynamoResult4 = dynamoDbClient.query(qr4.build());
+        QueryResponse phoenixResult4 = phoenixDBClientV2.query(qr4.build());
+        Assert.assertEquals(dynamoResult4.count(), phoenixResult4.count());
+        Assert.assertEquals(1, phoenixResult4.count().intValue());
+        Assert.assertEquals(dynamoResult4.scannedCount(), phoenixResult4.scannedCount());
+        Assert.assertEquals(dynamoResult4.items(), phoenixResult4.items());
+
+        // Test 5: begins_with combined with OR condition in FilterExpression
+        QueryRequest.Builder qr5 = QueryRequest.builder().tableName(tableName);
+        qr5.indexName(indexName);
+        qr5.keyConditionExpression("#0 = :v0");
+        qr5.filterExpression("#2 = :v2  OR begins_with(#1, :v1 )");
+        Map<String, String> exprAttrNames5 = new HashMap<>();
+        exprAttrNames5.put("#0", "Attr_0");
+        exprAttrNames5.put("#1", "str_attr");
+        exprAttrNames5.put("#2", "category");
+        qr5.expressionAttributeNames(exprAttrNames5);
+        Map<String, AttributeValue> exprAttrVal5 = new HashMap<>();
+        exprAttrVal5.put(":v0", AttributeValue.builder().s("test_prefix").build());
+        exprAttrVal5.put(":v1", AttributeValue.builder().s("goodbye").build());
+        exprAttrVal5.put(":v2", AttributeValue.builder().s("C").build());
+        qr5.expressionAttributeValues(exprAttrVal5);
+
+        QueryResponse dynamoResult5 = dynamoDbClient.query(qr5.build());
+        QueryResponse phoenixResult5 = phoenixDBClientV2.query(qr5.build());
+        Assert.assertEquals(dynamoResult5.count(), phoenixResult5.count());
+        Assert.assertEquals(2, phoenixResult5.count().intValue());
+        Assert.assertEquals(dynamoResult5.scannedCount(), phoenixResult5.scannedCount());
+        Assert.assertEquals(dynamoResult5.items(), phoenixResult5.items());
+
+        // Test 6: begins_with with exact match (prefix equals entire string)
+        QueryRequest.Builder qr6 = QueryRequest.builder().tableName(tableName);
+        qr6.indexName(indexName);
+        qr6.keyConditionExpression("#0 = :v0");
+        qr6.filterExpression("begins_with(#1, :v1)");
+        Map<String, String> exprAttrNames6 = new HashMap<>();
+        exprAttrNames6.put("#0", "Attr_0");
+        exprAttrNames6.put("#1", "str_attr");
+        qr6.expressionAttributeNames(exprAttrNames6);
+        Map<String, AttributeValue> exprAttrVal6 = new HashMap<>();
+        exprAttrVal6.put(":v0", AttributeValue.builder().s("test_prefix").build());
+        exprAttrVal6.put(":v1", AttributeValue.builder().s("hello_world").build());
+        qr6.expressionAttributeValues(exprAttrVal6);
+
+        QueryResponse dynamoResult6 = dynamoDbClient.query(qr6.build());
+        QueryResponse phoenixResult6 = phoenixDBClientV2.query(qr6.build());
+        Assert.assertEquals(dynamoResult6.count(), phoenixResult6.count());
+        Assert.assertEquals(1, phoenixResult6.count().intValue());
+        Assert.assertEquals(dynamoResult6.scannedCount(), phoenixResult6.scannedCount());
+        Assert.assertEquals(dynamoResult6.items(), phoenixResult6.items());
+
+        // Test 7: begins_with with empty prefix (should match all)
+        QueryRequest.Builder qr7 = QueryRequest.builder().tableName(tableName);
+        qr7.indexName(indexName);
+        qr7.keyConditionExpression("#0 = :v0");
+        qr7.filterExpression("begins_with(#1, :v1)");
+        Map<String, String> exprAttrNames7 = new HashMap<>();
+        exprAttrNames7.put("#0", "Attr_0");
+        exprAttrNames7.put("#1", "str_attr");
+        qr7.expressionAttributeNames(exprAttrNames7);
+        Map<String, AttributeValue> exprAttrVal7 = new HashMap<>();
+        exprAttrVal7.put(":v0", AttributeValue.builder().s("test_prefix").build());
+        exprAttrVal7.put(":v1", AttributeValue.builder().s("").build());
+        qr7.expressionAttributeValues(exprAttrVal7);
+
+        QueryResponse dynamoResult7 = dynamoDbClient.query(qr7.build());
+        QueryResponse phoenixResult7 = phoenixDBClientV2.query(qr7.build());
+        Assert.assertEquals(dynamoResult7.count(), phoenixResult7.count());
+        Assert.assertEquals(4, phoenixResult7.count().intValue());
+        Assert.assertEquals(dynamoResult7.scannedCount(), phoenixResult7.scannedCount());
+        Assert.assertEquals(dynamoResult7.items(), phoenixResult7.items());
+
+        // Test 8: begins_with with binary data - more specific prefix
+        QueryRequest.Builder qr8 = QueryRequest.builder().tableName(tableName);
+        qr8.indexName(indexName);
+        qr8.keyConditionExpression("#0 = :v0");
+        qr8.filterExpression("begins_with ( #1, :v1)");
+        Map<String, String> exprAttrNames8 = new HashMap<>();
+        exprAttrNames8.put("#0", "Attr_0");
+        exprAttrNames8.put("#1", "bin_attr");
+        qr8.expressionAttributeNames(exprAttrNames8);
+        Map<String, AttributeValue> exprAttrVal8 = new HashMap<>();
+        exprAttrVal8.put(":v0", AttributeValue.builder().s("test_prefix").build());
+        exprAttrVal8.put(":v1",
+                AttributeValue.builder().b(SdkBytes.fromByteArray(new byte[] {0x01, 0x02, 0x03}))
+                        .build());
+        qr8.expressionAttributeValues(exprAttrVal8);
+
+        QueryResponse dynamoResult8 = dynamoDbClient.query(qr8.build());
+        QueryResponse phoenixResult8 = phoenixDBClientV2.query(qr8.build());
+        Assert.assertEquals(dynamoResult8.count(), phoenixResult8.count());
+        Assert.assertEquals(1, phoenixResult8.count().intValue());
+        Assert.assertEquals(dynamoResult8.scannedCount(), phoenixResult8.scannedCount());
+        Assert.assertEquals(dynamoResult8.items(), phoenixResult8.items());
+
+        // Test 9: begins_with for non-existent attribute with NOT operator
+        QueryRequest.Builder qr9 = QueryRequest.builder().tableName(tableName);
+        qr9.indexName(indexName);
+        qr9.keyConditionExpression("#0 = :v0");
+        qr9.filterExpression("NOT begins_with(#1, :v1)");
+        Map<String, String> exprAttrNames9 = new HashMap<>();
+        exprAttrNames9.put("#0", "Attr_0");
+        exprAttrNames9.put("#1", "non_existent_attr");
+        qr9.expressionAttributeNames(exprAttrNames9);
+        Map<String, AttributeValue> exprAttrVal9 = new HashMap<>();
+        exprAttrVal9.put(":v0", AttributeValue.builder().s("test_prefix").build());
+        exprAttrVal9.put(":v1", AttributeValue.builder().s("any").build());
+        qr9.expressionAttributeValues(exprAttrVal9);
+
+        QueryResponse dynamoResult9 = dynamoDbClient.query(qr9.build());
+        QueryResponse phoenixResult9 = phoenixDBClientV2.query(qr9.build());
+        Assert.assertEquals(dynamoResult9.count(), phoenixResult9.count());
+        Assert.assertEquals(4, phoenixResult9.count().intValue());
+        Assert.assertEquals(dynamoResult9.scannedCount(), phoenixResult9.scannedCount());
+        Assert.assertEquals(dynamoResult9.items(), phoenixResult9.items());
+
+        // Test 10: Query main table (without index) with keyConditionExpression on hash+sort
+        // key and begins_with in filterExpression
+        QueryRequest.Builder qr10 = QueryRequest.builder().tableName(tableName);
+        // No indexName - query the main table directly
+        qr10.keyConditionExpression("#title = :title AND #num >= :num");
+        qr10.filterExpression("begins_with(#str, :str_prefix)");
+        Map<String, String> exprAttrNames10 = new HashMap<>();
+        exprAttrNames10.put("#title", "Title");
+        exprAttrNames10.put("#num", "num");
+        exprAttrNames10.put("#str", "str_attr");
+        qr10.expressionAttributeNames(exprAttrNames10);
+        Map<String, AttributeValue> exprAttrVal10 = new HashMap<>();
+        exprAttrVal10.put(":title", AttributeValue.builder().s("item1").build());
+        exprAttrVal10.put(":num", AttributeValue.builder().n("1").build());
+        exprAttrVal10.put(":str_prefix", AttributeValue.builder().s("hello").build());
+        qr10.expressionAttributeValues(exprAttrVal10);
+
+        QueryResponse dynamoResult10 = dynamoDbClient.query(qr10.build());
+        QueryResponse phoenixResult10 = phoenixDBClientV2.query(qr10.build());
+        Assert.assertEquals(dynamoResult10.count(), phoenixResult10.count());
+        Assert.assertEquals(1, phoenixResult10.count().intValue());
+        Assert.assertEquals(dynamoResult10.scannedCount(), phoenixResult10.scannedCount());
+        Assert.assertEquals(dynamoResult10.items(), phoenixResult10.items());
+
+        // Test 11: Query main table with BETWEEN operator in keyConditionExpression and
+        // begins_with in filterExpression
+        QueryRequest.Builder qr11 = QueryRequest.builder().tableName(tableName);
+        // No indexName - query the main table directly
+        qr11.keyConditionExpression("#title = :title AND #num BETWEEN :num1 AND :num2");
+        qr11.filterExpression("begins_with(#str, :str_prefix)");
+        Map<String, String> exprAttrNames11 = new HashMap<>();
+        exprAttrNames11.put("#title", "Title");
+        exprAttrNames11.put("#num", "num");
+        exprAttrNames11.put("#str", "str_attr");
+        qr11.expressionAttributeNames(exprAttrNames11);
+        Map<String, AttributeValue> exprAttrVal11 = new HashMap<>();
+        exprAttrVal11.put(":title", AttributeValue.builder().s("item2").build());
+        exprAttrVal11.put(":num1", AttributeValue.builder().n("1").build());
+        exprAttrVal11.put(":num2", AttributeValue.builder().n("3").build());
+        exprAttrVal11.put(":str_prefix", AttributeValue.builder().s("hello").build());
+        qr11.expressionAttributeValues(exprAttrVal11);
+
+        QueryResponse dynamoResult11 = dynamoDbClient.query(qr11.build());
+        QueryResponse phoenixResult11 = phoenixDBClientV2.query(qr11.build());
+        Assert.assertEquals(dynamoResult11.count(), phoenixResult11.count());
+        Assert.assertEquals(1, phoenixResult11.count().intValue());
+        Assert.assertEquals(dynamoResult11.scannedCount(), phoenixResult11.scannedCount());
+        Assert.assertEquals(dynamoResult11.items(), phoenixResult11.items());
+
+        // Test 12: Query main table that returns 0 items due to begins_with filter
+        QueryRequest.Builder qr12 = QueryRequest.builder().tableName(tableName);
+        qr12.keyConditionExpression("#title = :title AND #num >= :num");
+        qr12.filterExpression("begins_with(#str, :str_prefix)");
+        Map<String, String> exprAttrNames12 = new HashMap<>();
+        exprAttrNames12.put("#title", "Title");
+        exprAttrNames12.put("#num", "num");
+        exprAttrNames12.put("#str", "str_attr");
+        qr12.expressionAttributeNames(exprAttrNames12);
+        Map<String, AttributeValue> exprAttrVal12 = new HashMap<>();
+        exprAttrVal12.put(":title", AttributeValue.builder().s("item3").build());
+        exprAttrVal12.put(":num", AttributeValue.builder().n("1").build());
+        exprAttrVal12.put(":str_prefix", AttributeValue.builder().s("hello").build());
+        qr12.expressionAttributeValues(exprAttrVal12);
+
+        QueryResponse dynamoResult12 = dynamoDbClient.query(qr12.build());
+        QueryResponse phoenixResult12 = phoenixDBClientV2.query(qr12.build());
+        Assert.assertEquals(dynamoResult12.count(), phoenixResult12.count());
+        Assert.assertEquals(0, phoenixResult12.count().intValue());
+        Assert.assertEquals(dynamoResult12.scannedCount(), phoenixResult12.scannedCount());
+        Assert.assertEquals(dynamoResult12.items(), phoenixResult12.items());
+
+        // Test 13: begins_with with Set data type - should throw 400 error
+        Map<String, AttributeValue> itemWithSet = new HashMap<>();
+        itemWithSet.put("Title", AttributeValue.builder().s("item_with_set").build());
+        itemWithSet.put("num", AttributeValue.builder().n("5").build());
+        itemWithSet.put("Attr_0", AttributeValue.builder().s("test_prefix").build());
+        itemWithSet.put("attr_1", AttributeValue.builder().n("50").build());
+        itemWithSet.put("string_set",
+                AttributeValue.builder().ss("value1", "value2", "value3").build());
+
+        PutItemRequest putItemWithSet =
+                PutItemRequest.builder().tableName(tableName).item(itemWithSet).build();
+        phoenixDBClientV2.putItem(putItemWithSet);
+        dynamoDbClient.putItem(putItemWithSet);
+
+        QueryRequest.Builder qr13 = QueryRequest.builder().tableName(tableName);
+        qr13.keyConditionExpression("#title = :title");
+        qr13.filterExpression("begins_with(#set_attr, :set_prefix)");
+        Map<String, String> exprAttrNames13 = new HashMap<>();
+        exprAttrNames13.put("#title", "Title");
+        exprAttrNames13.put("#set_attr", "string_set");
+        qr13.expressionAttributeNames(exprAttrNames13);
+        Map<String, AttributeValue> exprAttrVal13 = new HashMap<>();
+        exprAttrVal13.put(":title", AttributeValue.builder().s("item_with_set").build());
+        exprAttrVal13.put(":set_prefix", AttributeValue.builder().ss("value").build());
+        qr13.expressionAttributeValues(exprAttrVal13);
+
+        try {
+            dynamoDbClient.query(qr13.build());
+            throw new RuntimeException("Query should fail");
+        } catch (DynamoDbException e) {
+            Assert.assertEquals(400, e.statusCode());
+        }
+
+        try {
+            phoenixDBClientV2.query(qr13.build());
+            throw new RuntimeException("Query should fail");
+        } catch (DynamoDbException e) {
+            Assert.assertEquals(400, e.statusCode());
+        }
+
+        // Test 14: Query main table that returns 0 items due to begins_with filter
+        QueryRequest.Builder qr14 = QueryRequest.builder().tableName(tableName);
+        qr14.keyConditionExpression("#title = :title AND #num >= :num");
+        qr14.filterExpression("begins_with(#str, :b_prefix)");
+        Map<String, String> exprAttrNames14 = new HashMap<>();
+        exprAttrNames14.put("#title", "Title");
+        exprAttrNames14.put("#num", "num");
+        exprAttrNames14.put("#str", "str_attr");
+        qr14.expressionAttributeNames(exprAttrNames14);
+        Map<String, AttributeValue> exprAttrVal14 = new HashMap<>();
+        exprAttrVal14.put(":title", AttributeValue.builder().s("item3").build());
+        exprAttrVal14.put(":num", AttributeValue.builder().n("1").build());
+        exprAttrVal14.put(":b_prefix",
+                AttributeValue.builder().b(SdkBytes.fromByteArray(new byte[] {0x01}))
+                        .build());
+        qr14.expressionAttributeValues(exprAttrVal14);
+
+        QueryResponse dynamoResult14 = dynamoDbClient.query(qr14.build());
+        QueryResponse phoenixResult14 = phoenixDBClientV2.query(qr14.build());
+        Assert.assertEquals(dynamoResult14.count(), phoenixResult14.count());
+        Assert.assertEquals(0, phoenixResult14.count().intValue());
+        Assert.assertEquals(dynamoResult14.scannedCount(), phoenixResult14.scannedCount());
+        Assert.assertEquals(dynamoResult14.items(), phoenixResult14.items());
+
+        // explain plan for index test
+        TestUtils.validateIndexUsed(qr1.build(), url);
     }
 
     private Map<String, AttributeValue> getItem1() {

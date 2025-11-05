@@ -2,6 +2,7 @@ package org.apache.phoenix.ddb.service.utils;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.phoenix.ddb.bson.BsonDocumentToMap;
+import org.apache.phoenix.ddb.service.exceptions.ValidationException;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.utils.CommonServiceUtils;
 import org.apache.phoenix.ddb.utils.PhoenixUtils;
@@ -56,6 +57,12 @@ public class DQLUtils {
             response.put(ApiMetadata.CONSUMED_CAPACITY,
                     CommonServiceUtils.getConsumedCapacity(tableName));
             return response;
+        } catch (SQLException e) {
+            if (e.getMessage() != null && e.getMessage()
+                    .contains("BsonConditionInvalidArgumentException")) {
+                throw new ValidationException("Invalid arguments in Condition Expression");
+            }
+            throw e;
         }
     }
 
