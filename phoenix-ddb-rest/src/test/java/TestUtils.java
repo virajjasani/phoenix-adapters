@@ -143,17 +143,29 @@ public class TestUtils {
      * Validate change records.
      */
     public static void validateRecords(List<Record> phoenixRecords, List<Record> dynamoRecords) {
-        Assert.assertEquals(dynamoRecords.size(), phoenixRecords.size());
+        Assert.assertEquals("Stream record counts should match between Phoenix and DynamoDB",
+                dynamoRecords.size(), phoenixRecords.size());
         for (int i = 0; i < dynamoRecords.size(); i++) {
             Record dr = dynamoRecords.get(i);
             Record pr = phoenixRecords.get(i);
-            Assert.assertEquals(dr.eventName(), pr.eventName());
-            Assert.assertNotNull(dr.dynamodb());
-            Assert.assertNotNull(pr.dynamodb());
-            Assert.assertEquals(dr.dynamodb().streamViewType(), pr.dynamodb().streamViewType());
-            Assert.assertEquals(dr.dynamodb().keys(), pr.dynamodb().keys());
-            Assert.assertEquals(dr.dynamodb().oldImage(), pr.dynamodb().oldImage());
-            Assert.assertEquals(dr.dynamodb().newImage(), pr.dynamodb().newImage());
+            Assert.assertEquals("Event names should match for record " + i, dr.eventName(),
+                    pr.eventName());
+            Assert.assertNotNull("DynamoDB record should have dynamodb field for record " + i,
+                    dr.dynamodb());
+            Assert.assertNotNull("Phoenix record should have dynamodb field for record " + i,
+                    pr.dynamodb());
+            Assert.assertEquals("Stream view types should match for record " + i,
+                    dr.dynamodb().streamViewType(), pr.dynamodb().streamViewType());
+            Assert.assertEquals("Record keys should match for record " + i, dr.dynamodb().keys(),
+                    pr.dynamodb().keys());
+            Assert.assertEquals("Old images should match for record " + i, dr.dynamodb().oldImage(),
+                    pr.dynamodb().oldImage());
+            Assert.assertEquals("New images should match for record " + i, dr.dynamodb().newImage(),
+                    pr.dynamodb().newImage());
+            Assert.assertTrue("DynamoDB record size should be greater than 0 for record " + i,
+                    dr.dynamodb().sizeBytes() > 0);
+            Assert.assertTrue("Phoenix record size should be greater than 0 for record " + i,
+                    pr.dynamodb().sizeBytes() > 0);
         }
     }
 
