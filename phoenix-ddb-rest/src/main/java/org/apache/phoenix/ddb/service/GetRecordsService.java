@@ -14,12 +14,12 @@ import org.bson.RawBsonDocument;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -149,8 +149,8 @@ public class GetRecordsService {
 
         // creation DateTime
         long timestamp = rs.getDate(1).getTime();
-        Instant instant = Instant.ofEpochMilli(timestamp);
-        streamRecord.put(ApiMetadata.APPROXIMATE_CREATION_DATE_TIME, String.format("%.12e", instant.getEpochSecond() + instant.getNano() / 1_000_000_000.0));
+        streamRecord.put(ApiMetadata.APPROXIMATE_CREATION_DATE_TIME,
+                BigDecimal.valueOf(timestamp).movePointLeft(3));
 
         //images
         String cdcJson = rs.getString(pkCols.size() + 2);

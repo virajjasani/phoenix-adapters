@@ -12,6 +12,7 @@ import org.apache.phoenix.thirdparty.com.google.common.collect.Maps;
 import org.apache.phoenix.util.PhoenixRuntime;
 import org.apache.phoenix.util.ReadOnlyProps;
 import org.apache.phoenix.util.ServerUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -31,13 +32,17 @@ import software.amazon.awssdk.services.dynamodb.model.StreamDescription;
 import software.amazon.awssdk.services.dynamodb.model.StreamStatus;
 import software.amazon.awssdk.services.dynamodb.streams.DynamoDbStreamsClient;
 
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.util.Map;
+import java.util.HashMap;
 
 import static org.apache.phoenix.query.BaseTest.setUpConfigForMiniCluster;
 
 public class DescribeStreamIT {
+
     private static final Logger LOGGER = LoggerFactory.getLogger(DescribeStreamIT.class);
 
     private final DynamoDbClient dynamoDbClient =
@@ -176,5 +181,67 @@ public class DescribeStreamIT {
                 Assert.assertEquals(parentId, shard.parentShardId());
             }
         }
+    }
+
+    @Test(timeout = 120000)
+    public void testCreationRequestDateTimeAsNumeric() throws Exception {
+        String tableName = testName.getMethodName();
+        CreateTableRequest createTableRequest =
+                DDLTestUtils.getCreateTableRequest(tableName, "hashKey", ScalarAttributeType.S,
+                        "sortKey", ScalarAttributeType.N);
+
+        createTableRequest = DDLTestUtils.addStreamSpecToRequest(createTableRequest, "OLD_IMAGE");
+
+        dynamoDbClient.createTable(createTableRequest);
+        phoenixDBClientV2.createTable(createTableRequest);
+
+        ListStreamsRequest lsr = ListStreamsRequest.builder().tableName(tableName).build();
+        ListStreamsResponse phoenixStreams = phoenixDBStreamsClientV2.listStreams(lsr);
+        Assert.assertEquals(1, phoenixStreams.streams().size());
+
+        String phoenixStreamArn = phoenixStreams.streams().get(0).streamArn();
+
+        String restEndpoint = "http://" + restServer.getServerAddress();
+        URL url = new URL(restEndpoint);
+
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("POST");
+        conn.setRequestProperty("Content-Type", "application/x-amz-json-1.0");
+        conn.setRequestProperty("X-Amz-Target", "DynamoDBStreams_20120810.DescribeStream");
+
+        Map<String, String> requestBody = new HashMap<>();
+        requestBody.put("StreamArn", phoenixStreamArn);
+
+        conn.setDoOutput(true);
+        try (java.io.OutputStream os = conn.getOutputStream()) {
+            byte[] input = new ObjectMapper().writeValueAsBytes(requestBody);
+            os.write(input, 0, input.length);
+        }
+
+        StringBuilder response = new StringBuilder();
+        try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                new java.io.InputStreamReader(conn.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                response.append(line);
+            }
+        }
+
+        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> jsonResponse = mapper.readValue(response.toString(), Map.class);
+        Map<String, Object> streamDescription =
+                (Map<String, Object>) jsonResponse.get("StreamDescription");
+
+        Object creationRequestDateTime = streamDescription.get("CreationRequestDateTime");
+        Assert.assertNotNull("CreationRequestDateTime should not be null", creationRequestDateTime);
+
+        double timestamp = ((Number) creationRequestDateTime).doubleValue();
+        Assert.assertTrue("Timestamp should be positive", timestamp > 0);
+
+        Thread.sleep(500);
+        long now = System.currentTimeMillis();
+        LOGGER.info("CreationRequestDateTime value: {} , now: {}", timestamp, now);
+        Assert.assertTrue("Timestamp should not be in the future", timestamp <= now);
+
     }
 }

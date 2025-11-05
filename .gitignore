@@ -25,3 +25,4 @@ env/
 *.tar.xz
 *.tar.wim
 /phoenix-ddb-rest/logs/
+/logs/

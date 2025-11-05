@@ -9,11 +9,11 @@ import org.apache.phoenix.util.CDCUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -87,10 +87,10 @@ public class DescribeStreamService {
         streamDesc.put(ApiMetadata.TABLE_NAME,
                 tableName.startsWith("DDB.") ? tableName.split("DDB.")[1] : tableName);
         long creationTS = DDBShimCDCUtils.getCDCIndexTimestampFromStreamName(streamName);
-        Instant instant = Instant.ofEpochMilli(creationTS);
         streamDesc.put(ApiMetadata.STREAM_LABEL, DDBShimCDCUtils.getStreamLabel(creationTS));
         streamDesc.put(ApiMetadata.STREAM_VIEW_TYPE, table.getSchemaVersion());
-        streamDesc.put(ApiMetadata.CREATION_REQUEST_DATE_TIME, String.format("%.12e", instant.getEpochSecond() + instant.getNano() / 1_000_000_000.0));
+        streamDesc.put(ApiMetadata.CREATION_REQUEST_DATE_TIME,
+                BigDecimal.valueOf(creationTS).movePointLeft(3));
         streamDesc.put(ApiMetadata.KEY_SCHEMA, DDBShimCDCUtils.getKeySchemaForRest(table));
         return streamDesc;
     }
