@@ -45,6 +45,7 @@ import org.apache.phoenix.ddb.service.BatchWriteItemService;
 import org.apache.phoenix.ddb.service.CreateTableService;
 import org.apache.phoenix.ddb.service.DeleteItemService;
 import org.apache.phoenix.ddb.service.DeleteTableService;
+import org.apache.phoenix.ddb.service.DescribeContinuousBackupsService;
 import org.apache.phoenix.ddb.service.DescribeStreamService;
 import org.apache.phoenix.ddb.service.GetItemService;
 import org.apache.phoenix.ddb.service.GetRecordsService;
@@ -127,6 +128,10 @@ public class RootResource {
             case ApiMetadata.DESCRIBE_TABLE: {
                 responseObject = TableDescriptorUtils.getTableDescription(
                         (String) request.get(ApiMetadata.TABLE_NAME), jdbcConnectionUrl, "Table");
+                break;
+            }
+            case ApiMetadata.DESCRIBE_CONTINUOUS_BACKUPS: {
+                responseObject = DescribeContinuousBackupsService.describeContinuousBackups(request, jdbcConnectionUrl);
                 break;
             }
             case ApiMetadata.LIST_TABLES: {

@@ -5,7 +5,8 @@ import org.apache.phoenix.ddb.utils.ApiMetadata;
 public enum ApiOperation {
     CREATE_TABLE(ApiMetadata.CREATE_TABLE, "CreateTable"),
     DELETE_TABLE(ApiMetadata.DELETE_TABLE, "DeleteTable"),
-    DESCRIBE_TABLE(ApiMetadata.DESCRIBE_TABLE, "DescribeTable"),
+    DESCRIBE_TABLE(ApiMetadata.DESCRIBE_TABLE, "DescribeTable"), DESCRIBE_CONTINUOUS_BACKUPS(
+            ApiMetadata.DESCRIBE_CONTINUOUS_BACKUPS, "DescribeContinuousBackups"),
     LIST_TABLES(ApiMetadata.LIST_TABLES, "ListTables"),
     UPDATE_TABLE(ApiMetadata.UPDATE_TABLE, "UpdateTable"),
     PUT_ITEM(ApiMetadata.PUT_ITEM, "PutItem"),
