@@ -9,11 +9,15 @@ import java.util.Map;
 
 import org.bson.BsonDocument;
 import org.junit.Assert;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.DescribeStreamRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetRecordsRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetRecordsResponse;
 import software.amazon.awssdk.services.dynamodb.model.GetShardIteratorRequest;
+import software.amazon.awssdk.services.dynamodb.model.ListStreamsRequest;
+import software.amazon.awssdk.services.dynamodb.model.ListStreamsResponse;
 import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 import software.amazon.awssdk.services.dynamodb.model.Record;
 import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
@@ -39,7 +43,11 @@ import org.apache.phoenix.jdbc.PhoenixPreparedStatement;
 import org.apache.phoenix.query.ConnectionQueryServices;
 import org.apache.phoenix.schema.PColumn;
 
+import static software.amazon.awssdk.services.dynamodb.model.ShardIteratorType.TRIM_HORIZON;
+
 public class TestUtils {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(TestUtils.class);
 
     /**
      * Verify index is used for a SQL query formed using a QueryRequest.
@@ -212,5 +220,75 @@ public class TestUtils {
             grr = grr.toBuilder().shardIterator(result.nextShardIterator()).build();
         } while (result.nextShardIterator() != null && !result.records().isEmpty());
         return records;
+    }
+
+    public static void compareAllStreamRecords(final String tableName,
+            final DynamoDbStreamsClient dynamoDbStreamsClient,
+            final DynamoDbStreamsClient phoenixDBStreamsClientV2) throws InterruptedException {
+
+        ListStreamsRequest listStreamsRequest =
+                ListStreamsRequest.builder().tableName(tableName).build();
+        ListStreamsResponse phoenixStreams =
+                phoenixDBStreamsClientV2.listStreams(listStreamsRequest);
+        String phoenixStreamArn = phoenixStreams.streams().get(0).streamArn();
+        String dynamoStreamArn =
+                dynamoDbStreamsClient.listStreams(listStreamsRequest).streams().get(0).streamArn();
+
+        waitForStream(phoenixDBStreamsClientV2, phoenixStreamArn);
+        waitForStream(dynamoDbStreamsClient, dynamoStreamArn);
+
+        DescribeStreamRequest describeStreamRequest =
+                DescribeStreamRequest.builder().streamArn(phoenixStreamArn).build();
+        StreamDescription phoenixStreamDesc =
+                phoenixDBStreamsClientV2.describeStream(describeStreamRequest).streamDescription();
+        String phoenixShardId = phoenixStreamDesc.shards().get(0).shardId();
+
+        describeStreamRequest = DescribeStreamRequest.builder().streamArn(dynamoStreamArn).build();
+        StreamDescription dynamoStreamDesc =
+                dynamoDbStreamsClient.describeStream(describeStreamRequest).streamDescription();
+        String dynamoShardId = dynamoStreamDesc.shards().get(0).shardId();
+
+        GetShardIteratorRequest phoenixShardIteratorRequest =
+                GetShardIteratorRequest.builder().streamArn(phoenixStreamArn)
+                        .shardId(phoenixShardId).shardIteratorType(TRIM_HORIZON).build();
+        String phoenixShardIterator =
+                phoenixDBStreamsClientV2.getShardIterator(phoenixShardIteratorRequest)
+                        .shardIterator();
+
+        GetShardIteratorRequest dynamoShardIteratorRequest =
+                GetShardIteratorRequest.builder().streamArn(dynamoStreamArn).shardId(dynamoShardId)
+                        .shardIteratorType(TRIM_HORIZON).build();
+        String dynamoShardIterator =
+                dynamoDbStreamsClient.getShardIterator(dynamoShardIteratorRequest).shardIterator();
+
+        List<Record> allPhoenixRecords = new ArrayList<>();
+        List<Record> allDynamoRecords = new ArrayList<>();
+
+        GetRecordsResponse phoenixRecordsResponse;
+        GetRecordsResponse dynamoRecordsResponse;
+
+        do {
+            GetRecordsRequest phoenixRecordsRequest =
+                    GetRecordsRequest.builder().shardIterator(phoenixShardIterator).limit(5)
+                            .build();
+            phoenixRecordsResponse = phoenixDBStreamsClientV2.getRecords(phoenixRecordsRequest);
+            allPhoenixRecords.addAll(phoenixRecordsResponse.records());
+            phoenixShardIterator = phoenixRecordsResponse.nextShardIterator();
+            LOGGER.info("Phoenix shard iterator: {}", phoenixShardIterator);
+        } while (phoenixShardIterator != null && !phoenixRecordsResponse.records().isEmpty());
+
+        do {
+            GetRecordsRequest dynamoRecordsRequest =
+                    GetRecordsRequest.builder().shardIterator(dynamoShardIterator).limit(6).build();
+            dynamoRecordsResponse = dynamoDbStreamsClient.getRecords(dynamoRecordsRequest);
+            allDynamoRecords.addAll(dynamoRecordsResponse.records());
+            dynamoShardIterator = dynamoRecordsResponse.nextShardIterator();
+            LOGGER.info("Dynamo shard iterator: {}", dynamoShardIterator);
+        } while (dynamoShardIterator != null && !dynamoRecordsResponse.records().isEmpty());
+
+        LOGGER.info("Phoenix stream records count: {}", allPhoenixRecords.size());
+        LOGGER.info("DynamoDB stream records count: {}", allDynamoRecords.size());
+
+        validateRecords(allPhoenixRecords, allDynamoRecords);
     }
 }
