@@ -337,8 +337,10 @@ public class ConditionalPutItemIT {
         PutItemRequest.Builder condPutRequest =
                 PutItemRequest.builder().tableName(tableName).item(item2);
         // expression
-        condPutRequest.conditionExpression("#0 = :0 AND #1 = :1 AND #2 = :2 AND #3 = :3 AND "
-                + "attribute_not_exists(#4) AND attribute_not_exists(#5)");
+        condPutRequest.conditionExpression(
+                "attribute_not_exists(#6) AND attribute_not_exists(#7) AND "
+                        + "attribute_not_exists(#8) AND #0 = :0 AND #1 = :1 AND #2 = :2 "
+                        + "AND #3 = :3 AND attribute_not_exists(#4) AND attribute_not_exists(#5)");
         // expression names
         Map<String, String> exprAttrNames = new HashMap();
         exprAttrNames.put("#0", "attr_1");
@@ -347,6 +349,9 @@ public class ConditionalPutItemIT {
         exprAttrNames.put("#3", "InPublication");
         exprAttrNames.put("#4", "NestedMap2");
         exprAttrNames.put("#5", "ISBN");
+        exprAttrNames.put("#6", "[");
+        exprAttrNames.put("#7", "-");
+        exprAttrNames.put("#8", ">");
         condPutRequest.expressionAttributeNames(exprAttrNames);
         // expression values
         Map<String, AttributeValue> exprAttrVals = new HashMap();

@@ -79,52 +79,21 @@ public class CommonServiceUtils {
      * Return string representation of BSON Condition Expression based on dynamo condition
      * expression, expression attribute names and expression attribute values.
      */
-    public static String getBsonConditionExpression(String condExpr,
-                                                       Map<String, String> exprAttrNames,
-                                                       Map<String, AttributeValue> exprAttrVals) {
-
-        // plug expression attribute names in $EXPR
-        condExpr = replaceExpressionAttributeNames(condExpr, exprAttrNames);
-
-        // BSON_CONDITION_EXPRESSION
-        BsonDocument conditionDoc = new BsonDocument();
-        conditionDoc.put("$EXPR", new BsonString(condExpr));
-        conditionDoc.put("$VAL", DdbAttributesToBsonDocument.getBsonDocument(exprAttrVals));
-
-        return conditionDoc.toJson();
-    }
-
-    /**
-     * Return string representation of BSON Condition Expression based on dynamo condition
-     * expression, expression attribute names and expression attribute values.
-     */
     public static String getBsonConditionExpressionFromMap(String condExpr,
             Map<String, String> exprAttrNames, Map<String, Object> exprAttrVals) {
-
-        // plug expression attribute names in $EXPR
-        condExpr = replaceExpressionAttributeNames(condExpr, exprAttrNames);
-
-        // BSON_CONDITION_EXPRESSION
         BsonDocument conditionDoc = new BsonDocument();
         conditionDoc.put("$EXPR", new BsonString(condExpr));
         conditionDoc.put("$VAL", MapToBsonDocument.getBsonDocument(exprAttrVals));
-
+        if (exprAttrNames != null && !exprAttrNames.isEmpty()) {
+            BsonDocument exprAttrNamesDoc = new BsonDocument();
+            for (Map.Entry<String, String> entry : exprAttrNames.entrySet()) {
+                String attrName = entry.getKey();
+                String attrValue = entry.getValue();
+                exprAttrNamesDoc.put(attrName, new BsonString(attrValue));
+            }
+            conditionDoc.put("$KEYS", exprAttrNamesDoc);
+        }
         return conditionDoc.toJson();
-    }
-
-    /**
-     * Return BsonDocument representation of BSON Update Expression based on dynamo update
-     * expression, expression attribute names and expression attribute values.
-     */
-    public static BsonDocument getBsonUpdateExpression(String updateExpr,
-                                                       Map<String, String> exprAttrNames,
-                                                       Map<String, AttributeValue> exprAttrVals) {
-
-        if (StringUtils.isEmpty(updateExpr)) return new BsonDocument();
-        updateExpr = replaceExpressionAttributeNames(updateExpr, exprAttrNames);
-        return UpdateExpressionDdbToBson
-                .getBsonDocumentForUpdateExpression(updateExpr,
-                        DdbAttributesToBsonDocument.getBsonDocument(exprAttrVals));
     }
 
     /**
@@ -152,7 +121,9 @@ public class CommonServiceUtils {
      */
     public static String replaceExpressionAttributeNames(String s,
                                                        Map<String, String> exprAttrNames) {
-        if (exprAttrNames == null || !s.contains(HASH)) return s;
+        if (exprAttrNames == null || !s.contains(HASH)) {
+            return s;
+        }
         for (String k : exprAttrNames.keySet()) {
             s = StringUtils.replace(s, k, exprAttrNames.get(k));
         }

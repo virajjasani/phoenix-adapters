@@ -98,8 +98,10 @@ public class PutItemService {
             String bsonCondExpr =
                     CommonServiceUtils.getBsonConditionExpressionFromMap(condExpr, exprAttrNames,
                             exprAttrVals);
+            String replacedAliasCondExpr =
+                    CommonServiceUtils.replaceExpressionAttributeNames(condExpr, exprAttrNames);
             // we do not want upsert to be performed if row already exists
-            if (shouldUseIgnoreForAtomicUpsert(bsonCondExpr, pkCols)) {
+            if (shouldUseIgnoreForAtomicUpsert(replacedAliasCondExpr, pkCols)) {
                 String QUERY_FORMAT = (pkCols.size() == 1)
                         ? CONDITIONAL_PUT_IGNORE_WITH_HASH_KEY : CONDITIONAL_PUT_IGNORE_WITH_HASH_SORT_KEY;
                 stmt = conn.prepareStatement(String.format(QUERY_FORMAT, "DDB", tableName));
