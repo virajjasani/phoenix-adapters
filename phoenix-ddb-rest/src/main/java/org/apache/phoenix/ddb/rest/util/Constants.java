@@ -27,7 +27,7 @@ public final class Constants {
 
     public static final String PATH_SPEC_ANY = "/*";
 
-    public static final int DEFAULT_LISTEN_PORT = 8080;
+    public static final int DEFAULT_LISTEN_PORT = 8842;
 
     public static final String HTTP_HEADER_CACHE_SIZE = "phoenix.ddb.rest.http.header.cache.size";
     public static final int DEFAULT_HTTP_HEADER_CACHE_SIZE = Character.MAX_VALUE - 1;

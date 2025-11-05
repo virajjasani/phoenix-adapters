@@ -7,8 +7,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 
-import com.google.protobuf.Api;
-import org.apache.phoenix.ddb.service.utils.ApiMetadata;
+import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,7 +45,7 @@ public class QueryService {
             PreparedStatement stmt =
                     getPreparedStatement(connection, request, useIndex, tablePKCols, indexPKCols);
             return DQLUtils.executeStatementReturnResult(true, stmt,
-                    getProjectionAttributes(request), useIndex, tablePKCols, indexPKCols);
+                    getProjectionAttributes(request), useIndex, tablePKCols, indexPKCols, tableName);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }

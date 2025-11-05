@@ -36,7 +36,7 @@ import org.apache.phoenix.ddb.service.ListStreamsService;
 
 import org.apache.phoenix.ddb.service.ListTablesService;
 import org.apache.phoenix.ddb.service.UpdateTableService;
-import org.apache.phoenix.ddb.service.utils.ApiMetadata;
+import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

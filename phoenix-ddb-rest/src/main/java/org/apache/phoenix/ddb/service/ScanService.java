@@ -8,7 +8,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.phoenix.ddb.service.utils.ApiMetadata;
+import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,7 +47,7 @@ public class ScanService {
             PreparedStatement stmt =
                     getPreparedStatement(connection, request, useIndex, tablePKCols, indexPKCols);
             return DQLUtils.executeStatementReturnResult(false, stmt,
-                    getProjectionAttributes(request), useIndex, tablePKCols, indexPKCols);
+                    getProjectionAttributes(request), useIndex, tablePKCols, indexPKCols, tableName);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }

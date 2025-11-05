@@ -1,10 +1,10 @@
 package org.apache.phoenix.ddb.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.google.protobuf.Api;
+
 import org.apache.phoenix.ddb.bson.BsonDocumentToMap;
 import org.apache.phoenix.ddb.bson.CDCBsonUtil;
-import org.apache.phoenix.ddb.service.utils.ApiMetadata;
+import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.service.utils.DQLUtils;
 import org.apache.phoenix.ddb.utils.DDBShimCDCUtils;
 import org.apache.phoenix.ddb.utils.PhoenixShardIterator;

@@ -1,8 +1,7 @@
 package org.apache.phoenix.ddb.service;
 
-import com.google.protobuf.Api;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.phoenix.ddb.service.utils.ApiMetadata;
+import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.utils.DDBShimCDCUtils;
 import org.apache.phoenix.jdbc.PhoenixConnection;
 import org.apache.phoenix.schema.PTable;

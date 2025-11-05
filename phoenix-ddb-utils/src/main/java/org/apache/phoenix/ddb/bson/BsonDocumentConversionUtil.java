@@ -150,7 +150,9 @@ public class BsonDocumentConversionUtil {
                 }
             }
         } else {
-            newDocument.put(documentFieldKey, bsonDocument.get(documentFieldKey));
+            if (bsonDocument.containsKey(documentFieldKey)) {
+                newDocument.put(documentFieldKey, bsonDocument.get(documentFieldKey));
+            }
         }
     }
 

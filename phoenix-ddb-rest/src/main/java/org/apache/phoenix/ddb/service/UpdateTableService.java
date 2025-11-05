@@ -1,6 +1,6 @@
 package org.apache.phoenix.ddb.service;
 
-import org.apache.phoenix.ddb.service.utils.ApiMetadata;
+import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.service.utils.TableDescriptorUtils;
 import org.apache.phoenix.query.QueryServices;
 import org.apache.phoenix.schema.PIndexState;

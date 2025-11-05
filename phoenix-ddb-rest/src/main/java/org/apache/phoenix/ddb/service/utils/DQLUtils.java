@@ -2,6 +2,7 @@ package org.apache.phoenix.ddb.service.utils;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.phoenix.ddb.bson.BsonDocumentToMap;
+import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.utils.CommonServiceUtils;
 import org.apache.phoenix.ddb.utils.PhoenixUtils;
 import org.apache.phoenix.schema.PColumn;
@@ -31,7 +32,7 @@ public class DQLUtils {
      */
     public static Map<String, Object> executeStatementReturnResult(boolean isQuery,
             PreparedStatement stmt, List<String> projectionAttributes, boolean useIndex,
-            List<PColumn> tablePKCols, List<PColumn> indexPKCols) throws SQLException {
+            List<PColumn> tablePKCols, List<PColumn> indexPKCols, String tableName) throws SQLException {
         int count = 0;
         List<Map<String, Object>> items = new ArrayList<>();
         RawBsonDocument lastBsonDoc = null;
@@ -51,6 +52,8 @@ public class DQLUtils {
             response.put(ApiMetadata.COUNT, count);
             response.put(ApiMetadata.LAST_EVALUATED_KEY, lastKey);
             response.put(ApiMetadata.SCANNED_COUNT, countRowsScanned);
+            response.put(ApiMetadata.CONSUMED_CAPACITY,
+                    CommonServiceUtils.getConsumedCapacity(tableName));
             return response;
         }
     }

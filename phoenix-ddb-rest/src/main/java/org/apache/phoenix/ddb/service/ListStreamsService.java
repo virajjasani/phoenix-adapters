@@ -1,11 +1,7 @@
 package org.apache.phoenix.ddb.service;
 
-import org.apache.phoenix.ddb.service.utils.ApiMetadata;
+import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.utils.DDBShimCDCUtils;
-import org.apache.phoenix.jdbc.PhoenixConnection;
-import org.apache.phoenix.schema.PTable;
-import org.apache.phoenix.schema.PTableKey;
-import org.apache.phoenix.thirdparty.com.google.common.base.Preconditions;
 import org.apache.phoenix.util.CDCUtil;
 
 import java.sql.Connection;

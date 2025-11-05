@@ -1,4 +1,4 @@
-package org.apache.phoenix.ddb.service.utils;
+package org.apache.phoenix.ddb.utils;
 
 /**
  * Request and Response parameters for DynamoDB APIs.
@@ -13,6 +13,11 @@ public class ApiMetadata {
     public static final String LAST_EVALUATED_TABLE_NAME = "LastEvaluatedTableName";
     public static final String LIMIT = "Limit";
     public static final String CREATION_DATE_TIME = "CreationDateTime";
+    public static final String CONSUMED_CAPACITY = "ConsumedCapacity";
+    public static final String TABLE = "Table";
+    public static final String READ_CAPACITY_UNITS = "ReadCapacityUnits";
+    public static final String WRITE_CAPACITY_UNITS = "WriteCapacityUnits";
+    public static final String CAPACITY_UNITS = "CapacityUnits";
 
     // ---------- Attribute Definitions and Schema ----------
     public static final String ATTRIBUTE_DEFINITIONS = "AttributeDefinitions";

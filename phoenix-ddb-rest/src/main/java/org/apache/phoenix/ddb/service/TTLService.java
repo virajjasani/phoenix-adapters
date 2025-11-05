@@ -1,7 +1,7 @@
 package org.apache.phoenix.ddb.service;
 
 import org.apache.hadoop.hbase.HConstants;
-import org.apache.phoenix.ddb.service.utils.ApiMetadata;
+import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.utils.PhoenixUtils;
 import org.apache.phoenix.jdbc.PhoenixConnection;
 import org.apache.phoenix.schema.PTable;

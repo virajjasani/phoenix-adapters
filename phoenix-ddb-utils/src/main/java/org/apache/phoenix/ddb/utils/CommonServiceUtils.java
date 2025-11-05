@@ -34,6 +34,7 @@ import org.bson.BsonDocument;
 import org.bson.BsonString;
 
 import java.util.Map;
+import java.util.HashMap;
 
 /**
  * Common utilities to be used by phoenixDBClientV2 APIs.
@@ -156,5 +157,22 @@ public class CommonServiceUtils {
             s = StringUtils.replace(s, k, exprAttrNames.get(k));
         }
         return s;
+    }
+
+    public static Map<String, Object> getConsumedCapacity(final String tableName) {
+        Map<String, Object> consumedCapacity = new HashMap<>();
+        consumedCapacity.put(ApiMetadata.TABLE_NAME, tableName);
+        
+        Map<String, Double> tableCapacity = new HashMap<>();
+        tableCapacity.put(ApiMetadata.READ_CAPACITY_UNITS, 1.0);
+        tableCapacity.put(ApiMetadata.WRITE_CAPACITY_UNITS, 1.0);
+        tableCapacity.put(ApiMetadata.CAPACITY_UNITS, 2.0);
+        
+        consumedCapacity.put(ApiMetadata.TABLE, tableCapacity);
+        consumedCapacity.put(ApiMetadata.READ_CAPACITY_UNITS, 1.0);
+        consumedCapacity.put(ApiMetadata.WRITE_CAPACITY_UNITS, 1.0);
+        consumedCapacity.put(ApiMetadata.CAPACITY_UNITS, 2.0);
+
+        return consumedCapacity;
     }
 }

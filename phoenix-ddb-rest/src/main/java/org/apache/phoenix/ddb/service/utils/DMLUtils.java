@@ -15,6 +15,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.phoenix.ddb.bson.BsonDocumentToMap;
 import org.apache.phoenix.ddb.service.utils.exceptions.ConditionCheckFailedException;
+import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.jdbc.PhoenixPreparedStatement;
 import org.apache.phoenix.schema.PColumn;
 import org.apache.phoenix.schema.types.PDataType;
