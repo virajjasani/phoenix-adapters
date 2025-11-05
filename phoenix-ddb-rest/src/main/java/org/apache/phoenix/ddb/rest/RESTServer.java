@@ -25,16 +25,31 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import javax.servlet.DispatcherType;
 
-import org.apache.hadoop.hbase.zookeeper.ZKConfig;
-import org.apache.phoenix.ddb.rest.util.Constants;
-
-import org.apache.phoenix.ddb.utils.IndexBuildingActivator;
+import org.apache.hbase.thirdparty.com.fasterxml.jackson.jaxrs.json.JacksonJaxbJsonProvider;
+import org.apache.hbase.thirdparty.org.apache.commons.cli.CommandLine;
+import org.apache.hbase.thirdparty.org.apache.commons.cli.HelpFormatter;
+import org.apache.hbase.thirdparty.org.apache.commons.cli.Options;
+import org.apache.hbase.thirdparty.org.apache.commons.cli.ParseException;
+import org.apache.hbase.thirdparty.org.apache.commons.cli.PosixParser;
+import org.apache.hbase.thirdparty.org.eclipse.jetty.jmx.MBeanContainer;
+import org.apache.hbase.thirdparty.org.eclipse.jetty.server.HttpConfiguration;
+import org.apache.hbase.thirdparty.org.eclipse.jetty.server.HttpConnectionFactory;
+import org.apache.hbase.thirdparty.org.eclipse.jetty.server.Server;
+import org.apache.hbase.thirdparty.org.eclipse.jetty.server.ServerConnector;
+import org.apache.hbase.thirdparty.org.eclipse.jetty.servlet.FilterHolder;
+import org.apache.hbase.thirdparty.org.eclipse.jetty.servlet.ServletContextHandler;
+import org.apache.hbase.thirdparty.org.eclipse.jetty.servlet.ServletHolder;
+import org.apache.hbase.thirdparty.org.eclipse.jetty.util.thread.QueuedThreadPool;
+import org.apache.hbase.thirdparty.org.glassfish.jersey.server.ResourceConfig;
+import org.apache.hbase.thirdparty.org.glassfish.jersey.servlet.ServletContainer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,24 +63,12 @@ import org.apache.hadoop.hbase.util.DNS;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.ReflectionUtils;
 import org.apache.hadoop.hbase.util.Strings;
+import org.apache.hadoop.hbase.zookeeper.ZKConfig;
+import org.apache.phoenix.ddb.rest.auth.AccessKeyAuthFilter;
+import org.apache.phoenix.ddb.rest.auth.CredentialStore;
+import org.apache.phoenix.ddb.rest.util.Constants;
+import org.apache.phoenix.ddb.utils.IndexBuildingActivator;
 import org.apache.phoenix.ddb.utils.PhoenixUtils;
-
-import org.apache.hbase.thirdparty.com.fasterxml.jackson.jaxrs.json.JacksonJaxbJsonProvider;
-import org.apache.hbase.thirdparty.org.apache.commons.cli.CommandLine;
-import org.apache.hbase.thirdparty.org.apache.commons.cli.HelpFormatter;
-import org.apache.hbase.thirdparty.org.apache.commons.cli.Options;
-import org.apache.hbase.thirdparty.org.apache.commons.cli.ParseException;
-import org.apache.hbase.thirdparty.org.apache.commons.cli.PosixParser;
-import org.apache.hbase.thirdparty.org.eclipse.jetty.jmx.MBeanContainer;
-import org.apache.hbase.thirdparty.org.eclipse.jetty.server.HttpConfiguration;
-import org.apache.hbase.thirdparty.org.eclipse.jetty.server.HttpConnectionFactory;
-import org.apache.hbase.thirdparty.org.eclipse.jetty.server.Server;
-import org.apache.hbase.thirdparty.org.eclipse.jetty.server.ServerConnector;
-import org.apache.hbase.thirdparty.org.eclipse.jetty.servlet.ServletContextHandler;
-import org.apache.hbase.thirdparty.org.eclipse.jetty.servlet.ServletHolder;
-import org.apache.hbase.thirdparty.org.eclipse.jetty.util.thread.QueuedThreadPool;
-import org.apache.hbase.thirdparty.org.glassfish.jersey.server.ResourceConfig;
-import org.apache.hbase.thirdparty.org.glassfish.jersey.servlet.ServletContainer;
 
 /**
  * Main class for launching REST gateway as a servlet hosted by Jetty.
@@ -239,6 +242,25 @@ public class RESTServer {
                 new ServletContextHandler(server, "/", ServletContextHandler.SESSIONS);
         ctxHandler.addServlet(sh, Constants.PATH_SPEC_ANY);
         ctxHandler.addServlet(jmxSh, "/jmx");
+
+        String credentialStoreClass =
+                servlet.getConfiguration().get(Constants.AUTH_CREDENTIAL_STORE_CLASS);
+        if (credentialStoreClass != null && !credentialStoreClass.trim().isEmpty()) {
+            try {
+                Class<?> storeClass = Class.forName(credentialStoreClass);
+                Object credentialStore = storeClass.getDeclaredConstructor().newInstance();
+                AccessKeyAuthFilter authFilter =
+                        new AccessKeyAuthFilter((CredentialStore) credentialStore);
+                ctxHandler.addFilter(new FilterHolder(authFilter), "/*",
+                        EnumSet.of(DispatcherType.REQUEST));
+                LOG.info("Authentication filter enabled with credential store: {}",
+                        credentialStoreClass);
+            } catch (Exception e) {
+                LOG.error("Failed to initialize authentication filter with credential store: {}",
+                        credentialStoreClass, e);
+                throw new RuntimeException("Failed to initialize authentication", e);
+            }
+        }
 
         HttpServerUtil.constrainHttpMethods(ctxHandler, servlet.getConfiguration()
                 .getBoolean(Constants.REST_HTTP_ALLOW_OPTIONS_METHOD,

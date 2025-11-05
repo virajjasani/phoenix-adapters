@@ -61,5 +61,7 @@ public final class Constants {
     public static final String CLEANUP_INTERVAL = "phoenix.ddb.rest.connection.cleanup-interval";
     public static final String MAX_IDLETIME = "phoenix.ddb.rest.connection.max-idletime";
     public static final String SUPPORT_PROXY_USER = "phoenix.ddb.rest.support.proxyuser";
+    public static final String AUTH_CREDENTIAL_STORE_CLASS =
+            "phoenix.ddb.rest.auth.credential.store.class";
 
 }

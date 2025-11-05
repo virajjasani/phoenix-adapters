@@ -20,50 +20,46 @@ package org.apache.phoenix.ddb.rest;
 
 import java.util.HashMap;
 import java.util.Map;
+import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.Consumes;
 
 import org.apache.hbase.thirdparty.javax.ws.rs.HeaderParam;
 import org.apache.hbase.thirdparty.javax.ws.rs.POST;
 import org.apache.hbase.thirdparty.javax.ws.rs.Path;
 import org.apache.hbase.thirdparty.javax.ws.rs.Produces;
-
-import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
-import org.apache.phoenix.ddb.service.BatchGetItemService;
-import org.apache.phoenix.ddb.service.BatchWriteItemService;
-import org.apache.phoenix.ddb.service.DescribeStreamService;
-import org.apache.phoenix.ddb.service.GetRecordsService;
-import org.apache.phoenix.ddb.service.GetShardIteratorService;
-import org.apache.phoenix.ddb.service.ListStreamsService;
-
-import org.apache.phoenix.ddb.service.ListTablesService;
-import org.apache.phoenix.ddb.service.UpdateTableService;
-import org.apache.phoenix.ddb.service.exceptions.ValidationException;
-import org.apache.phoenix.ddb.utils.ApiMetadata;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.hbase.thirdparty.javax.ws.rs.core.CacheControl;
 import org.apache.hbase.thirdparty.javax.ws.rs.core.Context;
 import org.apache.hbase.thirdparty.javax.ws.rs.core.MediaType;
 import org.apache.hbase.thirdparty.javax.ws.rs.core.Response;
 import org.apache.hbase.thirdparty.javax.ws.rs.core.Response.ResponseBuilder;
 import org.apache.hbase.thirdparty.javax.ws.rs.core.UriInfo;
-
-import javax.ws.rs.Consumes;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.phoenix.ddb.rest.util.Constants;
+import org.apache.phoenix.ddb.service.BatchGetItemService;
+import org.apache.phoenix.ddb.service.BatchWriteItemService;
 import org.apache.phoenix.ddb.service.CreateTableService;
 import org.apache.phoenix.ddb.service.DeleteItemService;
 import org.apache.phoenix.ddb.service.DeleteTableService;
+import org.apache.phoenix.ddb.service.DescribeStreamService;
 import org.apache.phoenix.ddb.service.GetItemService;
+import org.apache.phoenix.ddb.service.GetRecordsService;
+import org.apache.phoenix.ddb.service.GetShardIteratorService;
+import org.apache.phoenix.ddb.service.ListStreamsService;
+import org.apache.phoenix.ddb.service.ListTablesService;
 import org.apache.phoenix.ddb.service.PutItemService;
 import org.apache.phoenix.ddb.service.QueryService;
 import org.apache.phoenix.ddb.service.ScanService;
 import org.apache.phoenix.ddb.service.TTLService;
 import org.apache.phoenix.ddb.service.UpdateItemService;
-import org.apache.phoenix.ddb.service.utils.TableDescriptorUtils;
+import org.apache.phoenix.ddb.service.UpdateTableService;
 import org.apache.phoenix.ddb.service.exceptions.ConditionCheckFailedException;
+import org.apache.phoenix.ddb.service.exceptions.ValidationException;
+import org.apache.phoenix.ddb.service.utils.TableDescriptorUtils;
+import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.utils.PhoenixUtils;
 import org.apache.phoenix.schema.TableNotFoundException;
 
@@ -94,12 +90,21 @@ public class RootResource {
     @Consumes({Constants.APPLICATION_AMZ_JSON, MediaType.APPLICATION_JSON})
     @Produces({Constants.APPLICATION_AMZ_JSON, MediaType.APPLICATION_JSON})
     public Response get(final @Context UriInfo uriInfo,
+            final @Context HttpServletRequest httpRequest,
             final @HeaderParam("Content-Type") String contentType,
             final @HeaderParam("X-Amz-Target") String api,
             final Map<String, Object> request) {
         long startTime = EnvironmentEdgeManager.currentTime();
         try {
-            LOG.info("Content Type: {}, api: {}, Request: {}", contentType, api, request);
+            String userName = (String) httpRequest.getAttribute("userName");
+            String accessKeyId = (String) httpRequest.getAttribute("accessKeyId");
+
+            if (userName == null || accessKeyId == null) {
+                LOG.info("Content Type: {}, api: {}, Request: {}", contentType, api, request);
+            } else {
+                LOG.info("Content Type: {}, api: {}, Request: {}, User: {}, AccessKey: {}",
+                        contentType, api, request, userName, accessKeyId);
+            }
             servlet.getMetrics().incrementRequests(1);
 
             if (!api.contains(".")) {
