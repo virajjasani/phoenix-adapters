@@ -44,7 +44,7 @@ public class DescribeStreamService {
             if (CDCUtil.CdcStreamStatus.ENABLED.getSerializedValue().equals(streamStatus)) {
                 StringBuilder sb = new StringBuilder(String.format(DESCRIBE_STREAM_QUERY, tableName, streamName));
                 if (!StringUtils.isEmpty(exclusiveStartShardId)) {
-                    sb.append(" AND PARTITION_ID > ' ");
+                    sb.append(" AND PARTITION_ID > '");
                     sb.append(exclusiveStartShardId);
                     sb.append("'");
                 }

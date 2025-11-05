@@ -36,6 +36,8 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 
@@ -136,16 +138,35 @@ public class DescribeStreamIT {
 
         // wait for stream to be enabled
         TestUtils.waitForStream(phoenixDBStreamsClientV2, phoenixStreamArn);
-        phoenixStreamDesc = phoenixDBStreamsClientV2.describeStream(phoenixRequest).streamDescription();
+
+        List<Shard> phoenixShards = new ArrayList<>();
+        List<Shard> ddbShards = new ArrayList<>();
+
+        String lastEvaluatedShardId = null;
+        do {
+            phoenixStreamDesc = phoenixDBStreamsClientV2.describeStream(
+                DescribeStreamRequest.builder().streamArn(phoenixStreamArn)
+                    .exclusiveStartShardId(lastEvaluatedShardId).build()).streamDescription();
+            phoenixShards.addAll(phoenixStreamDesc.shards());
+            lastEvaluatedShardId = phoenixStreamDesc.lastEvaluatedShardId();
+        } while (lastEvaluatedShardId != null);
+
+        StreamDescription dynamoStreamDesc;
+        lastEvaluatedShardId = null;
+        do {
+            dynamoStreamDesc = dynamoDbStreamsClient.describeStream(
+                DescribeStreamRequest.builder().streamArn(dynamoStreamArn)
+                    .exclusiveStartShardId(lastEvaluatedShardId).build()).streamDescription();
+            ddbShards.addAll(dynamoStreamDesc.shards());
+            lastEvaluatedShardId = dynamoStreamDesc.lastEvaluatedShardId();
+        } while (lastEvaluatedShardId != null);
 
         // stream would be in ENABLED state and api should return shards
         Assert.assertEquals(StreamStatus.ENABLED, phoenixStreamDesc.streamStatus());
-        StreamDescription dynamoStreamDesc = dynamoDbStreamsClient.describeStream(
-                DescribeStreamRequest.builder().streamArn(dynamoStreamArn).build()).streamDescription();
         LOGGER.info("DescribeStream in Phoenix: " + phoenixStreamDesc);
         LOGGER.info("DescribeStream in DDB: " + dynamoStreamDesc);
-        Assert.assertNotNull(phoenixStreamDesc.shards());
-        Assert.assertEquals(1, phoenixStreamDesc.shards().size());
+        Assert.assertNotNull(phoenixShards);
+        Assert.assertEquals(1, phoenixShards.size());
         Assert.assertEquals(dynamoStreamDesc.streamViewType(), phoenixStreamDesc.streamViewType());
         Assert.assertEquals(dynamoStreamDesc.keySchema(), phoenixStreamDesc.keySchema());
         Assert.assertEquals(dynamoStreamDesc.tableName(), phoenixStreamDesc.tableName());
@@ -156,6 +177,16 @@ public class DescribeStreamIT {
             TestUtils.splitTable(connection, "DDB." + tableName, Bytes.toBytes("foo"));
         }
 
+        phoenixShards.clear();
+        lastEvaluatedShardId = null;
+        do {
+            phoenixStreamDesc = phoenixDBStreamsClientV2.describeStream(
+                DescribeStreamRequest.builder().streamArn(phoenixStreamArn)
+                    .exclusiveStartShardId(lastEvaluatedShardId).build()).streamDescription();
+            phoenixShards.addAll(phoenixStreamDesc.shards());
+            lastEvaluatedShardId = phoenixStreamDesc.lastEvaluatedShardId();
+        } while (lastEvaluatedShardId != null);
+
         //local dynamodb does not support multiple shards so we will only verify phoenix here
         phoenixStreamDesc = phoenixDBStreamsClientV2.describeStream(phoenixRequest).streamDescription();
         LOGGER.info("DescribeStream in Phoenix after Split: " + phoenixStreamDesc);
@@ -164,19 +195,21 @@ public class DescribeStreamIT {
         Assert.assertEquals(dynamoStreamDesc.tableName(), phoenixStreamDesc.tableName());
         Assert.assertEquals(dynamoStreamDesc.streamStatus(), phoenixStreamDesc.streamStatus());
 
-        Assert.assertNotNull(phoenixStreamDesc.shards());
-        Assert.assertEquals(3, phoenixStreamDesc.shards().size());
+        Assert.assertNotNull(phoenixShards);
+        Assert.assertEquals(3, phoenixShards.size());
         String parentId = null;
-        for (Shard shard : phoenixStreamDesc.shards()) {
+        for (Shard shard : phoenixShards) {
             Assert.assertNotNull(shard.sequenceNumberRange());
-            Assert.assertTrue(shard.sequenceNumberRange().startingSequenceNumber().endsWith("00000"));
+            Assert.assertTrue(
+                shard.sequenceNumberRange().startingSequenceNumber().endsWith("00000"));
             // parent which split, should have end sequence number
             if (shard.parentShardId() == null) {
                 parentId = shard.shardId();
-                Assert.assertTrue(shard.sequenceNumberRange().endingSequenceNumber().endsWith("99999"));
+                Assert.assertTrue(
+                    shard.sequenceNumberRange().endingSequenceNumber().endsWith("99999"));
             }
         }
-        for (Shard shard : phoenixStreamDesc.shards()) {
+        for (Shard shard : phoenixShards) {
             if (shard.parentShardId() != null) {
                 Assert.assertEquals(parentId, shard.parentShardId());
             }
