@@ -145,6 +145,12 @@ endpoint.
   - GetShardIterator
   - GetRecords
 
+### Connecting with AWS SDK
+
+The Phoenix DynamoDB REST service is fully compatible with AWS SDKs. You can connect to it by simply configuring the endpoint URL to point to your Phoenix REST service instead of the standard DynamoDB endpoint.
+
+📖 **For detailed examples and configuration instructions, see the [Phoenix DynamoDB REST Service README](phoenix-ddb-rest/README.md)**
+
 ### How to bring up REST Server in dev env?
 
 1. Bring up HBase cluster locally. Refer to https://hbase.apache.org/book.html#quickstart
