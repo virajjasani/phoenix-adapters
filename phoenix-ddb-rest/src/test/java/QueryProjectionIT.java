@@ -282,6 +282,23 @@ public class QueryProjectionIT {
         testWithMap("#0[0].#1[2][0].#2.#3[1],#0[0].#1[2][0].#2.#3[2], #0[0].#1[2][0].#2.#3[0], #4", exprAttrNames);
     }
 
+    @Test(timeout = 120000)
+    public void test19() {
+        test("Id2, title, Reviews.FiveStar[110].reviewer,Reviews.FivveStar[2].reviewer,Reveiews.FiveStar[3].reviewer");
+    }
+
+    @Test(timeout = 120000)
+    public void test20() {
+        test("Id2_NA, title_NA, Reviews.FiveStar[1].reviewer_NA,"
+                + "Reviews.FivveStar[2].reviewer_NA,Reveiews.FiveStar[3].reviewer_NA,"
+                + "nestedList[2][1],nestedList_NA[2][1],Reviews1.x23");
+    }
+
+    @Test(timeout = 120000)
+    public void test21() {
+        test("Id2, Reviews.FiveStar1[2], title");
+    }
+
     private QueryRequest.Builder getQueryRequest(Map<String, String> exprAttrNames) {
         QueryRequest.Builder qr = QueryRequest.builder().tableName(TABLE_NAME);
         qr.keyConditionExpression("#hashKey = :v0");
@@ -303,6 +320,7 @@ public class QueryProjectionIT {
         QueryResponse dynamoResult = dynamoDbClient.query(qr.build());
         Assert.assertEquals(dynamoResult.count(), phoenixResult.count());
         Assert.assertEquals(dynamoResult.items().get(0), phoenixResult.items().get(0));
+        Assert.assertEquals(dynamoResult.scannedCount(), phoenixResult.scannedCount());
     }
 
     private void testWithMap(String projectionExpr, Map<String, String> exprAttrNames) {
@@ -312,5 +330,6 @@ public class QueryProjectionIT {
         QueryResponse dynamoResult = dynamoDbClient.query(qr.build());
         Assert.assertEquals(dynamoResult.count(), phoenixResult.count());
         Assert.assertEquals(dynamoResult.items().get(0), phoenixResult.items().get(0));
+        Assert.assertEquals(dynamoResult.scannedCount(), phoenixResult.scannedCount());
     }
 }

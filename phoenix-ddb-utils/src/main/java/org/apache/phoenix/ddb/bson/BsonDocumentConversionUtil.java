@@ -70,7 +70,9 @@ public class BsonDocumentConversionUtil {
                     sb.append(documentFieldKey.charAt(curIdx));
                 }
             }
-            newNestedDocument.put(sb.toString(), nestedDocument.get(sb.toString()));
+            if (nestedDocument.containsKey(sb.toString())) {
+                newNestedDocument.put(sb.toString(), nestedDocument.get(sb.toString()));
+            }
             return;
         } else if (documentFieldKey.charAt(curIdx) == '[') {
             curIdx++;
