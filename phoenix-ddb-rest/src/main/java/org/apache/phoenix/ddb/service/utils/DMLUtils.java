@@ -61,7 +61,6 @@ public class DMLUtils {
      * If conditionExpression succeeds and returnValue is ALL_NEW, return the item.
      *
      * TODO: UPDATED_OLD | UPDATED_NEW
-     * TODO: ALL_OLD when condition succeeds
      */
     public static Map<String, Object> executeUpdate(PreparedStatement stmt, String returnValue,
             String returnValuesOnConditionCheckFailure,
@@ -75,9 +74,13 @@ public class DMLUtils {
             }
             return null;
         }
-        // atomic update
-        Pair<Integer, ResultSet> resultPair =
-                stmt.unwrap(PhoenixPreparedStatement.class).executeAtomicUpdateReturnRow();
+        Pair<Integer, ResultSet> resultPair;
+        if (ApiMetadata.ALL_OLD.equals(returnValue) && !isDelete) {
+            resultPair =
+                    stmt.unwrap(PhoenixPreparedStatement.class).executeAtomicUpdateReturnOldRow();
+        } else {
+            resultPair = stmt.unwrap(PhoenixPreparedStatement.class).executeAtomicUpdateReturnRow();
+        }
         int returnStatus = resultPair.getFirst();
         ResultSet rs = resultPair.getSecond();
         RawBsonDocument rawBsonDocument = rs == null ? null :
@@ -95,9 +98,9 @@ public class DMLUtils {
         } else {
             boolean returnValuesInResponse = false;
             if (!isDelete) {
-                // TODO : handle ALL_OLD case
                 // TODO : reject UPDATED_OLD, UPDATED_NEW cases which are not supported
-                if (ApiMetadata.ALL_NEW.equals(returnValue)) {
+                if (ApiMetadata.ALL_NEW.equals(returnValue) || ApiMetadata.ALL_OLD.equals(
+                        returnValue)) {
                     returnValuesInResponse = true;
                 }
             } else if (ApiMetadata.ALL_OLD.equals(returnValue)) {

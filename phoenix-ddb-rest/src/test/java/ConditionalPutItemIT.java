@@ -25,12 +25,14 @@ import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedExce
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.PutItemResponse;
 import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 import software.amazon.awssdk.services.dynamodb.model.ReturnValuesOnConditionCheckFailure;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
+import software.amazon.awssdk.services.dynamodb.model.ReturnValue;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -835,6 +837,220 @@ public class ConditionalPutItemIT {
         } catch (ConditionalCheckFailedException e) {}
 
         */
+    }
+
+    @Test(timeout = 120000)
+    public void conditionalPutWithReturnValuesAllOldConditionTrueTest() throws Exception {
+        final String tableName = testName.getMethodName();
+        CreateTableRequest createTableRequest =
+                DDLTestUtils.getCreateTableRequest(tableName, "attr_0", ScalarAttributeType.S, null,
+                        null);
+        phoenixDBClientV2.createTable(createTableRequest);
+        dynamoDbClient.createTable(createTableRequest);
+
+        Map<String, AttributeValue> item1 = new HashMap<>();
+        item1.put("attr_0", AttributeValue.builder().s("val1").build());
+        item1.put("attr_1", AttributeValue.builder().n("123").build());
+        PutItemRequest item1PutRequest =
+                PutItemRequest.builder().tableName(tableName).item(item1).build();
+        phoenixDBClientV2.putItem(item1PutRequest);
+        dynamoDbClient.putItem(item1PutRequest);
+
+        Map<String, AttributeValue> item2 = new HashMap<>();
+        item2.put("attr_0", AttributeValue.builder().s("val1").build());
+        item2.put("attr_1", AttributeValue.builder().n("999").build());
+
+        PutItemRequest.Builder condPutRequest =
+                PutItemRequest.builder().tableName(tableName).item(item2);
+        condPutRequest.conditionExpression("#1 = :0");
+        condPutRequest.returnValues(ReturnValue.ALL_OLD);
+        condPutRequest.returnValuesOnConditionCheckFailure(
+                ReturnValuesOnConditionCheckFailure.ALL_OLD);
+
+        Map<String, String> exprAttrNames = new HashMap<>();
+        exprAttrNames.put("#1", "attr_1");
+        condPutRequest.expressionAttributeNames(exprAttrNames);
+
+        Map<String, AttributeValue> exprAttrVals = new HashMap<>();
+        exprAttrVals.put(":0", AttributeValue.builder().n("123").build());
+        condPutRequest.expressionAttributeValues(exprAttrVals);
+
+        PutItemResponse dynamoResponse = dynamoDbClient.putItem(condPutRequest.build());
+        PutItemResponse phoenixResponse = phoenixDBClientV2.putItem(condPutRequest.build());
+
+        Assert.assertEquals("Returned items should match between DynamoDB and Phoenix",
+                dynamoResponse.attributes(), phoenixResponse.attributes());
+        Assert.assertEquals("Returned item should be the original item", item1,
+                dynamoResponse.attributes());
+
+        verifyItemUpdated(tableName, "val1", "999");
+
+        condPutRequest = PutItemRequest.builder().tableName(tableName).item(item2);
+        condPutRequest.conditionExpression("#1 = :0");
+        condPutRequest.returnValues(ReturnValue.ALL_OLD);
+        condPutRequest.returnValuesOnConditionCheckFailure(
+                ReturnValuesOnConditionCheckFailure.ALL_OLD);
+
+        exprAttrNames = new HashMap<>();
+        exprAttrNames.put("#1", "attr_1");
+        condPutRequest.expressionAttributeNames(exprAttrNames);
+
+        exprAttrVals = new HashMap<>();
+        exprAttrVals.put(":0", AttributeValue.builder().n("200").build());
+        condPutRequest.expressionAttributeValues(exprAttrVals);
+
+        Map<String, AttributeValue> dynamoExceptionItem = null;
+        try {
+            dynamoDbClient.putItem(condPutRequest.build());
+            Assert.fail("DynamoDB PutItem should throw exception when condition check fails.");
+        } catch (ConditionalCheckFailedException e) {
+            dynamoExceptionItem = e.item();
+        }
+
+        try {
+            phoenixDBClientV2.putItem(condPutRequest.build());
+            Assert.fail("Phoenix PutItem should throw exception when condition check fails.");
+        } catch (ConditionalCheckFailedException e) {
+            Assert.assertEquals("Exception items should match between DynamoDB and Phoenix",
+                    dynamoExceptionItem, e.item());
+        }
+
+        verifyItemNotUpdated(tableName, "val1", "999");
+    }
+
+    @Test(timeout = 120000)
+    public void conditionalPutWithReturnValuesAllOldNewItemTest() throws Exception {
+        final String tableName = testName.getMethodName();
+        CreateTableRequest createTableRequest =
+                DDLTestUtils.getCreateTableRequest(tableName, "attr_0", ScalarAttributeType.S, null,
+                        null);
+        phoenixDBClientV2.createTable(createTableRequest);
+        dynamoDbClient.createTable(createTableRequest);
+
+        Map<String, AttributeValue> item1 = new HashMap<>();
+        item1.put("attr_0", AttributeValue.builder().s("val1").build());
+        item1.put("attr_1", AttributeValue.builder().n("999").build());
+
+        PutItemRequest.Builder condPutRequest =
+                PutItemRequest.builder().tableName(tableName).item(item1);
+        condPutRequest.conditionExpression("attribute_not_exists(attr_0)");
+        condPutRequest.returnValues(ReturnValue.ALL_OLD);
+        condPutRequest.returnValuesOnConditionCheckFailure(
+                ReturnValuesOnConditionCheckFailure.ALL_OLD);
+
+        PutItemResponse dynamoResponse = dynamoDbClient.putItem(condPutRequest.build());
+        PutItemResponse phoenixResponse = phoenixDBClientV2.putItem(condPutRequest.build());
+
+        Assert.assertEquals("Returned items should match between DynamoDB and Phoenix",
+                dynamoResponse.attributes(), phoenixResponse.attributes());
+        Assert.assertTrue("Returned item should be empty for new item",
+                dynamoResponse.attributes().isEmpty());
+
+        verifyItemExists(tableName, "val1", "999");
+    }
+
+    @Test(timeout = 120000)
+    public void conditionalPutWithReturnValuesAllOldComplexConditionTest() throws Exception {
+        // create table [attr_0, attr_1, attr_2]
+        final String tableName = testName.getMethodName();
+        CreateTableRequest createTableRequest =
+                DDLTestUtils.getCreateTableRequest(tableName, "attr_0", ScalarAttributeType.S, null,
+                        null);
+        phoenixDBClientV2.createTable(createTableRequest);
+        dynamoDbClient.createTable(createTableRequest);
+
+        Map<String, AttributeValue> item1 = new HashMap<>();
+        item1.put("attr_0", AttributeValue.builder().s("val1").build());
+        item1.put("attr_1", AttributeValue.builder().n("123").build());
+        item1.put("attr_2", AttributeValue.builder().s("test").build());
+        PutItemRequest item1PutRequest =
+                PutItemRequest.builder().tableName(tableName).item(item1).build();
+        phoenixDBClientV2.putItem(item1PutRequest);
+        dynamoDbClient.putItem(item1PutRequest);
+
+        Map<String, AttributeValue> item2 = new HashMap<>();
+        item2.put("attr_0", AttributeValue.builder().s("val1").build());
+        item2.put("attr_1", AttributeValue.builder().n("456").build());
+        item2.put("attr_2", AttributeValue.builder().s("updated").build());
+
+        PutItemRequest.Builder condPutRequest =
+                PutItemRequest.builder().tableName(tableName).item(item2);
+        condPutRequest.conditionExpression("#1 > :0 AND #2 = :1");
+        condPutRequest.returnValues(ReturnValue.ALL_OLD);
+        condPutRequest.returnValuesOnConditionCheckFailure(
+                ReturnValuesOnConditionCheckFailure.ALL_OLD);
+
+        Map<String, String> exprAttrNames = new HashMap<>();
+        exprAttrNames.put("#1", "attr_1");
+        exprAttrNames.put("#2", "attr_2");
+        condPutRequest.expressionAttributeNames(exprAttrNames);
+
+        Map<String, AttributeValue> exprAttrVals = new HashMap<>();
+        exprAttrVals.put(":0", AttributeValue.builder().n("100").build());
+        exprAttrVals.put(":1", AttributeValue.builder().s("test").build());
+        condPutRequest.expressionAttributeValues(exprAttrVals);
+
+        PutItemResponse dynamoResponse = dynamoDbClient.putItem(condPutRequest.build());
+        PutItemResponse phoenixResponse = phoenixDBClientV2.putItem(condPutRequest.build());
+
+        Assert.assertEquals("Returned items should match between DynamoDB and Phoenix",
+                dynamoResponse.attributes(), phoenixResponse.attributes());
+        Assert.assertEquals("Returned item should be the original item", item1,
+                dynamoResponse.attributes());
+
+        verifyItemUpdated(tableName, "val1", "456");
+    }
+
+    private void verifyItemUpdated(String tableName, String key, String expectedValue)
+            throws SQLException {
+        ScanRequest scanRequest = ScanRequest.builder().tableName(tableName).build();
+        ScanResponse dynamoScanResponse = dynamoDbClient.scan(scanRequest);
+        ScanResponse phoenixScanResponse = phoenixDBClientV2.scan(scanRequest);
+
+        Assert.assertEquals("Scan response item counts should match",
+                dynamoScanResponse.items().size(), phoenixScanResponse.items().size());
+        Assert.assertEquals("Scan response items should match", dynamoScanResponse.items(),
+                phoenixScanResponse.items());
+
+        Assert.assertEquals("Should have exactly one item", 1, dynamoScanResponse.items().size());
+        Map<String, AttributeValue> item = dynamoScanResponse.items().get(0);
+        Assert.assertEquals("Item key should match", key, item.get("attr_0").s());
+        Assert.assertEquals("Item value should be updated", expectedValue, item.get("attr_1").n());
+    }
+
+    private void verifyItemNotUpdated(String tableName, String key, String expectedValue)
+            throws SQLException {
+        ScanRequest scanRequest = ScanRequest.builder().tableName(tableName).build();
+        ScanResponse dynamoScanResponse = dynamoDbClient.scan(scanRequest);
+        ScanResponse phoenixScanResponse = phoenixDBClientV2.scan(scanRequest);
+
+        Assert.assertEquals("Scan response item counts should match",
+                dynamoScanResponse.items().size(), phoenixScanResponse.items().size());
+        Assert.assertEquals("Scan response items should match", dynamoScanResponse.items(),
+                phoenixScanResponse.items());
+
+        Assert.assertEquals("Should have exactly one item", 1, dynamoScanResponse.items().size());
+        Map<String, AttributeValue> item = dynamoScanResponse.items().get(0);
+        Assert.assertEquals("Item key should match", key, item.get("attr_0").s());
+        Assert.assertEquals("Item value should NOT be updated", expectedValue,
+                item.get("attr_1").n());
+    }
+
+    private void verifyItemExists(String tableName, String key, String expectedValue)
+            throws SQLException {
+        ScanRequest scanRequest = ScanRequest.builder().tableName(tableName).build();
+        ScanResponse dynamoScanResponse = dynamoDbClient.scan(scanRequest);
+        ScanResponse phoenixScanResponse = phoenixDBClientV2.scan(scanRequest);
+
+        Assert.assertEquals("Scan response item counts should match",
+                dynamoScanResponse.items().size(), phoenixScanResponse.items().size());
+        Assert.assertEquals("Scan response items should match", dynamoScanResponse.items(),
+                phoenixScanResponse.items());
+
+        Assert.assertEquals("Should have exactly one item", 1, dynamoScanResponse.items().size());
+        Map<String, AttributeValue> item = dynamoScanResponse.items().get(0);
+        Assert.assertEquals("Item key should match", key, item.get("attr_0").s());
+        Assert.assertEquals("Item value should match", expectedValue, item.get("attr_1").n());
     }
 
 }

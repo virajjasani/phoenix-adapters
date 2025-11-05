@@ -412,6 +412,8 @@ public class Misc1Util {
 
         TestUtils.compareAllStreamRecords(leaseTableName, dynamoDbStreamsClient,
                 phoenixDBStreamsClientV2);
+        TestUtils.compareAllStreamRecords(objectsTableName, dynamoDbStreamsClient,
+                phoenixDBStreamsClientV2);
 
         DeleteTableRequest deleteLeaseTable =
                 DeleteTableRequest.builder().tableName(leaseTableName).build();

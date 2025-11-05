@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
+import software.amazon.awssdk.services.dynamodb.model.ReturnValue;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemResponse;
 
@@ -53,6 +54,36 @@ public class UpdateItemIT extends UpdateItemBaseTests {
         exprAttrVal.put(":condVal", AttributeValue.builder().s("Alice").build());
         uir.expressionAttributeValues(exprAttrVal);
         uir.returnValues(ALL_NEW);
+        UpdateItemResponse dynamoResult = dynamoDbClient.updateItem(uir.build());
+        UpdateItemResponse phoenixResult = phoenixDBClientV2.updateItem(uir.build());
+        Assert.assertEquals(dynamoResult.attributes(), phoenixResult.attributes());
+        validateItem(tableName, key);
+    }
+
+    @Test(timeout = 120000)
+    public void testConditionalCheckWithOldItemSuccess() {
+        final String tableName = "._404-" + isSortKeyPresent + "DR12_--FT-Crystal_Echo__";
+        createTableAndPutItem(tableName);
+
+        Map<String, AttributeValue> key = getKey();
+        UpdateItemRequest.Builder uir = UpdateItemRequest.builder().tableName(tableName).key(key);
+        uir.updateExpression("SET #1 = :v1, #2 = #2 + :v2, #3 = #3 - :v3");
+        uir.conditionExpression("#4.#5[0].#6 = :condVal");
+        Map<String, String> exprAttrNames = new HashMap<>();
+        exprAttrNames.put("#1", "COL2");
+        exprAttrNames.put("#2", "COL1");
+        exprAttrNames.put("#3", "COL4");
+        exprAttrNames.put("#4", "Reviews");
+        exprAttrNames.put("#5", "FiveStar");
+        exprAttrNames.put("#6", "reviewer");
+        uir.expressionAttributeNames(exprAttrNames);
+        Map<String, AttributeValue> exprAttrVal = new HashMap<>();
+        exprAttrVal.put(":v1", AttributeValue.builder().s("TiTlE2").build());
+        exprAttrVal.put(":v2", AttributeValue.builder().n("3.2").build());
+        exprAttrVal.put(":v3", AttributeValue.builder().n("89.34").build());
+        exprAttrVal.put(":condVal", AttributeValue.builder().s("Alice").build());
+        uir.expressionAttributeValues(exprAttrVal);
+        uir.returnValues(ReturnValue.ALL_OLD);
         UpdateItemResponse dynamoResult = dynamoDbClient.updateItem(uir.build());
         UpdateItemResponse phoenixResult = phoenixDBClientV2.updateItem(uir.build());
         Assert.assertEquals(dynamoResult.attributes(), phoenixResult.attributes());
