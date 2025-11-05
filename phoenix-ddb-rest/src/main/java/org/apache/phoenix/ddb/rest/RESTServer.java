@@ -251,6 +251,7 @@ public class RESTServer {
 
     private void validateConnection() throws SQLException {
         String jdbcUrl = PhoenixUtils.URL_ZK_PREFIX + conf.get(Constants.PHOENIX_DDB_ZK_QUORUM);
+        LOG.info("Try connecting to SYSTEM.CATALOG using JDBC connection url: {}", jdbcUrl);
         try (Connection connection = DriverManager.getConnection(jdbcUrl)) {
             ResultSet resultSet = connection.createStatement()
                     .executeQuery("SELECT * FROM SYSTEM.CATALOG LIMIT 1");

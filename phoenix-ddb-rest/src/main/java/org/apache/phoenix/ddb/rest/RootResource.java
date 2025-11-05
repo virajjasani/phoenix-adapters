@@ -86,7 +86,6 @@ public class RootResource {
         servlet = RESTServlet.getInstance();
         Configuration conf = servlet.getConfiguration();
         jdbcConnectionUrl = PhoenixUtils.URL_ZK_PREFIX + conf.get(Constants.PHOENIX_DDB_ZK_QUORUM);
-        LOG.info("JDBC connection url: {}", jdbcConnectionUrl);
     }
 
     @POST
@@ -206,8 +205,13 @@ public class RootResource {
             response.cacheControl(cacheControl);
             return response.build();
         } catch (Exception e) {
-            LOG.error("Error... Content Type: {}, api: {}, Request: {} ", contentType, api,
-                    request, e);
+            if (!isTableNotFoundError(e)) {
+                LOG.error("Error... Content Type: {}, api: {}, Request: {} ", contentType, api,
+                        request, e);
+            } else {
+                LOG.info("Table not found... Content Type: {}, api: {}, Request: {}, Error: {} ",
+                        contentType, api, request, e.getCause().getMessage());
+            }
             // TODO : metrics for error response
             switch (api) {
                 case "DynamoDB_20120810.CreateTable": {
@@ -239,11 +243,15 @@ public class RootResource {
                 default: {
                 }
             }
-            if (e.getCause() != null && e.getCause() instanceof TableNotFoundException) {
+            if (isTableNotFoundError(e)) {
                 return getResponseForTableNotFoundFailure();
             }
             throw e;
         }
+    }
+
+    private static boolean isTableNotFoundError(Exception e) {
+        return e.getCause() != null && e.getCause() instanceof TableNotFoundException;
     }
 
     private static Response getResponseForTableNotFoundFailure() {
