@@ -75,6 +75,7 @@ public class ApiMetadata {
     public static final String RETURN_VALUES = "ReturnValues";
     public static final String RETURN_VALUES_ON_CONDITION_CHECK_FAILURE = "ReturnValuesOnConditionCheckFailure";
     public static final String UPDATE_EXPRESSION = "UpdateExpression";
+    public static final String ATTRIBUTE_UPDATES = "AttributeUpdates";
     public static final String ATTRIBUTES = "Attributes";
     public static final String ALL_OLD = "ALL_OLD";
     public static final String ALL_NEW = "ALL_NEW";
@@ -154,7 +155,7 @@ public class ApiMetadata {
     public static final List<String> PUT_LEGACY_PARAMS
             = Arrays.asList("ConditionalOperator", "Expected");
     public static final List<String> UPDATE_LEGACY_PARAMS
-            = Arrays.asList("AttributeUpdates", "ConditionalOperator", "Expected");
+            = Arrays.asList("ConditionalOperator", "Expected");
     public static final List<String> QUERY_LEGACY_PARAMS
             = Arrays.asList("AttributesToGet", "ConditionalOperator", "KeyConditions", "QueryFilter");
     public static final List<String> SCAN_LEGACY_PARAMS

@@ -30,6 +30,7 @@ import org.apache.phoenix.schema.types.PVarbinaryEncoded;
 import org.apache.phoenix.schema.types.PVarchar;
 
 import org.bson.BsonDocument;
+import org.bson.BsonNull;
 import org.bson.BsonString;
 
 import java.util.Map;
@@ -157,5 +158,79 @@ public class CommonServiceUtils {
         consumedCapacity.put(ApiMetadata.CAPACITY_UNITS, 2.0);
 
         return consumedCapacity;
+    }
+
+    /**
+     * Convert AttributeUpdates (legacy parameter) to BsonDocument format
+     * that BSON_UPDATE_EXPRESSION() understands. This method directly converts
+     * AttributeUpdates to the internal BSON format without the intermediate
+     * UpdateExpression string conversion.
+     *
+     * @param attributeUpdates The AttributeUpdates map from the request
+     * @return BsonDocument equivalent to the AttributeUpdates
+     */
+    public static BsonDocument getBsonUpdateExpressionFromAttributeUpdates(
+            Map<String, Object> attributeUpdates) {
+
+        if (attributeUpdates == null || attributeUpdates.isEmpty()) {
+            return new BsonDocument();
+        }
+
+        BsonDocument bsonDocument = new BsonDocument();
+        BsonDocument setDoc = new BsonDocument();
+        BsonDocument addDoc = new BsonDocument();
+        BsonDocument deleteDoc = new BsonDocument();
+        BsonDocument removeDoc = new BsonDocument();
+
+        for (Map.Entry<String, Object> entry : attributeUpdates.entrySet()) {
+            String attributeName = entry.getKey();
+            Map<String, Object> attributeUpdate = (Map<String, Object>) entry.getValue();
+
+            String action = (String) attributeUpdate.get("Action");
+            Map<String, Object> value = (Map<String, Object>) attributeUpdate.get("Value");
+            // Default action is PUT if not specified
+            if (action == null) {
+                action = "PUT";
+            }
+            switch (action.toUpperCase()) {
+                case "PUT":
+                    if (value != null) {
+                        setDoc.put(attributeName, MapToBsonDocument.getValueFromMapVal(value));
+                    }
+                    break;
+
+                case "ADD":
+                    if (value != null) {
+                        addDoc.put(attributeName, MapToBsonDocument.getValueFromMapVal(value));
+                    }
+                    break;
+
+                case "DELETE":
+                    if (value != null) {
+                        deleteDoc.put(attributeName, MapToBsonDocument.getValueFromMapVal(value));
+                    } else {
+                        removeDoc.put(attributeName, new BsonNull());
+                    }
+                    break;
+
+                default:
+                    throw new RuntimeException(
+                            "Invalid action: " + action + ". Valid actions are PUT, ADD, DELETE.");
+            }
+        }
+
+        if (!setDoc.isEmpty()) {
+            bsonDocument.put("$SET", setDoc);
+        }
+        if (!addDoc.isEmpty()) {
+            bsonDocument.put("$ADD", addDoc);
+        }
+        if (!deleteDoc.isEmpty()) {
+            bsonDocument.put("$DELETE_FROM_SET", deleteDoc);
+        }
+        if (!removeDoc.isEmpty()) {
+            bsonDocument.put("$UNSET", removeDoc);
+        }
+        return bsonDocument;
     }
 }

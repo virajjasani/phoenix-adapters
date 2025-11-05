@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.phoenix.ddb.service.utils.ValidationUtil;
+import org.apache.phoenix.ddb.service.exceptions.ValidationException;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.bson.BsonDocument;
 import org.slf4j.Logger;
@@ -81,8 +82,18 @@ public class UpdateItemService {
                 (Map<String, String>) request.get(ApiMetadata.EXPRESSION_ATTRIBUTE_NAMES);
         Map<String, Object> exprAttrVals =
                 (Map<String, Object>) request.get(ApiMetadata.EXPRESSION_ATTRIBUTE_VALUES);
-        BsonDocument updateExpr = CommonServiceUtils.getBsonUpdateExpressionFromMap(
-                (String) request.get(ApiMetadata.UPDATE_EXPRESSION), exprAttrNames, exprAttrVals);
+
+        String updateExpression = (String) request.get(ApiMetadata.UPDATE_EXPRESSION);
+        Map<String, Object> attributeUpdates =
+                (Map<String, Object>) request.get(ApiMetadata.ATTRIBUTE_UPDATES);
+        BsonDocument updateExpr;
+        if (updateExpression != null) {
+            updateExpr = CommonServiceUtils.getBsonUpdateExpressionFromMap(updateExpression,
+                    exprAttrNames, exprAttrVals);
+        } else {
+            updateExpr = CommonServiceUtils.getBsonUpdateExpressionFromAttributeUpdates(
+                    attributeUpdates);
+        }
         if (!StringUtils.isEmpty(condExpr)) {
             String bsonCondExpr =
                     CommonServiceUtils.getBsonConditionExpressionFromMap(condExpr, exprAttrNames,

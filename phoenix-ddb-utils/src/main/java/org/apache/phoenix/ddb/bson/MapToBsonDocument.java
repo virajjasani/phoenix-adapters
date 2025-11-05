@@ -27,7 +27,7 @@ public final class MapToBsonDocument {
                 (key, value) -> document.put(key, getValueFromMapVal((Map<String, Object>) value)));
     }
 
-    private static BsonValue getValueFromMapVal(Map<String, Object> mapValue) {
+    public static BsonValue getValueFromMapVal(Map<String, Object> mapValue) {
         if (mapValue.size() != 1) {
             throw new IllegalArgumentException(
                     "Map size should be 1 for each key-value pair of " + "datatype");

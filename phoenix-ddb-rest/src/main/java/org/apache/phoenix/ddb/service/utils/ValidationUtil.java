@@ -1,6 +1,7 @@
 package org.apache.phoenix.ddb.service.utils;
 
 import org.apache.phoenix.ddb.service.exceptions.ValidationException;
+import org.apache.phoenix.ddb.utils.ApiMetadata;
 
 import java.util.List;
 import java.util.Map;
@@ -23,6 +24,13 @@ public class ValidationUtil {
 
     public static void validateUpdateItemRequest(Map<String, Object> request) {
         validateLegacyParams(request, UPDATE_LEGACY_PARAMS);
+        String updateExpression = (String) request.get(ApiMetadata.UPDATE_EXPRESSION);
+        Map<String, Object> attributeUpdates =
+                (Map<String, Object>) request.get(ApiMetadata.ATTRIBUTE_UPDATES);
+        if (updateExpression != null && attributeUpdates != null) {
+            throw new ValidationException(
+                    "Cannot specify both UpdateExpression and AttributeUpdates");
+        }
     }
 
     public static void validateDeleteItemRequest(Map<String, Object> request) {

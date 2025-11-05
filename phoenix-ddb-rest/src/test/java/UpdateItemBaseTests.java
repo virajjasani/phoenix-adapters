@@ -17,8 +17,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.model.AttributeAction;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValueUpdate;
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
+import software.amazon.awssdk.services.dynamodb.model.DynamoDbException;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
@@ -381,6 +384,199 @@ public class UpdateItemBaseTests {
         fiveStarMap.put("FiveStar", AttributeValue.builder().l(AttributeValue.builder().m(reviewMap1).build()).build());
         item.put("Reviews", AttributeValue.builder().m(fiveStarMap).build());
         return item;
+    }
+
+    /**
+     * Test AttributeUpdates legacy parameter support with various data types.
+     * This tests that the legacy AttributeUpdates parameter works equivalently to UpdateExpression
+     * with comprehensive coverage of different data types and actions.
+     */
+    @Test(timeout = 120000)
+    public void testAttributeUpdates() {
+        final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
+        createTableAndPutItem(tableName);
+
+        // Create update request using legacy AttributeUpdates parameter
+        Map<String, AttributeValue> key = getKey();
+        
+        // Build AttributeUpdates map with various data types and actions
+        Map<String, AttributeValueUpdate> attributeUpdates = new HashMap<>();
+        
+        // PUT action with String (equivalent to SET)
+        attributeUpdates.put("COL2", AttributeValueUpdate.builder()
+                .action(AttributeAction.PUT)
+                .value(AttributeValue.builder().s("UpdatedTitle").build())
+                .build());
+        
+        // PUT action with Number
+        attributeUpdates.put("NewNumberField", AttributeValueUpdate.builder()
+                .action(AttributeAction.PUT)
+                .value(AttributeValue.builder().n("42.5").build())
+                .build());
+        
+        // PUT action with Boolean
+        attributeUpdates.put("NewBooleanField", AttributeValueUpdate.builder()
+                .action(AttributeAction.PUT)
+                .value(AttributeValue.builder().bool(true).build())
+                .build());
+        
+        // PUT action with Binary
+        attributeUpdates.put("NewBinaryField", AttributeValueUpdate.builder()
+                .action(AttributeAction.PUT)
+                .value(AttributeValue.builder().b(SdkBytes.fromByteArray(new byte[]{1, 2, 3})).build())
+                .build());
+        
+        // PUT action with String Set
+        attributeUpdates.put("NewStringSet", AttributeValueUpdate.builder()
+                .action(AttributeAction.PUT)
+                .value(AttributeValue.builder().ss("value1", "value2", "value3").build())
+                .build());
+        
+        // PUT action with Number Set
+        attributeUpdates.put("NewNumberSet", AttributeValueUpdate.builder()
+                .action(AttributeAction.PUT)
+                .value(AttributeValue.builder().ns("1", "2", "3").build())
+                .build());
+        
+        // PUT action with Map (nested object)
+        Map<String, AttributeValue> nestedMap = new HashMap<>();
+        nestedMap.put("nestedString", AttributeValue.builder().s("nested value").build());
+        nestedMap.put("nestedNumber", AttributeValue.builder().n("100").build());
+        attributeUpdates.put("NewMapField", AttributeValueUpdate.builder()
+                .action(AttributeAction.PUT)
+                .value(AttributeValue.builder().m(nestedMap).build())
+                .build());
+        
+        // PUT action with List
+        attributeUpdates.put("NewListField", AttributeValueUpdate.builder()
+                .action(AttributeAction.PUT)
+                .value(AttributeValue.builder().l(
+                        AttributeValue.builder().s("item1").build(),
+                        AttributeValue.builder().n("42").build(),
+                        AttributeValue.builder().bool(false).build()
+                ).build())
+                .build());
+        
+        // ADD action with Number
+        attributeUpdates.put("COL1", AttributeValueUpdate.builder()
+                .action(AttributeAction.ADD)
+                .value(AttributeValue.builder().n("5.5").build())
+                .build());
+        
+        // ADD action with String Set (should add to existing set)
+        attributeUpdates.put("AddToStringSet", AttributeValueUpdate.builder()
+                .action(AttributeAction.ADD)
+                .value(AttributeValue.builder().ss("newValue1", "newValue2").build())
+                .build());
+        
+        // ADD action with Number Set
+        attributeUpdates.put("AddToNumberSet", AttributeValueUpdate.builder()
+                .action(AttributeAction.ADD)
+                .value(AttributeValue.builder().ns("10", "20").build())
+                .build());
+        
+        // DELETE action without value (remove entire attribute)
+        attributeUpdates.put("COL4", AttributeValueUpdate.builder()
+                .action(AttributeAction.DELETE)
+                .build());
+        
+        // DELETE action with String Set value (remove specific values from set)
+        attributeUpdates.put("DeleteFromStringSet", AttributeValueUpdate.builder()
+                .action(AttributeAction.DELETE)
+                .value(AttributeValue.builder().ss("removeMe").build())
+                .build());
+
+        UpdateItemRequest updateRequest = UpdateItemRequest.builder()
+                .tableName(tableName)
+                .key(key)
+                .attributeUpdates(attributeUpdates)
+                .build();
+
+        // Execute update with AttributeUpdates on both DynamoDB and Phoenix
+        dynamoDbClient.updateItem(updateRequest);
+        phoenixDBClientV2.updateItem(updateRequest);
+
+        // Validate that both produce the same result
+        validateItem(tableName, key);
+    }
+    
+    /**
+     * Test AttributeUpdates with default PUT action (when Action is not specified).
+     */
+    @Test(timeout = 120000)
+    public void testAttributeUpdatesDefaultAction() {
+        final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
+        createTableAndPutItem(tableName);
+
+        Map<String, AttributeValue> key = getKey();
+        
+        // Build AttributeUpdates without specifying Action (should default to PUT)
+        Map<String, AttributeValueUpdate> attributeUpdates = new HashMap<>();
+        
+        attributeUpdates.put("DefaultActionField", AttributeValueUpdate.builder()
+                // No action specified - should default to PUT
+                .value(AttributeValue.builder().s("DefaultPutValue").build())
+                .build());
+        
+        attributeUpdates.put("COL2", AttributeValueUpdate.builder()
+                // No action specified - should default to PUT
+                .value(AttributeValue.builder().s("OverwrittenTitle").build())
+                .build());
+
+        UpdateItemRequest updateRequest = UpdateItemRequest.builder()
+                .tableName(tableName)
+                .key(key)
+                .attributeUpdates(attributeUpdates)
+                .build();
+
+        dynamoDbClient.updateItem(updateRequest);
+        phoenixDBClientV2.updateItem(updateRequest);
+
+        validateItem(tableName, key);
+    }
+    
+    /**
+     * Test AttributeUpdates validation - should reject when both UpdateExpression and AttributeUpdates are provided.
+     */
+    @Test(timeout = 120000)
+    public void testAttributeUpdatesValidation() {
+        final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "");
+        createTableAndPutItem(tableName);
+
+        Map<String, AttributeValue> key = getKey();
+        
+        Map<String, AttributeValueUpdate> attributeUpdates = new HashMap<>();
+        attributeUpdates.put("test", AttributeValueUpdate.builder()
+                .action(AttributeAction.PUT)
+                .value(AttributeValue.builder().s("value").build())
+                .build());
+
+        // This should fail - cannot specify both UpdateExpression and AttributeUpdates
+        Map<String, AttributeValue> exprAttrValues = new HashMap<>();
+        exprAttrValues.put(":val", AttributeValue.builder().s("value").build());
+        
+        UpdateItemRequest invalidRequest = UpdateItemRequest.builder()
+                .tableName(tableName)
+                .key(key)
+                .updateExpression("SET testField = :val")
+                .expressionAttributeValues(exprAttrValues)
+                .attributeUpdates(attributeUpdates)
+                .build();
+
+        // Should throw ValidationException for both DynamoDB and Phoenix
+        try {
+            dynamoDbClient.updateItem(invalidRequest);
+            Assert.fail("Expected ValidationException for DynamoDB");
+        } catch (DynamoDbException e) {
+            Assert.assertEquals(400, e.statusCode());
+        }
+        
+        try {
+            phoenixDBClientV2.updateItem(invalidRequest);
+            Assert.fail("Expected ValidationException for Phoenix");
+        } catch (DynamoDbException e) {
+            Assert.assertEquals(400, e.statusCode());
+        }
     }
 
     protected Map<String, AttributeValue> getKey() {
