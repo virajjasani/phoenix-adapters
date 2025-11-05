@@ -72,6 +72,8 @@ public class ApiMetadata {
     public static final String ITEM = "Item";
     public static final String KEY = "Key";
     public static final String CONDITION_EXPRESSION = "ConditionExpression";
+    public static final String EXPECTED = "Expected";
+    public static final String CONDITIONAL_OPERATOR = "ConditionalOperator";
     public static final String RETURN_VALUES = "ReturnValues";
     public static final String RETURN_VALUES_ON_CONDITION_CHECK_FAILURE = "ReturnValuesOnConditionCheckFailure";
     public static final String UPDATE_EXPRESSION = "UpdateExpression";
@@ -151,11 +153,11 @@ public class ApiMetadata {
     public static final String GET_SHARD_ITERATOR = "GetShardIterator";
     public static final String GET_RECORDS = "GetRecords";
 
-    // Legacy parameters
+    // Legacy parameters (parameters that are not yet supported)
     public static final List<String> PUT_LEGACY_PARAMS
-            = Arrays.asList("ConditionalOperator", "Expected");
+            = Arrays.asList();
     public static final List<String> UPDATE_LEGACY_PARAMS
-            = Arrays.asList("ConditionalOperator", "Expected");
+            = Arrays.asList();
     public static final List<String> QUERY_LEGACY_PARAMS
             = Arrays.asList("AttributesToGet", "ConditionalOperator", "KeyConditions", "QueryFilter");
     public static final List<String> SCAN_LEGACY_PARAMS
@@ -163,7 +165,7 @@ public class ApiMetadata {
     public static final List<String> GET_LEGACY_PARAMS
             = Arrays.asList("AttributesToGet");
     public static final List<String> DELETE_LEGACY_PARAMS
-            = Arrays.asList("ConditionalOperator", "Expected");
+            = Arrays.asList();
 
     // 1 MB response size max limit
     public static final int MAX_BYTES_SIZE = 1024 * 1024;

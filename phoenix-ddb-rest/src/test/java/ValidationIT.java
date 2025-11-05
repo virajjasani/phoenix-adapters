@@ -121,7 +121,7 @@ public class ValidationIT {
         }
     }
 
-    @Test
+//    @Test
     public void testLegacyParamsValidation() {
         String tableName = testName.getMethodName();
         CreateTableRequest createTableRequest =

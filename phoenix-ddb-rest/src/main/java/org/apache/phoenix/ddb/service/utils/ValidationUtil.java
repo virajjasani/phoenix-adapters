@@ -31,6 +31,11 @@ public class ValidationUtil {
             throw new ValidationException(
                     "Cannot specify both UpdateExpression and AttributeUpdates");
         }
+        String conditionExpression = (String) request.get(ApiMetadata.CONDITION_EXPRESSION);
+        Map<String, Object> expected = (Map<String, Object>) request.get(ApiMetadata.EXPECTED);
+        if (conditionExpression != null && expected != null) {
+            throw new ValidationException("Cannot specify both ConditionExpression and Expected");
+        }
     }
 
     public static void validateDeleteItemRequest(Map<String, Object> request) {

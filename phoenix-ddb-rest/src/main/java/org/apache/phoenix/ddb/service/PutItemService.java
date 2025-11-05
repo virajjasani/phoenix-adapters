@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -99,6 +100,23 @@ public class PutItemService {
                 (Map<String, String>) request.get(ApiMetadata.EXPRESSION_ATTRIBUTE_NAMES);
         Map<String, Object> exprAttrVals =
                 (Map<String, Object>) request.get(ApiMetadata.EXPRESSION_ATTRIBUTE_VALUES);
+
+        // Handle legacy Expected parameter conversion to ConditionExpression
+        Map<String, Object> expected = (Map<String, Object>) request.get(ApiMetadata.EXPECTED);
+        String conditionalOperator = (String) request.get(ApiMetadata.CONDITIONAL_OPERATOR);
+        if (condExpr == null && expected != null) {
+            // Initialize maps if they don't exist (for Expected conversion)
+            if (exprAttrNames == null) {
+                exprAttrNames = new HashMap<>();
+            }
+            if (exprAttrVals == null) {
+                exprAttrVals = new HashMap<>();
+            }
+            // Convert Expected to ConditionExpression
+            condExpr = CommonServiceUtils.convertExpectedToConditionExpression(expected,
+                    conditionalOperator, exprAttrNames, exprAttrVals);
+        }
+        
         if (!StringUtils.isEmpty(condExpr)) {
             conditionDoc =
                     CommonServiceUtils.getBsonConditionExpressionDoc(condExpr, exprAttrNames,

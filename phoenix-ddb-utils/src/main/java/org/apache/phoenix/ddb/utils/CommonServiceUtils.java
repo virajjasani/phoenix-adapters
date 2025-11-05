@@ -35,6 +35,8 @@ import org.bson.BsonString;
 
 import java.util.Map;
 import java.util.HashMap;
+import java.util.List;
+import java.util.ArrayList;
 
 /**
  * Common utilities to be used by phoenixDBClientV2 APIs.
@@ -236,5 +238,219 @@ public class CommonServiceUtils {
             bsonDocument.put("$UNSET", removeDoc);
         }
         return bsonDocument;
+    }
+
+    /**
+     * Convert legacy Expected and ConditionalOperator parameters to modern ConditionExpression.
+     * This method supports the legacy DynamoDB conditional parameters and converts them to
+     * the equivalent ConditionExpression format for internal processing.
+     *
+     * @param expected            The Expected map from the request (attribute conditions)
+     * @param conditionalOperator The ConditionalOperator ("AND" or "OR", defaults to "AND")
+     * @param exprAttrNames       Output map for expression attribute names (will be populated)
+     * @param exprAttrValues      Output map for expression attribute values (will be populated)
+     * @return ConditionExpression string equivalent to the Expected conditions
+     */
+    public static String convertExpectedToConditionExpression(Map<String, Object> expected,
+            String conditionalOperator, Map<String, String> exprAttrNames,
+            Map<String, Object> exprAttrValues) {
+
+        if (expected == null || expected.isEmpty()) {
+            return null;
+        }
+
+        List<String> conditions = new ArrayList<>();
+        int nameCounter = 1;
+        int valueCounter = 1;
+
+        for (Map.Entry<String, Object> entry : expected.entrySet()) {
+            String attributeName = entry.getKey();
+            Map<String, Object> expectedValue = (Map<String, Object>) entry.getValue();
+
+            // Generate expression attribute name
+            String nameAlias = "#n" + nameCounter++;
+            exprAttrNames.put(nameAlias, attributeName);
+
+            // Parse the expected value structure
+            List<Object> attributeValueList =
+                    (List<Object>) expectedValue.get("AttributeValueList");
+            String comparisonOperator = (String) expectedValue.get("ComparisonOperator");
+            Map<String, Object> value = (Map<String, Object>) expectedValue.get("Value");
+            Boolean exists = (Boolean) expectedValue.get("Exists");
+
+            // Handle the case where ComparisonOperator is NOT_NULL or NULL (for exists checks)
+            if ("NOT_NULL".equals(comparisonOperator) || "NULL".equals(comparisonOperator)) {
+                exists = "NOT_NULL".equals(comparisonOperator);
+                value = null; // Clear value for exists checks
+            }
+
+            String condition =
+                    buildConditionForAttribute(nameAlias, attributeValueList, comparisonOperator,
+                            value, exists, exprAttrValues, valueCounter);
+
+            if (condition != null) {
+                conditions.add(condition);
+                // Update valueCounter based on how many values were used
+                valueCounter +=
+                        getValueCountUsed(comparisonOperator, attributeValueList, value, exists);
+            }
+        }
+
+        if (conditions.isEmpty()) {
+            return null;
+        }
+
+        String operator = "OR".equalsIgnoreCase(conditionalOperator) ? " OR " : " AND ";
+
+        return "(" + String.join(operator, conditions) + ")";
+    }
+
+    private static String buildConditionForAttribute(String nameAlias,
+            List<Object> attributeValueList, String comparisonOperator, Map<String, Object> value,
+            Boolean exists, Map<String, Object> exprAttrValues, int valueCounter) {
+
+        // Handle EXISTS/NOT_EXISTS conditions
+        if (exists != null) {
+            if (exists) {
+                // exists(true) with value means: attribute exists AND equals the value
+                if (value != null) {
+                    String valueAlias = ":v" + valueCounter;
+                    exprAttrValues.put(valueAlias, value);
+                    return "(" + nameAlias + " = " + valueAlias + ")";
+                } else {
+                    // exists(true) without value means: attribute just needs to exist
+                    return "attribute_exists(" + nameAlias + ")";
+                }
+            } else {
+                // exists(false) always means attribute should not exist (value is ignored)
+                return "attribute_not_exists(" + nameAlias + ")";
+            }
+        }
+
+        // Handle Value-based conditions (legacy single value format)
+        if (value != null) {
+            String valueAlias = ":v" + valueCounter;
+            exprAttrValues.put(valueAlias, value);
+
+            // Default comparison operator is EQ if not specified
+            if (comparisonOperator == null) {
+                comparisonOperator = "EQ";
+            }
+
+            return buildComparisonCondition(nameAlias, comparisonOperator, valueAlias, null);
+        }
+
+        // Handle AttributeValueList-based conditions (can have multiple values)
+        if (attributeValueList != null && comparisonOperator != null) {
+            return buildAttributeValueListCondition(nameAlias, comparisonOperator,
+                    attributeValueList, exprAttrValues, valueCounter);
+        }
+
+        return null;
+    }
+
+    private static String buildComparisonCondition(String nameAlias, String comparisonOperator,
+            String valueAlias1, String valueAlias2) {
+
+        switch (comparisonOperator.toUpperCase()) {
+            case "EQ":
+                return nameAlias + " = " + valueAlias1;
+            case "NE":
+                return nameAlias + " <> " + valueAlias1;
+            case "LT":
+                return nameAlias + " < " + valueAlias1;
+            case "LE":
+                return nameAlias + " <= " + valueAlias1;
+            case "GT":
+                return nameAlias + " > " + valueAlias1;
+            case "GE":
+                return nameAlias + " >= " + valueAlias1;
+            case "BETWEEN":
+                return nameAlias + " BETWEEN " + valueAlias1 + " AND " + valueAlias2;
+            case "IN":
+                return nameAlias + " IN (" + valueAlias1 + ")";
+            case "BEGINS_WITH":
+                return "begins_with(" + nameAlias + ", " + valueAlias1 + ")";
+            case "CONTAINS":
+                return "contains(" + nameAlias + ", " + valueAlias1 + ")";
+            case "NOT_CONTAINS":
+                return "NOT contains(" + nameAlias + ", " + valueAlias1 + ")";
+            case "NULL":
+                return "attribute_not_exists(" + nameAlias + ")";
+            case "NOT_NULL":
+                return "attribute_exists(" + nameAlias + ")";
+            default:
+                throw new RuntimeException(
+                        "Unsupported comparison operator: " + comparisonOperator);
+        }
+    }
+
+    private static String buildAttributeValueListCondition(String nameAlias,
+            String comparisonOperator, List<Object> attributeValueList,
+            Map<String, Object> exprAttrValues, int valueCounter) {
+
+        switch (comparisonOperator.toUpperCase()) {
+            case "IN": {
+                // IN operator with multiple values
+                List<String> valueAliases = new ArrayList<>();
+                int counter = valueCounter;
+                for (Object value : attributeValueList) {
+                    String valueAlias = ":v" + counter++;
+                    exprAttrValues.put(valueAlias, value);
+                    valueAliases.add(valueAlias);
+                }
+                return nameAlias + " IN (" + String.join(", ", valueAliases) + ")";
+            }
+
+            case "BETWEEN": {
+                // BETWEEN requires exactly 2 values
+                if (attributeValueList.size() != 2) {
+                    throw new RuntimeException("BETWEEN operator requires exactly 2 values");
+                }
+                List<String> betweenValues = new ArrayList<>();
+                int betweenCounter = valueCounter;
+                for (Object value : attributeValueList) {
+                    String valueAlias = ":v" + betweenCounter++;
+                    exprAttrValues.put(valueAlias, value);
+                    betweenValues.add(valueAlias);
+                }
+                return nameAlias + " BETWEEN " + betweenValues.get(0) + " AND " + betweenValues.get(
+                        1);
+            }
+
+            default: {
+                // For other operators, use the first value
+                String valueAlias = ":v" + valueCounter;
+                Object firstValue = attributeValueList.get(0);
+                exprAttrValues.put(valueAlias, firstValue);
+                return buildComparisonCondition(nameAlias, comparisonOperator, valueAlias, null);
+            }
+        }
+    }
+
+    private static int getValueCountUsed(String comparisonOperator, List<Object> attributeValueList,
+            Map<String, Object> value, Boolean exists) {
+        // exists(true) with value consumes one value counter
+        if (exists != null && exists && value != null) {
+            return 1;
+        }
+        // exists(false) or exists(true) without value doesn't consume value counter
+        if (exists != null) {
+            return 0;
+        }
+        if (value != null) {
+            return 1;
+        }
+        if (attributeValueList != null) {
+            switch (comparisonOperator != null ? comparisonOperator.toUpperCase() : "EQ") {
+                case "IN":
+                    return attributeValueList.size();
+                case "BETWEEN":
+                    return 2;
+                default:
+                    return 1;
+            }
+        }
+        return 0;
     }
 }
