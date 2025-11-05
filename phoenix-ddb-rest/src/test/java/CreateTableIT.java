@@ -169,8 +169,8 @@ public class CreateTableIT {
         TableDescription tableDescription2 = CreateTableResponse2.tableDescription();
         DDLTestUtils.assertTableDescriptions(tableDescription1, tableDescription2);
         validateTableProps(tableName);
-        validateIndexProps("IDX1_" + tableName);
-        validateIndexProps("IDX2_" + tableName);
+        validateTableProps("IDX1_" + tableName);
+        validateTableProps("IDX2_" + tableName);
     }
 
     @Test(timeout = 120000)
@@ -329,17 +329,6 @@ public class CreateTableIT {
             Assert.assertFalse(td.isMergeEnabled());
             Assert.assertEquals(97200,
                     Integer.parseInt(td.getValue("phoenix.max.lookback.age.seconds")));
-            Assert.assertEquals(172800000,
-                    Integer.parseInt(td.getValue("hbase.hregion.majorcompaction")));
-        }
-    }
-
-    private void validateIndexProps(String indexName) throws SQLException {
-        String fullIndexName = "DDB." + indexName;
-        try (Connection conn = DriverManager.getConnection(url)) {
-            PhoenixConnection phoenixConnection = conn.unwrap(PhoenixConnection.class);
-            TableDescriptor td = phoenixConnection.getQueryServices()
-                    .getTableDescriptor(fullIndexName.getBytes());
             Assert.assertEquals(172800000,
                     Integer.parseInt(td.getValue("hbase.hregion.majorcompaction")));
         }
