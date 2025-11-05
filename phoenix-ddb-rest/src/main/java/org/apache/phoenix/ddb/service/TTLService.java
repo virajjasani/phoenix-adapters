@@ -5,9 +5,9 @@ import org.apache.phoenix.ddb.service.utils.ApiMetadata;
 import org.apache.phoenix.ddb.utils.PhoenixUtils;
 import org.apache.phoenix.jdbc.PhoenixConnection;
 import org.apache.phoenix.schema.PTable;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.services.dynamodb.model.TimeToLiveStatus;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -21,9 +21,10 @@ public class TTLService {
     private static final String ALTER_TTL_STMT = "ALTER TABLE %s.\"%s\" SET TTL = '%s'";
 
     public static Map<String, Object> updateTimeToLive(Map<String, Object> request,
-                                                       String connectionUrl) {
+            String connectionUrl) {
         String tableName = (String) request.get(ApiMetadata.TABLE_NAME);
-        Map<String, Object> ttlSpec = (Map<String, Object>) request.get(ApiMetadata.TIME_TO_LIVE_SPECIFICATION);
+        Map<String, Object> ttlSpec =
+                (Map<String, Object>) request.get(ApiMetadata.TIME_TO_LIVE_SPECIFICATION);
         String colName = (String) ttlSpec.get(ApiMetadata.ATTRIBUTE_NAME);
         Boolean enabled = (Boolean) ttlSpec.get(ApiMetadata.TIME_TO_LIVE_ENABLED);
         String alterStmt;
@@ -45,17 +46,18 @@ public class TTLService {
     }
 
     public static Map<String, Object> describeTimeToLive(Map<String, Object> request,
-                                                         String connectionUrl) {
+            String connectionUrl) {
         String tableName = "DDB." + request.get(ApiMetadata.TABLE_NAME);
         Map<String, Object> ttlDesc = new HashMap<>();
         try (Connection connection = DriverManager.getConnection(connectionUrl)) {
             PTable pTable = connection.unwrap(PhoenixConnection.class).getTable(tableName);
             String ttlExpression = pTable.getTTLExpression().toString().trim();
             if (ttlExpression.contains("BSON_VALUE")) {
-                ttlDesc.put(ApiMetadata.TIME_TO_LIVE_STATUS, TimeToLiveStatus.ENABLED);
-                ttlDesc.put(ApiMetadata.ATTRIBUTE_NAME, PhoenixUtils.extractAttributeFromTTLExpression(ttlExpression));
+                ttlDesc.put(ApiMetadata.TIME_TO_LIVE_STATUS, "ENABLED");
+                ttlDesc.put(ApiMetadata.ATTRIBUTE_NAME,
+                        PhoenixUtils.extractAttributeFromTTLExpression(ttlExpression));
             } else {
-                ttlDesc.put(ApiMetadata.TIME_TO_LIVE_STATUS, TimeToLiveStatus.DISABLED);
+                ttlDesc.put(ApiMetadata.TIME_TO_LIVE_STATUS, "DISABLED");
             }
         } catch (SQLException e) {
             throw new RuntimeException(e);
