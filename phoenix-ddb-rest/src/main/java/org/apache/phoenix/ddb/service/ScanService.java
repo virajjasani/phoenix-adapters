@@ -73,6 +73,8 @@ public class ScanService {
 
     public static Map<String, Object> scan(Map<String, Object> request, String connectionUrl) {
         ValidationUtil.validateScanRequest(request);
+
+        handleLegacyParamsConversion(request);
         
         // Phoenix does not support parallel scans from the client
         if (request.get(ApiMetadata.SEGMENT) != null && (Integer) request.get(ApiMetadata.SEGMENT) > 0) {
@@ -386,5 +388,40 @@ public class ScanService {
         Map<String, String> exprAttrNames =
                 (Map<String, String>) request.get(ApiMetadata.EXPRESSION_ATTRIBUTE_NAMES);
         return DQLUtils.getProjectionAttributes(projExpr, exprAttrNames);
+    }
+
+    /**
+     * Handles legacy parameter conversion to modern equivalents.
+     */
+    private static void handleLegacyParamsConversion(Map<String, Object> request) {
+        Map<String, String> exprAttrNames =
+                (Map<String, String>) request.get(ApiMetadata.EXPRESSION_ATTRIBUTE_NAMES);
+        if (exprAttrNames == null) {
+            exprAttrNames = new HashMap<>();
+            request.put(ApiMetadata.EXPRESSION_ATTRIBUTE_NAMES, exprAttrNames);
+        }
+        Map<String, Object> exprAttrValues =
+                (Map<String, Object>) request.get(ApiMetadata.EXPRESSION_ATTRIBUTE_VALUES);
+        if (exprAttrValues == null) {
+            exprAttrValues = new HashMap<>();
+            request.put(ApiMetadata.EXPRESSION_ATTRIBUTE_VALUES, exprAttrValues);
+        }
+
+        Map<String, Object> scanFilter = (Map<String, Object>) request.get(ApiMetadata.SCAN_FILTER);
+        if (scanFilter != null) {
+            String conditionalOperator = (String) request.get(ApiMetadata.CONDITIONAL_OPERATOR);
+            if (conditionalOperator == null) {
+                conditionalOperator = "AND";
+            }
+
+            String filterExpression =
+                    CommonServiceUtils.convertExpectedToConditionExpression(scanFilter,
+                            conditionalOperator, exprAttrNames, exprAttrValues);
+            if (filterExpression != null) {
+                request.put(ApiMetadata.FILTER_EXPRESSION, filterExpression);
+            }
+            request.remove(ApiMetadata.SCAN_FILTER);
+            request.remove(ApiMetadata.CONDITIONAL_OPERATOR);
+        }
     }
 }

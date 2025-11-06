@@ -66,6 +66,12 @@ public class ValidationUtil {
 
     public static void validateScanRequest(Map<String, Object> request) {
         validateLegacyParams(request, SCAN_LEGACY_PARAMS);
+
+        String filterExpression = (String) request.get(ApiMetadata.FILTER_EXPRESSION);
+        Object scanFilter = request.get(ApiMetadata.SCAN_FILTER);
+        if (filterExpression != null && scanFilter != null) {
+            throw new ValidationException("Cannot specify both FilterExpression and ScanFilter");
+        }
     }
 
     private static void validateLegacyParams(Map<String, Object> request,
