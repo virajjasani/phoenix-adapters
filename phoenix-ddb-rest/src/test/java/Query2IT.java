@@ -450,55 +450,19 @@ public class Query2IT {
         dynamoDbClient.putItem(putItemRequest3);
         dynamoDbClient.putItem(putItemRequest4);
 
-        //query request using KeyConditions
-        QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
         Map<String, Condition> keyConditions = new HashMap<>();
-
-        // attr_0 = "B"
         keyConditions.put("attr_0", Condition.builder().comparisonOperator("EQ")
                 .attributeValueList(AttributeValue.builder().s("B").build()).build());
-
-        // attr_1 > 1
         keyConditions.put("attr_1", Condition.builder().comparisonOperator("GT")
                 .attributeValueList(AttributeValue.builder().n("1").build()).build());
 
-        qr.keyConditions(keyConditions);
-        qr.limit(2);
+        QueryRequest.Builder qr =
+                QueryRequest.builder().tableName(tableName).keyConditions(keyConditions).limit(2);
+        TestUtils.compareQueryOutputs(qr, phoenixDBClientV2, dynamoDbClient);
 
-        // query result, should return 2 items
-        QueryResponse phoenixResult = phoenixDBClientV2.query(qr.build());
-        QueryResponse dynamoResult = dynamoDbClient.query(qr.build());
-        Assert.assertTrue(dynamoResult.count() == 2);
-        Assert.assertEquals(dynamoResult.count(), phoenixResult.count());
-
-        // check last evaluated key
-        Map<String, AttributeValue> lastKey = phoenixResult.lastEvaluatedKey();
-        Assert.assertEquals("B", lastKey.get("attr_0").s());
-        Assert.assertEquals(3, Integer.parseInt(lastKey.get("attr_1").n()));
-
-        // provide lastEvaluatedKey as exclusiveStartKey, remaining 1 item should be returned
-        qr.limit(null);
-        qr.exclusiveStartKey(lastKey);
-        phoenixResult = phoenixDBClientV2.query(qr.build());
-        dynamoResult = dynamoDbClient.query(qr.build());
-        Assert.assertEquals(dynamoResult.count(), phoenixResult.count());
-        Assert.assertTrue(phoenixResult.count() == 1);
-
-        // check last key
-        lastKey = phoenixResult.lastEvaluatedKey();
-        Assert.assertEquals("B", lastKey.get("attr_0").s());
-        Assert.assertEquals(4, Integer.parseInt(lastKey.get("attr_1").n()));
-
-        // note that dynamo's last evaluated key will be null here
-        // sdkv2 returns empty item
-        Assert.assertTrue(dynamoResult.lastEvaluatedKey().isEmpty());
-
-        // provide lastEvaluatedKey as exclusiveStartKey, no items should be returned
-        qr.exclusiveStartKey(lastKey);
-        phoenixResult = phoenixDBClientV2.query(qr.build());
-        dynamoResult = dynamoDbClient.query(qr.build());
-        Assert.assertEquals(dynamoResult.count(), phoenixResult.count());
-        Assert.assertTrue(phoenixResult.count() == 0);
+        qr = QueryRequest.builder().tableName(tableName).keyConditions(keyConditions).limit(2)
+                .scanIndexForward(false);
+        TestUtils.compareQueryOutputs(qr, phoenixDBClientV2, dynamoDbClient);
     }
 
     @Test(timeout = 120000)

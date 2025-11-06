@@ -44,7 +44,6 @@ import software.amazon.awssdk.services.dynamodb.model.ProjectionType;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
-import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 import software.amazon.awssdk.services.dynamodb.model.Record;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
@@ -690,22 +689,14 @@ public class BinaryEndToEndIT {
                 .projectionExpression("payload")
                 .limit(2)
                 .expressionAttributeValues(exprVals);
-        List<Map<String, AttributeValue>> phoenixResult = new ArrayList<>();
-        QueryResponse phoenixResponse;
-        do {
-            phoenixResponse = phoenixDBClientV2.query(qr.build());
-            phoenixResult.addAll(phoenixResponse.items());
-            qr.exclusiveStartKey(phoenixResponse.lastEvaluatedKey());
-        } while (phoenixResponse.hasLastEvaluatedKey());
-
-        List<Map<String, AttributeValue>> ddbResult = new ArrayList<>();
-        QueryResponse ddbResponse;
-        do {
-            ddbResponse = dynamoDbClient.query(qr.build());
-            ddbResult.addAll(ddbResponse.items());
-            qr.exclusiveStartKey(ddbResponse.lastEvaluatedKey());
-        } while (ddbResponse.hasLastEvaluatedKey());
-        Assert.assertEquals(ddbResult, phoenixResult);
+        TestUtils.compareQueryOutputs(qr, phoenixDBClientV2, dynamoDbClient);
+        qr = QueryRequest.builder().tableName(TABLE_NAME)
+                .keyConditionExpression("hk = :hk AND sk BETWEEN :startSk AND :endSk")
+                .projectionExpression("payload")
+                .limit(2)
+                .scanIndexForward(false)
+                .expressionAttributeValues(exprVals);
+        TestUtils.compareQueryOutputs(qr, phoenixDBClientV2, dynamoDbClient);
     }
 
     @Test
@@ -753,22 +744,7 @@ public class BinaryEndToEndIT {
                 .limit(3)
                 .expressionAttributeValues(exprVals)
                 .scanIndexForward(scanIndexForward);
-        List<Map<String, AttributeValue>> phoenixResult = new ArrayList<>();
-        QueryResponse phoenixResponse;
-        do {
-            phoenixResponse = phoenixDBClientV2.query(qr.build());
-            phoenixResult.addAll(phoenixResponse.items());
-            qr.exclusiveStartKey(phoenixResponse.lastEvaluatedKey());
-        } while (phoenixResponse.hasLastEvaluatedKey());
-
-        List<Map<String, AttributeValue>> ddbResult = new ArrayList<>();
-        QueryResponse ddbResponse;
-        do {
-            ddbResponse = dynamoDbClient.query(qr.build());
-            ddbResult.addAll(ddbResponse.items());
-            qr.exclusiveStartKey(ddbResponse.lastEvaluatedKey());
-        } while (ddbResponse.hasLastEvaluatedKey());
-        Assert.assertEquals(ddbResult, phoenixResult);
+        TestUtils.compareQueryOutputs(qr, phoenixDBClientV2, dynamoDbClient);
     }
 
     @Test

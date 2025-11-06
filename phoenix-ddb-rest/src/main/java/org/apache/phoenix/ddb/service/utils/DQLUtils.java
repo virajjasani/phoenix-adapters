@@ -140,8 +140,8 @@ public class DQLUtils {
             PColumn sortKeyPKCol, boolean scanIndexForward) {
         if (exclusiveStartKey != null && !exclusiveStartKey.isEmpty()) {
                 String op = " > ";
-                // when using index and scanning backwards, flip the operator
-                if (useIndex && !scanIndexForward) {
+                // when scanning backwards, flip the operator
+                if (!scanIndexForward) {
                     op = " < ";
                 }
                 if (sortKeyPKCol != null) {

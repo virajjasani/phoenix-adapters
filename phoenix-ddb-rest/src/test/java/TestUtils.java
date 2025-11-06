@@ -11,6 +11,7 @@ import org.bson.BsonDocument;
 import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.DescribeStreamRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetRecordsRequest;
@@ -19,6 +20,7 @@ import software.amazon.awssdk.services.dynamodb.model.GetShardIteratorRequest;
 import software.amazon.awssdk.services.dynamodb.model.ListStreamsRequest;
 import software.amazon.awssdk.services.dynamodb.model.ListStreamsResponse;
 import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
+import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 import software.amazon.awssdk.services.dynamodb.model.Record;
 import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 import software.amazon.awssdk.services.dynamodb.model.ShardIteratorType;
@@ -284,5 +286,25 @@ public class TestUtils {
         LOGGER.info("DynamoDB stream records count: {}", allDynamoRecords.size());
 
         validateRecords(allPhoenixRecords, allDynamoRecords);
+    }
+
+    public static void compareQueryOutputs(QueryRequest.Builder qr,
+            DynamoDbClient phoenixDBClientV2, DynamoDbClient dynamoDbClient) {
+        List<Map<String, AttributeValue>> phoenixResult = new ArrayList<>();
+        QueryResponse phoenixResponse;
+        do {
+            phoenixResponse = phoenixDBClientV2.query(qr.build());
+            phoenixResult.addAll(phoenixResponse.items());
+            qr.exclusiveStartKey(phoenixResponse.lastEvaluatedKey());
+        } while (phoenixResponse.hasLastEvaluatedKey());
+
+        List<Map<String, AttributeValue>> ddbResult = new ArrayList<>();
+        QueryResponse ddbResponse;
+        do {
+            ddbResponse = dynamoDbClient.query(qr.build());
+            ddbResult.addAll(ddbResponse.items());
+            qr.exclusiveStartKey(ddbResponse.lastEvaluatedKey());
+        } while (ddbResponse.hasLastEvaluatedKey());
+        Assert.assertEquals(ddbResult, phoenixResult);
     }
 }
