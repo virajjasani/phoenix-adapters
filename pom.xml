@@ -32,6 +32,7 @@
     <module>phoenix-ddb-rest</module>
     <module>phoenix-ddb-utils</module>
     <module>phoenix-ddb-assembly</module>
+    <module>coverage-report</module>
   </modules>
 
   <groupId>org.apache.phoenixshim</groupId>
@@ -79,6 +80,7 @@
               <include>*Test.java</include>
             </includes>
             <redirectTestOutputToFile>${test.output.tofile}</redirectTestOutputToFile>
+            <failIfNoTests>false</failIfNoTests>
           </configuration>
         </plugin>
         <plugin>
@@ -117,6 +119,28 @@
       </plugins>
     </pluginManagement>
   </build>
+  <profiles>
+    <profile>
+      <id>coverage</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.jacoco</groupId>
+            <artifactId>jacoco-maven-plugin</artifactId>
+            <version>0.8.7</version>
+            <executions>
+              <execution>
+                <id>prepare-agent</id>
+                <goals>
+                  <goal>prepare-agent</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 
   <dependencyManagement>
     <dependencies>

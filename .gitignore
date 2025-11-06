@@ -5,6 +5,7 @@
 /phoenix-ddb-utils/target/
 /dynamodb-local-metadata.json
 /phoenix-ddb-assembly/target/
+/coverage-report/target/
 *.log
 *.log.*
 
