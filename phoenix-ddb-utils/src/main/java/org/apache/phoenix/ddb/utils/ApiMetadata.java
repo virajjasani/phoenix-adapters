@@ -55,6 +55,7 @@ public class ApiMetadata {
     public static final String KEY_CONDITION_EXPRESSION = "KeyConditionExpression";
     public static final String KEY_CONDITIONS = "KeyConditions";
     public static final String FILTER_EXPRESSION = "FilterExpression";
+    public static final String QUERY_FILTER = "QueryFilter";
     public static final String EXPRESSION_ATTRIBUTE_NAMES = "ExpressionAttributeNames";
     public static final String EXPRESSION_ATTRIBUTE_VALUES = "ExpressionAttributeValues";
     public static final String SCAN_INDEX_FORWARD = "ScanIndexForward";
@@ -160,7 +161,7 @@ public class ApiMetadata {
     public static final List<String> UPDATE_LEGACY_PARAMS
             = Arrays.asList();
     public static final List<String> QUERY_LEGACY_PARAMS
-            = Arrays.asList("AttributesToGet", "ConditionalOperator", "QueryFilter");
+            = Arrays.asList("AttributesToGet");
     public static final List<String> SCAN_LEGACY_PARAMS
             = Arrays.asList("AttributesToGet", "ConditionalOperator", "ScanFilter");
     public static final List<String> GET_LEGACY_PARAMS

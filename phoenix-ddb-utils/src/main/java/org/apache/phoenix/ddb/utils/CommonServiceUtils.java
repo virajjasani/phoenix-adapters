@@ -254,14 +254,34 @@ public class CommonServiceUtils {
     public static String convertExpectedToConditionExpression(Map<String, Object> expected,
             String conditionalOperator, Map<String, String> exprAttrNames,
             Map<String, Object> exprAttrValues) {
+        return convertExpectedToConditionExpression(expected, conditionalOperator, exprAttrNames,
+                exprAttrValues, 1, 1);
+    }
+
+    /**
+     * Convert legacy Expected and ConditionalOperator parameters to modern ConditionExpression.
+     * This overloaded version allows specifying starting counter values to avoid conflicts
+     * when called multiple times with the same expression attribute maps.
+     *
+     * @param expected            The Expected map from the request (attribute conditions)
+     * @param conditionalOperator The ConditionalOperator ("AND" or "OR", defaults to "AND")
+     * @param exprAttrNames       Output map for expression attribute names (will be populated)
+     * @param exprAttrValues      Output map for expression attribute values (will be populated)
+     * @param startNameCounter    Starting value for name counter
+     * @param startValueCounter   Starting value for value counter
+     * @return ConditionExpression string equivalent to the Expected conditions
+     */
+    public static String convertExpectedToConditionExpression(Map<String, Object> expected,
+            String conditionalOperator, Map<String, String> exprAttrNames,
+            Map<String, Object> exprAttrValues, int startNameCounter, int startValueCounter) {
 
         if (expected == null || expected.isEmpty()) {
             return null;
         }
 
         List<String> conditions = new ArrayList<>();
-        int nameCounter = 1;
-        int valueCounter = 1;
+        int nameCounter = startNameCounter;
+        int valueCounter = startValueCounter;
 
         for (Map.Entry<String, Object> entry : expected.entrySet()) {
             String attributeName = entry.getKey();
@@ -303,6 +323,13 @@ public class CommonServiceUtils {
         String operator = "OR".equalsIgnoreCase(conditionalOperator) ? " OR " : " AND ";
 
         return "(" + String.join(operator, conditions) + ")";
+    }
+
+    public static int getExpectedNameCount(Map<String, Object> expected) {
+        if (expected == null || expected.isEmpty()) {
+            return 0;
+        }
+        return expected.size();
     }
 
     private static String buildConditionForAttribute(String nameAlias,

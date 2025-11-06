@@ -191,31 +191,55 @@ public class QueryService {
      * Handles legacy parameter conversion to modern equivalents.
      */
     private static void handleLegacyParamsConversion(Map<String, Object> request) {
+        Map<String, String> exprAttrNames =
+                (Map<String, String>) request.get(ApiMetadata.EXPRESSION_ATTRIBUTE_NAMES);
+        if (exprAttrNames == null) {
+            exprAttrNames = new HashMap<>();
+            request.put(ApiMetadata.EXPRESSION_ATTRIBUTE_NAMES, exprAttrNames);
+        }
+        Map<String, Object> exprAttrValues =
+                (Map<String, Object>) request.get(ApiMetadata.EXPRESSION_ATTRIBUTE_VALUES);
+        if (exprAttrValues == null) {
+            exprAttrValues = new HashMap<>();
+            request.put(ApiMetadata.EXPRESSION_ATTRIBUTE_VALUES, exprAttrValues);
+        }
+
+        // Track counters to avoid conflicts between KeyConditions and QueryFilter conversions
+        int nameCounter = 1;
+        int valueCounter = 1;
+
         Map<String, Object> keyConditions =
                 (Map<String, Object>) request.get(ApiMetadata.KEY_CONDITIONS);
-
         if (keyConditions != null) {
-            Map<String, String> exprAttrNames =
-                    (Map<String, String>) request.get(ApiMetadata.EXPRESSION_ATTRIBUTE_NAMES);
-            if (exprAttrNames == null) {
-                exprAttrNames = new HashMap<>();
-                request.put(ApiMetadata.EXPRESSION_ATTRIBUTE_NAMES, exprAttrNames);
-            }
-            Map<String, Object> exprAttrValues =
-                    (Map<String, Object>) request.get(ApiMetadata.EXPRESSION_ATTRIBUTE_VALUES);
-            if (exprAttrValues == null) {
-                exprAttrValues = new HashMap<>();
-                request.put(ApiMetadata.EXPRESSION_ATTRIBUTE_VALUES, exprAttrValues);
-            }
-
             Map<String, Object> orderedKeyConditions = reorderKeyConditions(keyConditions);
             String keyConditionExpression =
                     CommonServiceUtils.convertExpectedToConditionExpression(orderedKeyConditions,
-                            "AND", exprAttrNames, exprAttrValues);
+                            "AND", exprAttrNames, exprAttrValues, nameCounter, valueCounter);
             if (keyConditionExpression != null) {
                 request.put(ApiMetadata.KEY_CONDITION_EXPRESSION, keyConditionExpression);
             }
             request.remove(ApiMetadata.KEY_CONDITIONS);
+
+            nameCounter += CommonServiceUtils.getExpectedNameCount(orderedKeyConditions) + 10;
+            valueCounter += nameCounter * 5;
+        }
+
+        Map<String, Object> queryFilter =
+                (Map<String, Object>) request.get(ApiMetadata.QUERY_FILTER);
+        if (queryFilter != null) {
+            String conditionalOperator = (String) request.get(ApiMetadata.CONDITIONAL_OPERATOR);
+            if (conditionalOperator == null) {
+                conditionalOperator = "AND";
+            }
+            String filterExpression =
+                    CommonServiceUtils.convertExpectedToConditionExpression(queryFilter,
+                            conditionalOperator, exprAttrNames, exprAttrValues, nameCounter,
+                            valueCounter);
+            if (filterExpression != null) {
+                request.put(ApiMetadata.FILTER_EXPRESSION, filterExpression);
+            }
+            request.remove(ApiMetadata.QUERY_FILTER);
+            request.remove(ApiMetadata.CONDITIONAL_OPERATOR);
         }
     }
 

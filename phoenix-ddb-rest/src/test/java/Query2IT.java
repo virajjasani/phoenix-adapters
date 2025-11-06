@@ -132,13 +132,11 @@ public class Query2IT {
 
         qr.keyConditions(keyConditions);
 
-        qr.filterExpression("#2 <= :v2");
-        Map<String, String> exprAttrNames = new HashMap<>();
-        exprAttrNames.put("#2", "Id2");
-        qr.expressionAttributeNames(exprAttrNames);
-        Map<String, AttributeValue> exprAttrVal = new HashMap<>();
-        exprAttrVal.put(":v2", AttributeValue.builder().n("1000.10").build());
-        qr.expressionAttributeValues(exprAttrVal);
+        // Use QueryFilter instead of FilterExpression (legacy parameter)
+        Map<String, Condition> queryFilter = new HashMap<>();
+        queryFilter.put("Id2", Condition.builder().comparisonOperator("LE")
+                .attributeValueList(AttributeValue.builder().n("1000.10").build()).build());
+        qr.queryFilter(queryFilter);
 
         // query result, should return 2 items
         QueryResponse phoenixResult = phoenixDBClientV2.query(qr.build());
@@ -198,13 +196,11 @@ public class Query2IT {
 
         qr.keyConditions(keyConditions);
 
-        qr.filterExpression("#2 > :v3");
-        Map<String, String> exprAttrNames = new HashMap<>();
-        exprAttrNames.put("#2", "Id1");
-        qr.expressionAttributeNames(exprAttrNames);
-        Map<String, AttributeValue> exprAttrVal = new HashMap<>();
-        exprAttrVal.put(":v3", AttributeValue.builder().n("0").build());
-        qr.expressionAttributeValues(exprAttrVal);
+        // Use QueryFilter instead of FilterExpression (legacy parameter)
+        Map<String, Condition> queryFilter = new HashMap<>();
+        queryFilter.put("Id1", Condition.builder().comparisonOperator("GT")
+                .attributeValueList(AttributeValue.builder().n("0").build()).build());
+        qr.queryFilter(queryFilter);
 
         // query result, should return 1 item
         QueryResponse phoenixResult = phoenixDBClientV2.query(qr.build());
@@ -623,6 +619,182 @@ public class Query2IT {
             Assert.fail("Should have thrown an exception");
         } catch (DynamoDbException e) {
             Assert.assertEquals(400, e.statusCode());
+        }
+    }
+
+    @Test(timeout = 120000)
+    public void testQueryFilterWithConditionalOperatorAND() throws Exception {
+        final String tableName = testName.getMethodName();
+        CreateTableRequest createTableRequest =
+                DDLTestUtils.getCreateTableRequest(tableName, "partition_id", ScalarAttributeType.S,
+                        "sort_id", ScalarAttributeType.S);
+        phoenixDBClientV2.createTable(createTableRequest);
+        dynamoDbClient.createTable(createTableRequest);
+
+        // Insert test data
+        Map<String, AttributeValue> item1 = new HashMap<>();
+        item1.put("partition_id", AttributeValue.builder().s("pk1").build());
+        item1.put("sort_id", AttributeValue.builder().s("sk1").build());
+        item1.put("attr1", AttributeValue.builder().s("value1").build());
+        item1.put("attr2", AttributeValue.builder().n("10").build());
+        PutItemRequest putRequest1 =
+                PutItemRequest.builder().tableName(tableName).item(item1).build();
+        phoenixDBClientV2.putItem(putRequest1);
+        dynamoDbClient.putItem(putRequest1);
+
+        Map<String, AttributeValue> item2 = new HashMap<>();
+        item2.put("partition_id", AttributeValue.builder().s("pk1").build());
+        item2.put("sort_id", AttributeValue.builder().s("sk2").build());
+        item2.put("attr1", AttributeValue.builder().s("value2").build());
+        item2.put("attr2", AttributeValue.builder().n("20").build());
+        PutItemRequest putRequest2 =
+                PutItemRequest.builder().tableName(tableName).item(item2).build();
+        phoenixDBClientV2.putItem(putRequest2);
+        dynamoDbClient.putItem(putRequest2);
+
+        // Query with KeyConditions and QueryFilter using ConditionalOperator AND
+        QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
+
+        // KeyConditions (partition key)
+        Map<String, Condition> keyConditions = new HashMap<>();
+        keyConditions.put("partition_id", Condition.builder().comparisonOperator("EQ")
+                .attributeValueList(AttributeValue.builder().s("pk1").build()).build());
+        qr.keyConditions(keyConditions);
+
+        // QueryFilter with multiple conditions
+        Map<String, Condition> queryFilter = new HashMap<>();
+        queryFilter.put("attr1", Condition.builder().comparisonOperator("EQ")
+                .attributeValueList(AttributeValue.builder().s("value1").build()).build());
+        queryFilter.put("attr2", Condition.builder().comparisonOperator("GE")
+                .attributeValueList(AttributeValue.builder().n("10").build()).build());
+        qr.queryFilter(queryFilter);
+        qr.conditionalOperator("AND"); // Both conditions must match
+
+        QueryRequest queryRequest = qr.build();
+
+        // Execute query on both DynamoDB and Phoenix
+        QueryResponse phoenixResponse = phoenixDBClientV2.query(queryRequest);
+        QueryResponse dynamoResponse = dynamoDbClient.query(queryRequest);
+
+        // Compare results
+        Assert.assertNotNull("Phoenix response should not be null", phoenixResponse);
+        Assert.assertNotNull("DynamoDB response should not be null", dynamoResponse);
+        Assert.assertEquals("Count should match between DynamoDB and Phoenix",
+                dynamoResponse.count(), phoenixResponse.count());
+        Assert.assertEquals("Should find 1 item (attr1=value1 AND attr2>=10)", 1,
+                phoenixResponse.count().intValue());
+        Assert.assertEquals("Items should match between DynamoDB and Phoenix",
+                dynamoResponse.items(), phoenixResponse.items());
+    }
+
+    @Test(timeout = 120000)
+    public void testQueryFilterWithConditionalOperatorOR() throws Exception {
+        final String tableName = testName.getMethodName();
+        CreateTableRequest createTableRequest =
+                DDLTestUtils.getCreateTableRequest(tableName, "partition_id", ScalarAttributeType.S,
+                        "sort_id", ScalarAttributeType.S);
+        phoenixDBClientV2.createTable(createTableRequest);
+        dynamoDbClient.createTable(createTableRequest);
+
+        // Insert test data
+        Map<String, AttributeValue> item1 = new HashMap<>();
+        item1.put("partition_id", AttributeValue.builder().s("pk1").build());
+        item1.put("sort_id", AttributeValue.builder().s("sk1").build());
+        item1.put("attr1", AttributeValue.builder().s("special").build());
+        item1.put("attr2", AttributeValue.builder().n("5").build());
+        PutItemRequest putRequest1 =
+                PutItemRequest.builder().tableName(tableName).item(item1).build();
+        phoenixDBClientV2.putItem(putRequest1);
+        dynamoDbClient.putItem(putRequest1);
+
+        Map<String, AttributeValue> item2 = new HashMap<>();
+        item2.put("partition_id", AttributeValue.builder().s("pk1").build());
+        item2.put("sort_id", AttributeValue.builder().s("sk2").build());
+        item2.put("attr1", AttributeValue.builder().s("normal").build());
+        item2.put("attr2", AttributeValue.builder().n("25").build());
+        PutItemRequest putRequest2 =
+                PutItemRequest.builder().tableName(tableName).item(item2).build();
+        phoenixDBClientV2.putItem(putRequest2);
+        dynamoDbClient.putItem(putRequest2);
+
+        // Query with QueryFilter using ConditionalOperator OR
+        QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
+
+        // KeyConditions (partition key)
+        Map<String, Condition> keyConditions = new HashMap<>();
+        keyConditions.put("partition_id", Condition.builder().comparisonOperator("EQ")
+                .attributeValueList(AttributeValue.builder().s("pk1").build()).build());
+        qr.keyConditions(keyConditions);
+
+        // QueryFilter with OR conditions
+        Map<String, Condition> queryFilter = new HashMap<>();
+        queryFilter.put("attr1", Condition.builder().comparisonOperator("EQ")
+                .attributeValueList(AttributeValue.builder().s("special").build()).build());
+        queryFilter.put("attr2", Condition.builder().comparisonOperator("GT")
+                .attributeValueList(AttributeValue.builder().n("20").build()).build());
+        qr.queryFilter(queryFilter);
+        qr.conditionalOperator("OR"); // Either condition can match
+
+        QueryRequest queryRequest = qr.build();
+
+        // Execute query on both DynamoDB and Phoenix
+        QueryResponse phoenixResponse = phoenixDBClientV2.query(queryRequest);
+        QueryResponse dynamoResponse = dynamoDbClient.query(queryRequest);
+
+        // Compare results
+        Assert.assertNotNull("Phoenix response should not be null", phoenixResponse);
+        Assert.assertNotNull("DynamoDB response should not be null", dynamoResponse);
+        Assert.assertEquals("Count should match between DynamoDB and Phoenix",
+                dynamoResponse.count(), phoenixResponse.count());
+        Assert.assertEquals("Should find 2 items (attr1=special OR attr2>20)", 2,
+                phoenixResponse.count().intValue());
+        Assert.assertEquals("Items should match between DynamoDB and Phoenix",
+                dynamoResponse.items(), phoenixResponse.items());
+    }
+
+    @Test(timeout = 120000)
+    public void testQueryFilterAndFilterExpressionValidationError() throws Exception {
+        final String tableName = testName.getMethodName();
+        CreateTableRequest createTableRequest =
+                DDLTestUtils.getCreateTableRequest(tableName, "attr_0", ScalarAttributeType.S, null,
+                        null);
+        phoenixDBClientV2.createTable(createTableRequest);
+        dynamoDbClient.createTable(createTableRequest);
+
+        // Query request with both QueryFilter and FilterExpression - should fail
+        QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
+
+        // KeyConditions
+        Map<String, Condition> keyConditions = new HashMap<>();
+        keyConditions.put("attr_0", Condition.builder().comparisonOperator("EQ")
+                .attributeValueList(AttributeValue.builder().s("test").build()).build());
+        qr.keyConditions(keyConditions);
+
+        // QueryFilter (legacy)
+        Map<String, Condition> queryFilter = new HashMap<>();
+        queryFilter.put("attr1", Condition.builder().comparisonOperator("EQ")
+                .attributeValueList(AttributeValue.builder().s("value").build()).build());
+        qr.queryFilter(queryFilter);
+
+        // FilterExpression (modern)
+        qr.filterExpression("attr2 = :val");
+        Map<String, AttributeValue> exprAttrVal = new HashMap<>();
+        exprAttrVal.put(":val", AttributeValue.builder().s("test").build());
+        qr.expressionAttributeValues(exprAttrVal);
+
+        try {
+            phoenixDBClientV2.query(qr.build());
+            Assert.fail("Should have thrown an exception");
+        } catch (DynamoDbException e) {
+            Assert.assertEquals("Status code should be 400 for validation error", 400,
+                    e.statusCode());
+        }
+        try {
+            dynamoDbClient.query(qr.build());
+            Assert.fail("Should have thrown an exception");
+        } catch (DynamoDbException e) {
+            Assert.assertEquals("Status code should be 400 for validation error", 400,
+                    e.statusCode());
         }
     }
 

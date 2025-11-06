@@ -55,6 +55,13 @@ public class ValidationUtil {
             throw new ValidationException(
                     "Cannot specify both KeyConditionExpression and KeyConditions");
         }
+
+        String filterExpression = (String) request.get(ApiMetadata.FILTER_EXPRESSION);
+        Object queryFilter = request.get(ApiMetadata.QUERY_FILTER);
+        if (filterExpression != null && queryFilter != null) {
+            throw new ValidationException(
+                    "Cannot specify both FilterExpression and QueryFilter");
+        }
     }
 
     public static void validateScanRequest(Map<String, Object> request) {

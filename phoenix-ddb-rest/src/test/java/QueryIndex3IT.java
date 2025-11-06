@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.Condition;
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
 import software.amazon.awssdk.services.dynamodb.model.DynamoDbException;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
@@ -126,20 +127,14 @@ public class QueryIndex3IT {
         //query request using index with KeyConditions
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
         qr.indexName(indexName);
-        Map<String, software.amazon.awssdk.services.dynamodb.model.Condition> keyConditions =
-                new HashMap<>();
+        Map<String, Condition> keyConditions = new HashMap<>();
 
         // Attr_0 = "str_val_1" AND attr_1 < 453.23 (KeyConditions always use AND logic)
-        keyConditions.put("Attr_0",
-                software.amazon.awssdk.services.dynamodb.model.Condition.builder()
-                        .comparisonOperator("EQ")
-                        .attributeValueList(AttributeValue.builder().s("str_val_1").build())
-                        .build());
+        keyConditions.put("Attr_0", Condition.builder().comparisonOperator("EQ")
+                .attributeValueList(AttributeValue.builder().s("str_val_1").build()).build());
 
-        keyConditions.put("attr_1",
-                software.amazon.awssdk.services.dynamodb.model.Condition.builder()
-                        .comparisonOperator("LT")
-                        .attributeValueList(AttributeValue.builder().n("453.23").build()).build());
+        keyConditions.put("attr_1", Condition.builder().comparisonOperator("LT")
+                .attributeValueList(AttributeValue.builder().n("453.23").build()).build());
 
         qr.keyConditions(keyConditions);
         qr.limit(1);
@@ -197,30 +192,23 @@ public class QueryIndex3IT {
         //query request using index and filter with KeyConditions
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
         qr.indexName(indexName);
-        Map<String, software.amazon.awssdk.services.dynamodb.model.Condition> keyConditions =
-                new HashMap<>();
+        Map<String, Condition> keyConditions = new HashMap<>();
 
         // Attr_0 = "str_val_1"
-        keyConditions.put("Attr_0",
-                software.amazon.awssdk.services.dynamodb.model.Condition.builder()
-                        .comparisonOperator("EQ")
-                        .attributeValueList(AttributeValue.builder().s("str_val_1").build())
-                        .build());
+        keyConditions.put("Attr_0", Condition.builder().comparisonOperator("EQ")
+                .attributeValueList(AttributeValue.builder().s("str_val_1").build()).build());
 
         // attr_1 < 453.23
-        keyConditions.put("attr_1",
-                software.amazon.awssdk.services.dynamodb.model.Condition.builder()
-                        .comparisonOperator("LT")
-                        .attributeValueList(AttributeValue.builder().n("453.23").build()).build());
+        keyConditions.put("attr_1", Condition.builder().comparisonOperator("LT")
+                .attributeValueList(AttributeValue.builder().n("453.23").build()).build());
 
         qr.keyConditions(keyConditions);
-        qr.filterExpression("#2 = :v2");
-        Map<String, String> exprAttrNames = new HashMap<>();
-        exprAttrNames.put("#2", "Title");
-        qr.expressionAttributeNames(exprAttrNames);
-        Map<String, AttributeValue> exprAttrVal = new HashMap<>();
-        exprAttrVal.put(":v2", AttributeValue.builder().s("hello").build());
-        qr.expressionAttributeValues(exprAttrVal);
+
+        // Use QueryFilter instead of FilterExpression (legacy parameter)
+        Map<String, Condition> queryFilter = new HashMap<>();
+        queryFilter.put("Title", Condition.builder().comparisonOperator("EQ")
+                .attributeValueList(AttributeValue.builder().s("hello").build()).build());
+        qr.queryFilter(queryFilter);
 
         // query result
         QueryResponse phoenixResult = phoenixDBClientV2.query(qr.build());
@@ -230,6 +218,59 @@ public class QueryIndex3IT {
 
         // explain plan
         //TestUtils.validateIndexUsed(qr.build(), url);
+    }
+
+    @Test(timeout = 120000)
+    public void testQueryFilterWithIndexAndConditionalOperatorOR() throws SQLException {
+        final String tableName = testName.getMethodName();
+        final String indexName = "G_iDX_" + tableName;
+        CreateTableRequest createTableRequest =
+                DDLTestUtils.getCreateTableRequest(tableName, "Title", ScalarAttributeType.S, "num",
+                        ScalarAttributeType.N);
+        createTableRequest =
+                DDLTestUtils.addIndexToRequest(true, createTableRequest, indexName, "Attr_0",
+                        ScalarAttributeType.S, "attr_1", ScalarAttributeType.N);
+        phoenixDBClientV2.createTable(createTableRequest);
+        dynamoDbClient.createTable(createTableRequest);
+
+        // Put test items
+        PutItemRequest putItemRequest1 =
+                PutItemRequest.builder().tableName(tableName).item(getItem1()).build();
+        PutItemRequest putItemRequest2 =
+                PutItemRequest.builder().tableName(tableName).item(getItem2()).build();
+        PutItemRequest putItemRequest3 =
+                PutItemRequest.builder().tableName(tableName).item(getItem3()).build();
+        phoenixDBClientV2.putItem(putItemRequest1);
+        phoenixDBClientV2.putItem(putItemRequest2);
+        phoenixDBClientV2.putItem(putItemRequest3);
+        dynamoDbClient.putItem(putItemRequest1);
+        dynamoDbClient.putItem(putItemRequest2);
+        dynamoDbClient.putItem(putItemRequest3);
+
+        // Query with index using KeyConditions and QueryFilter with OR operator
+        QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
+        qr.indexName(indexName);
+
+        // KeyConditions for index
+        Map<String, Condition> keyConditions = new HashMap<>();
+        keyConditions.put("Attr_0", Condition.builder().comparisonOperator("EQ")
+                .attributeValueList(AttributeValue.builder().s("str_val_1").build()).build());
+        qr.keyConditions(keyConditions);
+
+        // QueryFilter with OR conditions
+        Map<String, Condition> queryFilter = new HashMap<>();
+        queryFilter.put("Title", Condition.builder().comparisonOperator("EQ")
+                .attributeValueList(AttributeValue.builder().s("hello").build()).build());
+        queryFilter.put("num", Condition.builder().comparisonOperator("GT")
+                .attributeValueList(AttributeValue.builder().n("100").build()).build());
+        qr.queryFilter(queryFilter);
+        qr.conditionalOperator("OR"); // Either condition can match
+
+        // Execute query
+        QueryResponse phoenixResult = phoenixDBClientV2.query(qr.build());
+        QueryResponse dynamoResult = dynamoDbClient.query(qr.build());
+        Assert.assertEquals(dynamoResult.count(), phoenixResult.count());
+        Assert.assertEquals(dynamoResult.items(), phoenixResult.items());
     }
 
     @Test(timeout = 120000)
@@ -268,15 +309,11 @@ public class QueryIndex3IT {
         //query request using index and filter with KeyConditions
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
         qr.indexName(indexName);
-        Map<String, software.amazon.awssdk.services.dynamodb.model.Condition> keyConditions =
-                new HashMap<>();
+        Map<String, Condition> keyConditions = new HashMap<>();
 
         // Attr_0 = "str_val_1"
-        keyConditions.put("Attr_0",
-                software.amazon.awssdk.services.dynamodb.model.Condition.builder()
-                        .comparisonOperator("EQ")
-                        .attributeValueList(AttributeValue.builder().s("str_val_1").build())
-                        .build());
+        keyConditions.put("Attr_0", Condition.builder().comparisonOperator("EQ")
+                .attributeValueList(AttributeValue.builder().s("str_val_1").build()).build());
 
         qr.keyConditions(keyConditions);
         qr.scanIndexForward(false);
@@ -332,21 +369,15 @@ public class QueryIndex3IT {
         //query request using index and filter with KeyConditions
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
         qr.indexName(indexName);
-        Map<String, software.amazon.awssdk.services.dynamodb.model.Condition> keyConditions =
-                new HashMap<>();
+        Map<String, Condition> keyConditions = new HashMap<>();
 
         // Attr_0 = "str_val_1"
-        keyConditions.put("Attr_0",
-                software.amazon.awssdk.services.dynamodb.model.Condition.builder()
-                        .comparisonOperator("EQ")
-                        .attributeValueList(AttributeValue.builder().s("str_val_1").build())
-                        .build());
+        keyConditions.put("Attr_0", Condition.builder().comparisonOperator("EQ")
+                .attributeValueList(AttributeValue.builder().s("str_val_1").build()).build());
 
         // Title BEGINS_WITH "he"
-        keyConditions.put("Title",
-                software.amazon.awssdk.services.dynamodb.model.Condition.builder()
-                        .comparisonOperator("BEGINS_WITH")
-                        .attributeValueList(AttributeValue.builder().s("he").build()).build());
+        keyConditions.put("Title", Condition.builder().comparisonOperator("BEGINS_WITH")
+                .attributeValueList(AttributeValue.builder().s("he").build()).build());
 
         qr.keyConditions(keyConditions);
 
@@ -397,22 +428,16 @@ public class QueryIndex3IT {
         //query request using index and filter with KeyConditions
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
         qr.indexName(indexName);
-        Map<String, software.amazon.awssdk.services.dynamodb.model.Condition> keyConditions =
-                new HashMap<>();
+        Map<String, Condition> keyConditions = new HashMap<>();
 
         // Attr_0 = "str_val_1"
-        keyConditions.put("Attr_0",
-                software.amazon.awssdk.services.dynamodb.model.Condition.builder()
-                        .comparisonOperator("EQ")
-                        .attributeValueList(AttributeValue.builder().s("str_val_1").build())
-                        .build());
+        keyConditions.put("Attr_0", Condition.builder().comparisonOperator("EQ")
+                .attributeValueList(AttributeValue.builder().s("str_val_1").build()).build());
 
         // attr_1 BETWEEN 0.0001 AND 30.121
-        keyConditions.put("attr_1",
-                software.amazon.awssdk.services.dynamodb.model.Condition.builder()
-                        .comparisonOperator("BETWEEN")
-                        .attributeValueList(AttributeValue.builder().n("0.0001").build(),
-                                AttributeValue.builder().n("30.121").build()).build());
+        keyConditions.put("attr_1", Condition.builder().comparisonOperator("BETWEEN")
+                .attributeValueList(AttributeValue.builder().n("0.0001").build(),
+                        AttributeValue.builder().n("30.121").build()).build());
 
         qr.keyConditions(keyConditions);
 
@@ -462,31 +487,25 @@ public class QueryIndex3IT {
         //query request using index and filter with KeyConditions
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
         qr.indexName(indexName);
-        Map<String, software.amazon.awssdk.services.dynamodb.model.Condition> keyConditions =
-                new HashMap<>();
+        Map<String, Condition> keyConditions = new HashMap<>();
 
         // Attr_0 = "str_val_1"
-        keyConditions.put("Attr_0",
-                software.amazon.awssdk.services.dynamodb.model.Condition.builder()
-                        .comparisonOperator("EQ")
-                        .attributeValueList(AttributeValue.builder().s("str_val_1").build())
-                        .build());
+        keyConditions.put("Attr_0", Condition.builder().comparisonOperator("EQ")
+                .attributeValueList(AttributeValue.builder().s("str_val_1").build()).build());
 
         // attr_1 > 0.0
-        keyConditions.put("attr_1",
-                software.amazon.awssdk.services.dynamodb.model.Condition.builder()
-                        .comparisonOperator("GT")
-                        .attributeValueList(AttributeValue.builder().n("0.0").build()).build());
+        keyConditions.put("attr_1", Condition.builder().comparisonOperator("GT")
+                .attributeValueList(AttributeValue.builder().n("0.0").build()).build());
 
         qr.keyConditions(keyConditions);
-        qr.filterExpression("#2 > :v2");
-        qr.projectionExpression("Title");
-        Map<String, String> exprAttrNames = new HashMap<>();
-        exprAttrNames.put("#2", "num");
-        qr.expressionAttributeNames(exprAttrNames);
-        Map<String, AttributeValue> exprAttrVal = new HashMap<>();
-        exprAttrVal.put(":v2", AttributeValue.builder().n("1.01").build());
-        qr.expressionAttributeValues(exprAttrVal);
+
+        // Use QueryFilter instead of FilterExpression (legacy parameter)
+        Map<String, Condition> queryFilter = new HashMap<>();
+        queryFilter.put("num", Condition.builder().comparisonOperator("GT")
+                .attributeValueList(AttributeValue.builder().n("1.01").build()).build());
+        qr.queryFilter(queryFilter);
+
+        //        qr.projectionExpression("Title");
         qr.scanIndexForward(false);
         qr.limit(1);
 
