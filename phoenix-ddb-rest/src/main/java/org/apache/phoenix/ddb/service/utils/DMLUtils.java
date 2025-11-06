@@ -12,7 +12,6 @@ import java.util.Map;
 import org.apache.phoenix.ddb.service.exceptions.ValidationException;
 import org.bson.RawBsonDocument;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.phoenix.ddb.bson.BsonDocumentToMap;
 import org.apache.phoenix.ddb.service.exceptions.ConditionCheckFailedException;
@@ -64,12 +63,12 @@ public class DMLUtils {
      */
     public static Map<String, Object> executeUpdate(PreparedStatement stmt, String returnValue,
             String returnValuesOnConditionCheckFailure,
-            String condExpr, List<PColumn> pkCols, boolean isDelete)
+            boolean hasCondExp, List<PColumn> pkCols, boolean isDelete)
             throws SQLException, ConditionCheckFailedException {
         Map<String, Object> returnAttrs = Collections.emptyMap();
         if (!needReturnRow(returnValue, returnValuesOnConditionCheckFailure)) {
             int returnStatus = stmt.executeUpdate();
-            if (returnStatus == 0 && !StringUtils.isEmpty(condExpr)) {
+            if (returnStatus == 0 && hasCondExp) {
                 throw new ConditionCheckFailedException();
             }
             return null;
@@ -86,7 +85,7 @@ public class DMLUtils {
         RawBsonDocument rawBsonDocument = rs == null ? null :
                 (RawBsonDocument) rs.getObject(pkCols.size()+1);
         if ((returnStatus == 0  && !isDelete) || (isDelete && rawBsonDocument == null) ) {
-            if (!StringUtils.isEmpty(condExpr)) {
+            if (hasCondExp) {
                 ConditionCheckFailedException conditionalCheckFailedException =
                         new ConditionCheckFailedException();
                 if (ApiMetadata.ALL_OLD.equals(returnValuesOnConditionCheckFailure) && !isDelete) {

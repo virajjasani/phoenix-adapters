@@ -17,14 +17,28 @@
  */
 
 import java.sql.DriverManager;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.model.AttributeAction;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValueUpdate;
+import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
+import software.amazon.awssdk.services.dynamodb.model.ExpectedAttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
+import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.ReturnValue;
+import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
+import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.UpdateItemResponse;
 import software.amazon.awssdk.services.dynamodb.streams.DynamoDbStreamsClient;
 
 import org.apache.hadoop.conf.Configuration;
@@ -110,6 +124,121 @@ public class MiscIT {
     public void testMixWorkflows2() throws Exception {
         Misc1Util.test2(dynamoDbClient, phoenixDBClientV2, dynamoDbStreamsClient,
                 phoenixDBStreamsClientV2);
+    }
+
+    @Test(timeout = 120000)
+    public void testMixWorkflows3() throws Exception {
+        final String tableName = "tests";
+
+        createTestTable(tableName);
+
+        Map<String, AttributeValue> updateKey = new HashMap<>();
+        updateKey.put("sk", AttributeValue.builder().s("Data").build());
+        updateKey.put("pk",
+                AttributeValue.builder().s("TestRun#65156626-2a8c-4f5d-9970-8ddf6394a48b").build());
+
+        Map<String, AttributeValueUpdate> attributeUpdates = new HashMap<>();
+        attributeUpdates.put("fireAndForget",
+                AttributeValueUpdate.builder().value(AttributeValue.builder().n("0").build())
+                        .action(AttributeAction.PUT).build());
+        attributeUpdates.put("executionStatus",
+                AttributeValueUpdate.builder().value(AttributeValue.builder().s("COMPLETE").build())
+                        .action(AttributeAction.PUT).build());
+        attributeUpdates.put("itemVersion",
+                AttributeValueUpdate.builder().value(AttributeValue.builder().n("1").build())
+                        .action(AttributeAction.PUT).build());
+        attributeUpdates.put("tp_tg", AttributeValueUpdate.builder()
+                .value(AttributeValue.builder().s("foundation").build()).action(AttributeAction.PUT)
+                .build());
+        attributeUpdates.put("started", AttributeValueUpdate.builder()
+                .value(AttributeValue.builder().s("2025-08-22T04:12:21.028Z").build())
+                .action(AttributeAction.PUT).build());
+        attributeUpdates.put("id", AttributeValueUpdate.builder()
+                .value(AttributeValue.builder().s("65156626-2a8c-4f5d-9970-8ddf6394a48b").build())
+                .action(AttributeAction.PUT).build());
+        attributeUpdates.put("tgt", AttributeValueUpdate.builder()
+                .value(AttributeValue.builder().s("st12").build())
+                .action(AttributeAction.PUT).build());
+        attributeUpdates.put("expireAt", AttributeValueUpdate.builder()
+                .value(AttributeValue.builder().n("1850443956").build()).action(AttributeAction.PUT)
+                .build());
+        attributeUpdates.put("status",
+                AttributeValueUpdate.builder().value(AttributeValue.builder().s("NO_TESTS").build())
+                        .action(AttributeAction.PUT).build());
+        attributeUpdates.put("master",
+                AttributeValueUpdate.builder().value(AttributeValue.builder().n("1").build())
+                        .action(AttributeAction.PUT).build());
+
+        Map<String, ExpectedAttributeValue> updateExpected = new HashMap<>();
+        updateExpected.put("itemVersion", ExpectedAttributeValue.builder().exists(false).build());
+
+        UpdateItemRequest updateRequest =
+                UpdateItemRequest.builder().tableName(tableName).key(updateKey)
+                        .attributeUpdates(attributeUpdates).expected(updateExpected)
+                        .returnValues(ReturnValue.ALL_NEW).build();
+
+        UpdateItemResponse dynamoUpdateResponse = dynamoDbClient.updateItem(updateRequest);
+        UpdateItemResponse phoenixUpdateResponse = phoenixDBClientV2.updateItem(updateRequest);
+
+        Assert.assertEquals("Update attributes should match", dynamoUpdateResponse.attributes(),
+                phoenixUpdateResponse.attributes());
+
+        Map<String, AttributeValue> putItem = new HashMap<>();
+        putItem.put("fireAndForget", AttributeValue.builder().n("0").build());
+        putItem.put("executionStatus", AttributeValue.builder().s("COMPLETE").build());
+        putItem.put("itemVersion", AttributeValue.builder().n("1").build());
+        putItem.put("tp_tg", AttributeValue.builder().s("foundation").build());
+        putItem.put("sk", AttributeValue.builder().s("Data").build());
+        putItem.put("started", AttributeValue.builder().s("2025-08-22T04:12:21.028Z").build());
+        putItem.put("id",
+                AttributeValue.builder().s("65156626-2a8c-4f5d-9970-8ddf6394a48b").build());
+        putItem.put("pk",
+                AttributeValue.builder().s("TestRun#65156626-2a8c-4f5d-9970-8ddf6394a48b").build());
+        putItem.put("tgt", AttributeValue.builder().s("st12").build());
+        putItem.put("expireAt", AttributeValue.builder().n("1850443956").build());
+        putItem.put("status", AttributeValue.builder().s("NO_TESTS").build());
+        putItem.put("master", AttributeValue.builder().n("1").build());
+
+        Map<String, ExpectedAttributeValue> putExpected = new HashMap<>();
+        putExpected.put("itemVersion", ExpectedAttributeValue.builder().exists(false).build());
+
+        PutItemRequest putItemRequest =
+                PutItemRequest.builder().tableName(tableName).item(putItem).expected(putExpected)
+                        .returnValues(ReturnValue.ALL_OLD).build();
+
+        try {
+            dynamoDbClient.putItem(putItemRequest);
+            Assert.fail("Should have failed with an exception");
+        } catch (ConditionalCheckFailedException e) {
+            Assert.assertEquals(400, e.statusCode());
+        }
+        try {
+            phoenixDBClientV2.putItem(putItemRequest);
+            Assert.fail("Should have failed with an exception");
+        } catch (ConditionalCheckFailedException e) {
+            Assert.assertEquals(400, e.statusCode());
+        }
+
+        GetItemRequest getItemRequest = GetItemRequest.builder().tableName(tableName)
+                .key(updateKey)
+                .build();
+        GetItemResponse dynamoGetResponse = dynamoDbClient.getItem(getItemRequest);
+        GetItemResponse phoenixGetResponse = phoenixDBClientV2.getItem(getItemRequest);
+
+        Assert.assertTrue("DynamoDB should have the item", dynamoGetResponse.hasItem());
+        Assert.assertTrue("Phoenix should have the item", phoenixGetResponse.hasItem());
+        Assert.assertEquals("Final item content should match between DynamoDB and Phoenix",
+                dynamoGetResponse.item(), phoenixGetResponse.item());
+
+    }
+
+    private void createTestTable(String tableName) {
+        dynamoDbClient.createTable(
+                DDLTestUtils.getCreateTableRequest(tableName, "pk", ScalarAttributeType.S, "sk",
+                        ScalarAttributeType.S));
+        phoenixDBClientV2.createTable(
+                DDLTestUtils.getCreateTableRequest(tableName, "pk", ScalarAttributeType.S, "sk",
+                        ScalarAttributeType.S));
     }
 
 }

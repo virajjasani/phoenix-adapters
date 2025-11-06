@@ -517,7 +517,7 @@ public class MappedTableIT {
         Assert.assertEquals(record2, result);
     }
 
-    @Ignore("TODO: Phoenix UPDATE_EXPRESSION does not support insertion currently.")
+    @Test
     public void updateCreatePartialRecord() {
         Record record = new Record()
                 .setId("id-value")
@@ -529,7 +529,9 @@ public class MappedTableIT {
         Assert.assertEquals(record, result);
     }
 
-    @Ignore("TODO: Phoenix UPDATE_EXPRESSION does not support insertion currently.")
+//    @Ignore("TODO: Phoenix UPDATE_EXPRESSION does not support insertion currently.")
+    @Test
+    // TODO : resolve known failure
     public void updateCreateKeyOnlyRecord() {
         Record record = new Record()
                 .setId("id-value")

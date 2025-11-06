@@ -59,9 +59,13 @@ public class DeleteItemService {
         setValuesOnPreparedStatement(stmtInfo, pkCols, (Map<String, Object>) request.get(ApiMetadata.KEY));
 
         LOGGER.debug("Delete Query for DeleteItem: {}", stmtInfo.stmt);
-        return DMLUtils.executeUpdate(stmtInfo.stmt, (String) request.get(ApiMetadata.RETURN_VALUES),
+
+        boolean hasCondExp = (request.get(ApiMetadata.CONDITION_EXPRESSION) != null) || (
+                request.get(ApiMetadata.EXPECTED) != null);
+        return DMLUtils.executeUpdate(stmtInfo.stmt,
+                (String) request.get(ApiMetadata.RETURN_VALUES),
                 (String) request.get(ApiMetadata.RETURN_VALUES_ON_CONDITION_CHECK_FAILURE),
-                (String) request.get(ApiMetadata.CONDITION_EXPRESSION), pkCols, true);
+                hasCondExp, pkCols, true);
     }
 
     /**
