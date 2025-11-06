@@ -268,7 +268,7 @@ public class CommonServiceUtils {
             Map<String, Object> expectedValue = (Map<String, Object>) entry.getValue();
 
             // Generate expression attribute name
-            String nameAlias = "#n" + nameCounter++;
+            String nameAlias = "#field_n___" + nameCounter++;
             exprAttrNames.put(nameAlias, attributeName);
 
             // Parse the expected value structure
@@ -314,7 +314,7 @@ public class CommonServiceUtils {
             if (exists) {
                 // exists(true) with value means: attribute exists AND equals the value
                 if (value != null) {
-                    String valueAlias = ":v" + valueCounter;
+                    String valueAlias = ":field_v___" + valueCounter;
                     exprAttrValues.put(valueAlias, value);
                     return "(" + nameAlias + " = " + valueAlias + ")";
                 } else {
@@ -329,7 +329,7 @@ public class CommonServiceUtils {
 
         // Handle Value-based conditions (legacy single value format)
         if (value != null) {
-            String valueAlias = ":v" + valueCounter;
+            String valueAlias = ":field_v___" + valueCounter;
             exprAttrValues.put(valueAlias, value);
 
             // Default comparison operator is EQ if not specified
@@ -395,7 +395,7 @@ public class CommonServiceUtils {
                 List<String> valueAliases = new ArrayList<>();
                 int counter = valueCounter;
                 for (Object value : attributeValueList) {
-                    String valueAlias = ":v" + counter++;
+                    String valueAlias = ":field_v___" + counter++;
                     exprAttrValues.put(valueAlias, value);
                     valueAliases.add(valueAlias);
                 }
@@ -410,7 +410,7 @@ public class CommonServiceUtils {
                 List<String> betweenValues = new ArrayList<>();
                 int betweenCounter = valueCounter;
                 for (Object value : attributeValueList) {
-                    String valueAlias = ":v" + betweenCounter++;
+                    String valueAlias = ":field_v___" + betweenCounter++;
                     exprAttrValues.put(valueAlias, value);
                     betweenValues.add(valueAlias);
                 }
@@ -420,7 +420,7 @@ public class CommonServiceUtils {
 
             default: {
                 // For other operators, use the first value
-                String valueAlias = ":v" + valueCounter;
+                String valueAlias = ":field_v___" + valueCounter;
                 Object firstValue = attributeValueList.get(0);
                 exprAttrValues.put(valueAlias, firstValue);
                 return buildComparisonCondition(nameAlias, comparisonOperator, valueAlias, null);

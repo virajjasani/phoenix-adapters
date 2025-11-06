@@ -48,6 +48,13 @@ public class ValidationUtil {
 
     public static void validateQueryRequest(Map<String, Object> request) {
         validateLegacyParams(request, QUERY_LEGACY_PARAMS);
+
+        String keyConditionExpression = (String) request.get(ApiMetadata.KEY_CONDITION_EXPRESSION);
+        Object keyConditions = request.get(ApiMetadata.KEY_CONDITIONS);
+        if (keyConditionExpression != null && keyConditions != null) {
+            throw new ValidationException(
+                    "Cannot specify both KeyConditionExpression and KeyConditions");
+        }
     }
 
     public static void validateScanRequest(Map<String, Object> request) {

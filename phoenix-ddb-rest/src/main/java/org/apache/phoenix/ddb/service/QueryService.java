@@ -4,6 +4,8 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -32,6 +34,8 @@ public class QueryService {
 
     public static Map<String, Object> query(Map<String, Object> request, String connectionUrl) {
         ValidationUtil.validateQueryRequest(request);
+        handleLegacyParamsConversion(request);
+        
         String tableName = (String) request.get(ApiMetadata.TABLE_NAME);
         String indexName = (String) request.get(ApiMetadata.INDEX_NAME);
         boolean useIndex = !StringUtils.isEmpty(indexName);
@@ -181,5 +185,74 @@ public class QueryService {
     private static boolean doScanIndexForward(Map<String, Object> request) {
         Boolean scanIndexForward = (Boolean) request.get(ApiMetadata.SCAN_INDEX_FORWARD);
         return scanIndexForward == null || scanIndexForward;
+    }
+
+    /**
+     * Handles legacy parameter conversion to modern equivalents.
+     */
+    private static void handleLegacyParamsConversion(Map<String, Object> request) {
+        Map<String, Object> keyConditions =
+                (Map<String, Object>) request.get(ApiMetadata.KEY_CONDITIONS);
+
+        if (keyConditions != null) {
+            Map<String, String> exprAttrNames =
+                    (Map<String, String>) request.get(ApiMetadata.EXPRESSION_ATTRIBUTE_NAMES);
+            if (exprAttrNames == null) {
+                exprAttrNames = new HashMap<>();
+                request.put(ApiMetadata.EXPRESSION_ATTRIBUTE_NAMES, exprAttrNames);
+            }
+            Map<String, Object> exprAttrValues =
+                    (Map<String, Object>) request.get(ApiMetadata.EXPRESSION_ATTRIBUTE_VALUES);
+            if (exprAttrValues == null) {
+                exprAttrValues = new HashMap<>();
+                request.put(ApiMetadata.EXPRESSION_ATTRIBUTE_VALUES, exprAttrValues);
+            }
+
+            Map<String, Object> orderedKeyConditions = reorderKeyConditions(keyConditions);
+            String keyConditionExpression =
+                    CommonServiceUtils.convertExpectedToConditionExpression(orderedKeyConditions,
+                            "AND", exprAttrNames, exprAttrValues);
+            if (keyConditionExpression != null) {
+                request.put(ApiMetadata.KEY_CONDITION_EXPRESSION, keyConditionExpression);
+            }
+            request.remove(ApiMetadata.KEY_CONDITIONS);
+        }
+    }
+
+    /**
+     * Reorders KeyConditions to ensure hash key (partition key) comes first, then sort key.
+     *
+     * @param keyConditions The original KeyConditions map
+     * @return Reordered map with hash key first, sort key second
+     */
+    private static Map<String, Object> reorderKeyConditions(Map<String, Object> keyConditions) {
+        if (keyConditions.size() <= 1) {
+            return keyConditions;
+        }
+        Map<String, Object> orderedConditions = new LinkedHashMap<>();
+        String hashKeyName = null;
+        Object hashKeyCondition = null;
+        String sortKeyName = null;
+        Object sortKeyCondition = null;
+
+        for (Map.Entry<String, Object> entry : keyConditions.entrySet()) {
+            String keyName = entry.getKey();
+            Map<String, Object> condition = (Map<String, Object>) entry.getValue();
+            String operator = (String) condition.get("ComparisonOperator");
+            if ("EQ".equals(operator)) {
+                hashKeyName = keyName;
+                hashKeyCondition = condition;
+            } else {
+                sortKeyName = keyName;
+                sortKeyCondition = condition;
+            }
+        }
+        if (hashKeyName != null) {
+            orderedConditions.put(hashKeyName, hashKeyCondition);
+        }
+        if (sortKeyName != null) {
+            orderedConditions.put(sortKeyName, sortKeyCondition);
+        }
+        return orderedConditions;
     }
 }
