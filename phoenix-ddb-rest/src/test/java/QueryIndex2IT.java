@@ -1,6 +1,27 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.AfterClass;
@@ -1363,6 +1384,39 @@ public class QueryIndex2IT {
     }
 
     /**
+     * Helper method to consolidate repetitive assertions for comparing query results
+     * between DynamoDB and Phoenix with sorting by primary key for deterministic comparison.
+     *
+     * @param dynamoResult The query result from DynamoDB
+     * @param phoenixResult The query result from Phoenix
+     * @param expectedCount Optional expected count (can be null to skip count assertion)
+     */
+    private void assertQueryResultsEqualSorted(QueryResponse dynamoResult, QueryResponse phoenixResult,
+            Integer expectedCount) {
+        if (expectedCount != null) {
+            Assert.assertEquals(expectedCount.intValue(), dynamoResult.count().intValue());
+        }
+        Assert.assertEquals(dynamoResult.count(), phoenixResult.count());
+        Assert.assertEquals(dynamoResult.scannedCount(), phoenixResult.scannedCount());
+        
+        // Sort both result sets by "pk" attribute for deterministic comparison
+        List<Map<String, AttributeValue>> sortedDynamoItems = new ArrayList<>(dynamoResult.items());
+        List<Map<String, AttributeValue>> sortedPhoenixItems = new ArrayList<>(phoenixResult.items());
+        
+        Comparator<Map<String, AttributeValue>> pkComparator = (item1, item2) -> {
+            String pk1 = item1.get("pk") != null ? item1.get("pk").s() : "";
+            String pk2 = item2.get("pk") != null ? item2.get("pk").s() : "";
+            return pk1.compareTo(pk2);
+        };
+        
+        sortedDynamoItems.sort(pkComparator);
+        sortedPhoenixItems.sort(pkComparator);
+        
+        Assert.assertTrue("Items should be equal after sorting by pk", 
+                ItemComparator.areItemsEqual(sortedDynamoItems, sortedPhoenixItems));
+    }
+
+    /**
      * Helper method that executes queries on both DynamoDB and Phoenix clients and
      * then performs the standard assertions.
      *
@@ -1373,6 +1427,212 @@ public class QueryIndex2IT {
         QueryResponse phoenixResult = phoenixDBClientV2.query(queryRequest);
         QueryResponse dynamoResult = dynamoDbClient.query(queryRequest);
         assertQueryResultsEqual(dynamoResult, phoenixResult, expectedCount);
+    }
+
+    /**
+     * Helper method that executes queries on both DynamoDB and Phoenix clients and
+     * then performs the sorted assertions for deterministic comparison.
+     *
+     * @param queryRequest  The query request to execute
+     * @param expectedCount Optional expected count (can be null to skip count assertion)
+     */
+    private void executeAndAssertQuerySorted(QueryRequest queryRequest, Integer expectedCount) {
+        QueryResponse phoenixResult = phoenixDBClientV2.query(queryRequest);
+        QueryResponse dynamoResult = dynamoDbClient.query(queryRequest);
+        assertQueryResultsEqualSorted(dynamoResult, phoenixResult, expectedCount);
+    }
+
+    @Test(timeout = 120000)
+    public void testHashOnlyGSIQuery() throws SQLException {
+        final String tableName = testName.getMethodName();
+        final String indexName = "category_gsi";
+
+        // Create table with composite primary key (pk + sk)
+        CreateTableRequest createTableRequest =
+                DDLTestUtils.getCreateTableRequest(tableName, "pk", ScalarAttributeType.S, "sk",
+                        ScalarAttributeType.N);
+
+        // Add GSI with only hash key on "category" attribute  
+        createTableRequest =
+                DDLTestUtils.addIndexToRequest(true, createTableRequest, indexName, "category",
+                        ScalarAttributeType.S, null, null);
+
+        phoenixDBClientV2.createTable(createTableRequest);
+        dynamoDbClient.createTable(createTableRequest);
+
+        insertItems(tableName);
+
+        QueryRequest.Builder qr1 = QueryRequest.builder().tableName(tableName).indexName(indexName);
+        qr1.keyConditionExpression("category = :cat");
+        Map<String, AttributeValue> exprAttrVal1 = new HashMap<>();
+        exprAttrVal1.put(":cat", AttributeValue.builder().s("electronics").build());
+        qr1.expressionAttributeValues(exprAttrVal1);
+        executeAndAssertQuerySorted(qr1.build(), 4);
+
+        QueryRequest.Builder qr3 = QueryRequest.builder().tableName(tableName).indexName(indexName);
+        qr3.keyConditionExpression("category = :cat");
+        qr3.filterExpression("price > :min_price AND price < :max_price");
+        Map<String, AttributeValue> exprAttrVal3 = new HashMap<>();
+        exprAttrVal3.put(":cat", AttributeValue.builder().s("electronics").build());
+        exprAttrVal3.put(":min_price", AttributeValue.builder().n("100").build());
+        exprAttrVal3.put(":max_price", AttributeValue.builder().n("800").build());
+        qr3.expressionAttributeValues(exprAttrVal3);
+        executeAndAssertQuerySorted(qr3.build(), 2);
+
+        QueryRequest.Builder qr4 = QueryRequest.builder().tableName(tableName).indexName(indexName);
+        qr4.keyConditionExpression("category = :cat");
+        qr4.filterExpression("contains(features, :feature)");
+        Map<String, AttributeValue> exprAttrVal4 = new HashMap<>();
+        exprAttrVal4.put(":cat", AttributeValue.builder().s("electronics").build());
+        exprAttrVal4.put(":feature", AttributeValue.builder().s("wireless").build());
+        qr4.expressionAttributeValues(exprAttrVal4);
+        executeAndAssertQuerySorted(qr4.build(), 2);
+
+        QueryRequest.Builder qr5 = QueryRequest.builder().tableName(tableName).indexName(indexName);
+        qr5.keyConditionExpression("category = :cat");
+        Map<String, AttributeValue> exprAttrVal5 = new HashMap<>();
+        exprAttrVal5.put(":cat", AttributeValue.builder().s("books").build());
+        qr5.expressionAttributeValues(exprAttrVal5);
+        executeAndAssertQuerySorted(qr5.build(), 2);
+
+        QueryRequest.Builder qr6 = QueryRequest.builder().tableName(tableName).indexName(indexName);
+        qr6.keyConditionExpression("category = :cat");
+        qr6.projectionExpression("pk, sk, title, price");
+        qr6.expressionAttributeValues(exprAttrVal1); // electronics
+        QueryResponse projResult1 = phoenixDBClientV2.query(qr6.build());
+        QueryResponse projResult2 = dynamoDbClient.query(qr6.build());
+        assertQueryResultsEqualSorted(projResult2, projResult1, null);
+        if (projResult1.count() > 0) {
+            Map<String, AttributeValue> firstItem = projResult1.items().get(0);
+            Assert.assertTrue("Should have pk", firstItem.containsKey("pk"));
+            Assert.assertTrue("Should have title", firstItem.containsKey("title"));
+            Assert.assertTrue("Should have price", firstItem.containsKey("price"));
+            Assert.assertFalse("Should not have category in projection",
+                    firstItem.containsKey("category"));
+        }
+
+        QueryRequest.Builder qr7 = QueryRequest.builder().tableName(tableName).indexName(indexName);
+        qr7.keyConditionExpression("category = :cat");
+        qr7.scanIndexForward(false);
+        qr7.expressionAttributeValues(exprAttrVal1);
+        executeAndAssertQuerySorted(qr7.build(), 4);
+
+        QueryRequest.Builder qr8 = QueryRequest.builder().tableName(tableName).indexName(indexName);
+        qr8.keyConditionExpression("category = :cat");
+        Map<String, AttributeValue> exprAttrVal8 = new HashMap<>();
+        exprAttrVal8.put(":cat", AttributeValue.builder().s("nonexistent").build());
+        qr8.expressionAttributeValues(exprAttrVal8);
+        executeAndAssertQuery(qr8.build(), 0);
+
+        QueryRequest.Builder qr9 = QueryRequest.builder().tableName(tableName).indexName(indexName);
+        qr9.keyConditionExpression("category = :cat");
+        qr9.filterExpression("attribute_exists(discount)");
+        qr9.expressionAttributeValues(exprAttrVal1);
+        executeAndAssertQuerySorted(qr9.build(), 2);
+
+        QueryRequest.Builder qr10 =
+                QueryRequest.builder().tableName(tableName).indexName(indexName);
+        qr10.keyConditionExpression("category = :cat");
+        qr10.filterExpression("price BETWEEN :low AND :high");
+        Map<String, AttributeValue> exprAttrVal10 = new HashMap<>();
+        exprAttrVal10.put(":cat", AttributeValue.builder().s("home").build());
+        exprAttrVal10.put(":low", AttributeValue.builder().n("199.991").build());
+        exprAttrVal10.put(":high", AttributeValue.builder().n("500").build());
+        qr10.expressionAttributeValues(exprAttrVal10);
+        executeAndAssertQuery(qr10.build(), 1);
+    }
+
+    private void insertItems(String tableName) {
+        // Electronics category items (4 items)
+        Map<String, AttributeValue> item1 = new HashMap<>();
+        item1.put("pk", AttributeValue.builder().s("smartphone").build());
+        item1.put("sk", AttributeValue.builder().n("1").build());
+        item1.put("title", AttributeValue.builder().s("iPhone 15 Pro").build());
+        item1.put("price", AttributeValue.builder().n("999.99").build());
+        item1.put("category", AttributeValue.builder().s("electronics").build());
+        item1.put("features",
+                AttributeValue.builder().ss("5G", "camera", "wireless", "premium").build());
+        item1.put("in_stock", AttributeValue.builder().bool(true).build());
+
+        Map<String, AttributeValue> item2 = new HashMap<>();
+        item2.put("pk", AttributeValue.builder().s("laptop").build());
+        item2.put("sk", AttributeValue.builder().n("2").build());
+        item2.put("title", AttributeValue.builder().s("MacBook Pro 16").build());
+        item2.put("price", AttributeValue.builder().n("2499.99").build());
+        item2.put("category", AttributeValue.builder().s("electronics").build());
+        item2.put("features",
+                AttributeValue.builder().ss("M3 chip", "16GB RAM", "premium").build());
+        item2.put("in_stock", AttributeValue.builder().bool(true).build());
+        item2.put("discount", AttributeValue.builder().n("100").build());
+
+        Map<String, AttributeValue> item3 = new HashMap<>();
+        item3.put("pk", AttributeValue.builder().s("headphones").build());
+        item3.put("sk", AttributeValue.builder().n("3").build());
+        item3.put("title", AttributeValue.builder().s("AirPods Pro").build());
+        item3.put("price", AttributeValue.builder().n("249.99").build());
+        item3.put("category", AttributeValue.builder().s("electronics").build());
+        item3.put("features", AttributeValue.builder().ss("noise-cancelling", "wireless").build());
+        item3.put("in_stock", AttributeValue.builder().bool(false).build());
+
+        Map<String, AttributeValue> item4 = new HashMap<>();
+        item4.put("pk", AttributeValue.builder().s("tablet").build());
+        item4.put("sk", AttributeValue.builder().n("4").build());
+        item4.put("title", AttributeValue.builder().s("iPad Air").build());
+        item4.put("price", AttributeValue.builder().n("599.99").build());
+        item4.put("category", AttributeValue.builder().s("electronics").build());
+        item4.put("features", AttributeValue.builder().ss("touchscreen", "portable").build());
+        item4.put("in_stock", AttributeValue.builder().bool(true).build());
+        item4.put("discount", AttributeValue.builder().n("50").build());
+
+        // Books category items (2 items)
+        Map<String, AttributeValue> item5 = new HashMap<>();
+        item5.put("pk", AttributeValue.builder().s("programming_book").build());
+        item5.put("sk", AttributeValue.builder().n("5").build());
+        item5.put("title", AttributeValue.builder().s("Java: The Complete Reference").build());
+        item5.put("price", AttributeValue.builder().n("59.99").build());
+        item5.put("category", AttributeValue.builder().s("books").build());
+        item5.put("features", AttributeValue.builder().ss("comprehensive", "examples").build());
+        item5.put("in_stock", AttributeValue.builder().bool(true).build());
+
+        Map<String, AttributeValue> item6 = new HashMap<>();
+        item6.put("pk", AttributeValue.builder().s("design_book").build());
+        item6.put("sk", AttributeValue.builder().n("6").build());
+        item6.put("title", AttributeValue.builder().s("Design Patterns").build());
+        item6.put("price", AttributeValue.builder().n("45.99").build());
+        item6.put("category", AttributeValue.builder().s("books").build());
+        item6.put("features", AttributeValue.builder().ss("patterns", "architecture").build());
+        item6.put("in_stock", AttributeValue.builder().bool(true).build());
+
+        // Home category items (2 items)
+        Map<String, AttributeValue> item7 = new HashMap<>();
+        item7.put("pk", AttributeValue.builder().s("vacuum").build());
+        item7.put("sk", AttributeValue.builder().n("7").build());
+        item7.put("title", AttributeValue.builder().s("Dyson V15").build());
+        item7.put("price", AttributeValue.builder().n("449.99").build());
+        item7.put("category", AttributeValue.builder().s("home").build());
+        item7.put("features", AttributeValue.builder().ss("cordless", "powerful").build());
+        item7.put("in_stock", AttributeValue.builder().bool(true).build());
+
+        Map<String, AttributeValue> item8 = new HashMap<>();
+        item8.put("pk", AttributeValue.builder().s("coffee_maker").build());
+        item8.put("sk", AttributeValue.builder().n("8").build());
+        item8.put("title", AttributeValue.builder().s("Nespresso Machine").build());
+        item8.put("price", AttributeValue.builder().n("199.99").build());
+        item8.put("category", AttributeValue.builder().s("home").build());
+        item8.put("features", AttributeValue.builder().ss("automatic", "compact").build());
+        item8.put("in_stock", AttributeValue.builder().bool(true).build());
+
+        // Insert all items into both DynamoDB and Phoenix
+        @SuppressWarnings("unchecked")
+        Map<String, AttributeValue>[] items =
+                new Map[] {item1, item2, item3, item4, item5, item6, item7, item8};
+
+        for (Map<String, AttributeValue> item : items) {
+            PutItemRequest putRequest =
+                    PutItemRequest.builder().tableName(tableName).item(item).build();
+            phoenixDBClientV2.putItem(putRequest);
+            dynamoDbClient.putItem(putRequest);
+        }
     }
 
 }

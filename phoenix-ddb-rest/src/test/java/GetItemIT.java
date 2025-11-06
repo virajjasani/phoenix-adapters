@@ -1,3 +1,21 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import java.sql.DriverManager;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -17,6 +35,7 @@ import software.amazon.awssdk.services.dynamodb.model.AttributeDefinition;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.BillingMode;
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
+import software.amazon.awssdk.services.dynamodb.model.DynamoDbException;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
 import software.amazon.awssdk.services.dynamodb.model.GlobalSecondaryIndex;
@@ -572,4 +591,71 @@ public class GetItemIT {
         return item;
     }
 
+    @Test(timeout = 120000)
+    public void testGetItemWithAttributesToGet() {
+        final String tableName = testName.getMethodName();
+        CreateTableRequest createTableRequest =
+                DDLTestUtils.getCreateTableRequest(tableName, "ForumName", ScalarAttributeType.S,
+                        "Subject", ScalarAttributeType.S);
+        phoenixDBClientV2.createTable(createTableRequest);
+        dynamoDbClient.createTable(createTableRequest);
+
+        PutItemRequest putItemRequest =
+                PutItemRequest.builder().tableName(tableName).item(getItem1()).build();
+        phoenixDBClientV2.putItem(putItemRequest);
+        dynamoDbClient.putItem(putItemRequest);
+
+        Map<String, AttributeValue> key = new HashMap<>();
+        key.put("ForumName", AttributeValue.builder().s("Amazon DynamoDB").build());
+        key.put("Subject", AttributeValue.builder().s("How do I update multiple items?").build());
+        GetItemRequest.Builder gI = GetItemRequest.builder().tableName(tableName).key(key);
+        gI.attributesToGet(Arrays.asList("LastPostDateTime", "Message", "Tag"));
+        GetItemResponse dynamoResult = dynamoDbClient.getItem(gI.build());
+        GetItemResponse phoenixResult = phoenixDBClientV2.getItem(gI.build());
+        Assert.assertEquals(dynamoResult.item(), phoenixResult.item());
+
+        GetItemRequest.Builder gI2 = GetItemRequest.builder().tableName(tableName).key(key);
+        gI2.attributesToGet(Arrays.asList("Message"));
+        GetItemResponse dynamoResult2 = dynamoDbClient.getItem(gI2.build());
+        GetItemResponse phoenixResult2 = phoenixDBClientV2.getItem(gI2.build());
+        Assert.assertEquals(dynamoResult2.item(), phoenixResult2.item());
+    }
+
+    @Test(timeout = 120000)
+    public void testGetItemWithAttributesToGetAndValidationError() {
+        final String tableName = testName.getMethodName();
+        CreateTableRequest createTableRequest =
+                DDLTestUtils.getCreateTableRequest(tableName, "ForumName", ScalarAttributeType.S,
+                        "Subject", ScalarAttributeType.S);
+        phoenixDBClientV2.createTable(createTableRequest);
+        dynamoDbClient.createTable(createTableRequest);
+
+        PutItemRequest putItemRequest =
+                PutItemRequest.builder().tableName(tableName).item(getItem1()).build();
+        phoenixDBClientV2.putItem(putItemRequest);
+        dynamoDbClient.putItem(putItemRequest);
+
+        Map<String, AttributeValue> key = new HashMap<>();
+        key.put("ForumName", AttributeValue.builder().s("Amazon DynamoDB").build());
+        key.put("Subject", AttributeValue.builder().s("How do I update multiple items?").build());
+        GetItemRequest.Builder gI = GetItemRequest.builder().tableName(tableName).key(key);
+        gI.attributesToGet(Arrays.asList("LastPostDateTime", "Message"));
+        gI.projectionExpression("LastPostDateTime, Message, Tag");
+
+        try {
+            phoenixDBClientV2.getItem(gI.build());
+            Assert.fail("Expected ValidationException for both "
+                    + "AttributesToGet and ProjectionExpression");
+        } catch (DynamoDbException e) {
+            Assert.assertEquals("Expected 400 status code for Phoenix", 400, e.statusCode());
+        }
+
+        try {
+            dynamoDbClient.getItem(gI.build());
+            Assert.fail("Expected ValidationException for both "
+                    + "AttributesToGet and ProjectionExpression");
+        } catch (DynamoDbException e) {
+            Assert.assertEquals("Expected 400 status code for DynamoDB", 400, e.statusCode());
+        }
+    }
 }

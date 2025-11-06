@@ -1,5 +1,25 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import java.sql.DriverManager;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.AfterClass;
@@ -10,7 +30,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.Condition;
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
+import software.amazon.awssdk.services.dynamodb.model.DynamoDbException;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
@@ -61,20 +83,19 @@ public class QueryProjectionIT {
         LOGGER.info("started {} on port {}", restServer.getClass().getName(), restServer.getPort());
         phoenixDBClientV2 = LocalDynamoDB.createV2Client("http://" + restServer.getServerAddress());
 
-        DynamoDbClient dynamoDbClient =
-                LocalDynamoDbTestBase.localDynamoDb().createV2Client();
+        DynamoDbClient dynamoDbClient = LocalDynamoDbTestBase.localDynamoDb().createV2Client();
 
         //create table
         CreateTableRequest createTableRequest =
-                DDLTestUtils.getCreateTableRequest(TABLE_NAME, "attr_0",
-                        ScalarAttributeType.S, null, null);
+                DDLTestUtils.getCreateTableRequest(TABLE_NAME, "attr_0", ScalarAttributeType.S,
+                        null, null);
 
         phoenixDBClientV2.createTable(createTableRequest);
         dynamoDbClient.createTable(createTableRequest);
 
         //put
-        PutItemRequest putItemRequest1
-                = PutItemRequest.builder().tableName(TABLE_NAME).item(getItem()).build();
+        PutItemRequest putItemRequest1 =
+                PutItemRequest.builder().tableName(TABLE_NAME).item(getItem()).build();
         phoenixDBClientV2.putItem(putItemRequest1);
         dynamoDbClient.putItem(putItemRequest1);
 
@@ -117,11 +138,11 @@ public class QueryProjectionIT {
         Map<String, AttributeValue> reviewMap4 = new HashMap<>();
         reviewMap4.put("reviewer", AttributeValue.builder().s("Bob4").build());
         Map<String, AttributeValue> fiveStarMap = new HashMap<>();
-        fiveStarMap.put("FiveStar", AttributeValue.builder().l(
-                AttributeValue.builder().m(reviewMap1).build(),
-                AttributeValue.builder().m(reviewMap2).build(),
-                AttributeValue.builder().m(reviewMap3).build(),
-                AttributeValue.builder().m(reviewMap4).build()).build());
+        fiveStarMap.put("FiveStar", AttributeValue.builder()
+                .l(AttributeValue.builder().m(reviewMap1).build(),
+                        AttributeValue.builder().m(reviewMap2).build(),
+                        AttributeValue.builder().m(reviewMap3).build(),
+                        AttributeValue.builder().m(reviewMap4).build()).build());
         item.put("Reviews", AttributeValue.builder().m(fiveStarMap).build());
 
         // nested maps
@@ -134,51 +155,34 @@ public class QueryProjectionIT {
         item.put("map3", AttributeValue.builder().m(nestedMap2).build());
 
         //nested list with different types
-        item.put("nestedList", AttributeValue.builder().l(
-                AttributeValue.builder().l(
-                        AttributeValue.builder().s("a").build(),
-                        AttributeValue.builder().n("1").build()
-                ).build(),
-                AttributeValue.builder().l(
-                        AttributeValue.builder().l(
-                                AttributeValue.builder().s("c").build(),
-                                AttributeValue.builder().s("d").build()
-                        ).build()
-                ).build(),
-                AttributeValue.builder().l(
-                        AttributeValue.builder().s("b").build(),
-                        AttributeValue.builder().n("2").build()
-                ).build()
-        ).build());
+        item.put("nestedList", AttributeValue.builder().l(AttributeValue.builder()
+                .l(AttributeValue.builder().s("a").build(), AttributeValue.builder().n("1").build())
+                .build(), AttributeValue.builder().l(AttributeValue.builder()
+                .l(AttributeValue.builder().s("c").build(), AttributeValue.builder().s("d").build())
+                .build()).build(), AttributeValue.builder()
+                .l(AttributeValue.builder().s("b").build(), AttributeValue.builder().n("2").build())
+                .build()).build());
 
         // nested list->list->map->list
         // track[0].shot[2][0].city.standard[2]
-        AttributeValue list1 = AttributeValue.builder().l(
-                AttributeValue.builder().n("1").build(),
-                AttributeValue.builder().n("2").build(),
-                AttributeValue.builder().n("3").build()
-        ).build();
+        AttributeValue list1 = AttributeValue.builder()
+                .l(AttributeValue.builder().n("1").build(), AttributeValue.builder().n("2").build(),
+                        AttributeValue.builder().n("3").build()).build();
         Map<String, AttributeValue> map1 = new HashMap<>();
         map1.put("standard", list1);
         Map<String, AttributeValue> map2 = new HashMap<>();
         map2.put("city", AttributeValue.builder().m(map1).build());
 
-        AttributeValue shot = AttributeValue.builder().l(
-                AttributeValue.builder().l(
-                        AttributeValue.builder().s("x").build()
-                ).build(),
-                AttributeValue.builder().l(
-                        AttributeValue.builder().m(map2).build(),
-                        AttributeValue.builder().s("s").build()
-                ).build()
-        ).build();
+        AttributeValue shot = AttributeValue.builder()
+                .l(AttributeValue.builder().l(AttributeValue.builder().s("x").build()).build(),
+                        AttributeValue.builder().l(AttributeValue.builder().m(map2).build(),
+                                AttributeValue.builder().s("s").build()).build()).build();
 
         Map<String, AttributeValue> shotMap = new HashMap<>();
         shotMap.put("shot", shot);
-        AttributeValue list2 = AttributeValue.builder().l(
-                AttributeValue.builder().m(shotMap).build(),
-                AttributeValue.builder().s("hello").build()
-        ).build();
+        AttributeValue list2 = AttributeValue.builder()
+                .l(AttributeValue.builder().m(shotMap).build(),
+                        AttributeValue.builder().s("hello").build()).build();
         item.put("track", list2);
         item.put("A.B", AttributeValue.builder().s("not nested field 1").build());
         return item;
@@ -279,7 +283,8 @@ public class QueryProjectionIT {
         exprAttrNames.put("#2", "city");
         exprAttrNames.put("#3", "standard");
         exprAttrNames.put("#4", "A.B");
-        testWithMap("#0[0].#1[2][0].#2.#3[1],#0[0].#1[2][0].#2.#3[2], #0[0].#1[2][0].#2.#3[0], #4", exprAttrNames);
+        testWithMap("#0[0].#1[2][0].#2.#3[1],#0[0].#1[2][0].#2.#3[2], #0[0].#1[2][0].#2.#3[0], #4",
+                exprAttrNames);
     }
 
     @Test(timeout = 120000)
@@ -331,5 +336,101 @@ public class QueryProjectionIT {
         Assert.assertEquals(dynamoResult.count(), phoenixResult.count());
         Assert.assertEquals(dynamoResult.items().get(0), phoenixResult.items().get(0));
         Assert.assertEquals(dynamoResult.scannedCount(), phoenixResult.scannedCount());
+    }
+
+    @Test(timeout = 120000)
+    public void testAttributesToGet1() {
+        testAttributesToGet(Arrays.asList("Id2", "title", "Reviews"));
+    }
+
+    @Test(timeout = 120000)
+    public void testAttributesToGet2() {
+        testAttributesToGet(Arrays.asList("Id2", "title"));
+    }
+
+    @Test(timeout = 120000)
+    public void testAttributesToGet3() {
+        testAttributesToGet(Arrays.asList("Id2", "title", "Reviews", "map3"));
+    }
+
+    @Test(timeout = 120000)
+    public void testAttributesToGet4() {
+        testAttributesToGet(Arrays.asList("Id2"));
+    }
+
+    @Test(timeout = 120000)
+    public void testAttributesToGet5() {
+        testAttributesToGet(Arrays.asList("Id2", "title", "nestedList"));
+    }
+
+    @Test(timeout = 120000)
+    public void testAttributesToGet6() {
+        testAttributesToGet(Arrays.asList("attr_0", "attr_1", "Id1", "Id2", "title"));
+    }
+
+    @Test(timeout = 120000)
+    public void testAttributesToGet7() {
+        testAttributesToGet(Arrays.asList("track", "A.B"));
+    }
+
+    @Test(timeout = 120000)
+    public void testAttributesToGet8() {
+        testAttributesToGet(Arrays.asList("Reviews", "map3", "nestedList"));
+    }
+
+    @Test(timeout = 120000)
+    public void testAttributesToGetAllTopLevel() {
+        testAttributesToGet(
+                Arrays.asList("attr_0", "attr_1", "Id1", "Id2", "title", "Reviews", "map3",
+                        "nestedList", "track", "A.B"));
+    }
+
+    @Test(timeout = 120000)
+    public void testAttributesToGetSingle() {
+        testAttributesToGet(Arrays.asList("title"));
+    }
+
+    private QueryRequest.Builder getQueryRequestWithKeyConditions() {
+        QueryRequest.Builder qr = QueryRequest.builder().tableName(TABLE_NAME);
+
+        // Use KeyConditions instead of KeyConditionExpression
+        Map<String, Condition> keyConditions = new HashMap<>();
+        Condition condition = Condition.builder().comparisonOperator("EQ")
+                .attributeValueList(AttributeValue.builder().s("B").build()).build();
+        keyConditions.put("attr_0", condition);
+        qr.keyConditions(keyConditions);
+
+        return qr;
+    }
+
+    private void testAttributesToGet(List<String> attributesToGet) {
+        QueryRequest.Builder qr = getQueryRequestWithKeyConditions();
+        qr.attributesToGet(attributesToGet);
+        QueryResponse phoenixResult = phoenixDBClientV2.query(qr.build());
+        QueryResponse dynamoResult = dynamoDbClient.query(qr.build());
+        Assert.assertEquals(dynamoResult.count(), phoenixResult.count());
+        Assert.assertEquals(dynamoResult.items().get(0), phoenixResult.items().get(0));
+        Assert.assertEquals(dynamoResult.scannedCount(), phoenixResult.scannedCount());
+    }
+
+    @Test(timeout = 120000)
+    public void testAttributesToGetAndProjectionExpressionValidationError() {
+        QueryRequest.Builder qr = getQueryRequestWithKeyConditions();
+        qr.attributesToGet(Arrays.asList("Id2", "title"));
+        qr.projectionExpression("Id2, title, Reviews");
+
+        try {
+            phoenixDBClientV2.query(qr.build());
+            Assert.fail("Should have thrown an exception");
+        } catch (DynamoDbException e) {
+            Assert.assertEquals("Expected 400 status code for Phoenix", 400, e.statusCode());
+        }
+
+        try {
+            dynamoDbClient.query(qr.build());
+            Assert.fail("Should have thrown an exception");
+        } catch (DynamoDbException e) {
+            Assert.assertEquals("Expected 400 status code for DynamoDB", 400, e.statusCode());
+        }
     }
 }

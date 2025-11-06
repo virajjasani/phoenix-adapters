@@ -480,4 +480,37 @@ public class CommonServiceUtils {
         }
         return 0;
     }
+
+    /**
+     * Handles legacy projection parameter conversion to modern equivalent.
+     * Converts AttributesToGet list to ProjectionExpression string.
+     *
+     * @param request The request map to modify
+     */
+    public static void handleLegacyProjectionConversion(Map<String, Object> request) {
+        List<String> attributesToGet = (List<String>) request.get(ApiMetadata.ATTRIBUTES_TO_GET);
+        if (attributesToGet != null) {
+            String projectionExpression =
+                    convertAttributesToGetToProjectionExpression(attributesToGet);
+            if (projectionExpression != null) {
+                request.put(ApiMetadata.PROJECTION_EXPRESSION, projectionExpression);
+            }
+            request.remove(ApiMetadata.ATTRIBUTES_TO_GET);
+        }
+    }
+
+    /**
+     * Convert AttributesToGet list to a ProjectionExpression string.
+     * AttributesToGet is a legacy parameter that contains a list of attribute names.
+     *
+     * @param attributesToGet List of attribute names to project
+     * @return A ProjectionExpression string with comma-separated attribute names
+     */
+    private static String convertAttributesToGetToProjectionExpression(
+            List<String> attributesToGet) {
+        if (attributesToGet == null || attributesToGet.isEmpty()) {
+            return null;
+        }
+        return String.join(", ", attributesToGet);
+    }
 }

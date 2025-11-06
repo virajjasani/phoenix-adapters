@@ -1,4 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import java.sql.DriverManager;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -1433,27 +1452,32 @@ public class ScanTableIT {
     }
 
     private List<Map<String, AttributeValue>> sortItemsByPk(
-            List<Map<String, AttributeValue>> items) {
+            List<Map<String, AttributeValue>> items, String pkName) {
         return items.stream()
-                .sorted(Comparator.comparing(item -> item.get("pk").s()))
+                .sorted(Comparator.comparing(item -> item.get(pkName).s()))
                 .collect(Collectors.toList());
+    }
+
+    private void assertScanResults(ScanRequest.Builder scanRequestBuilder, Integer expectedCount) {
+        assertScanResults(scanRequestBuilder, expectedCount, "pk");
     }
 
     /**
      * Helper method to execute scan requests on both Phoenix and DynamoDB clients
      * and assert that the results match.
      */
-    private void assertScanResults(ScanRequest.Builder scanRequestBuilder, Integer expectedCount) {
+    private void assertScanResults(ScanRequest.Builder scanRequestBuilder, Integer expectedCount,
+            String pkName) {
         ScanResponse phoenixResult = phoenixDBClientV2.scan(scanRequestBuilder.build());
         ScanResponse dynamoResult = dynamoDbClient.scan(scanRequestBuilder.build());
-        
+
         if (expectedCount != null) {
             Assert.assertEquals(expectedCount.intValue(), dynamoResult.count().intValue());
         }
         Assert.assertEquals(dynamoResult.count(), phoenixResult.count());
         Assert.assertEquals(dynamoResult.scannedCount(), phoenixResult.scannedCount());
-        Assert.assertTrue(ItemComparator.areItemsEqual(sortItemsByPk(dynamoResult.items()),
-                sortItemsByPk(phoenixResult.items())));
+        Assert.assertTrue(ItemComparator.areItemsEqual(sortItemsByPk(dynamoResult.items(), pkName),
+                sortItemsByPk(phoenixResult.items(), pkName)));
     }
 
     /**
@@ -1525,5 +1549,79 @@ public class ScanTableIT {
         fiveStarMap.put("FiveStar", AttributeValue.builder().l(AttributeValue.builder().m(reviewMap1).build()).build());
         item.put("Reviews", AttributeValue.builder().m(fiveStarMap).build());
         return item;
+    }
+
+    @Test(timeout = 120000)
+    public void testScanWithAttributesToGet() {
+        final String tableName = testName.getMethodName();
+        CreateTableRequest createTableRequest =
+                DDLTestUtils.getCreateTableRequest(tableName, "attr_0", ScalarAttributeType.S, null,
+                        null);
+        phoenixDBClientV2.createTable(createTableRequest);
+        dynamoDbClient.createTable(createTableRequest);
+
+        PutItemRequest putItemRequest1 =
+                PutItemRequest.builder().tableName(tableName).item(getItem1()).build();
+        PutItemRequest putItemRequest2 =
+                PutItemRequest.builder().tableName(tableName).item(getItem2()).build();
+        PutItemRequest putItemRequest3 =
+                PutItemRequest.builder().tableName(tableName).item(getItem3()).build();
+        PutItemRequest putItemRequest4 =
+                PutItemRequest.builder().tableName(tableName).item(getItem4()).build();
+        phoenixDBClientV2.putItem(putItemRequest1);
+        phoenixDBClientV2.putItem(putItemRequest2);
+        phoenixDBClientV2.putItem(putItemRequest3);
+        phoenixDBClientV2.putItem(putItemRequest4);
+        dynamoDbClient.putItem(putItemRequest1);
+        dynamoDbClient.putItem(putItemRequest2);
+        dynamoDbClient.putItem(putItemRequest3);
+        dynamoDbClient.putItem(putItemRequest4);
+
+        ScanRequest.Builder sr1 = ScanRequest.builder().tableName(tableName);
+        sr1.attributesToGet(Arrays.asList("attr_0", "title", "Id2"));
+        assertScanResults(sr1, 4, "attr_0");
+
+        ScanRequest.Builder sr2 = ScanRequest.builder().tableName(tableName);
+        sr2.attributesToGet(Arrays.asList("title", "attr_0"));
+        assertScanResults(sr2, 4, "attr_0");
+
+        ScanRequest.Builder sr3 = ScanRequest.builder().tableName(tableName);
+        sr3.attributesToGet(Arrays.asList("attr_0", "attr_1", "Id1", "Id2", "title", "Reviews"));
+        assertScanResults(sr3, 4, "attr_0");
+    }
+
+    @Test(timeout = 120000)
+    public void testScanWithAttributesToGetAndValidationError() {
+        final String tableName = testName.getMethodName();
+        CreateTableRequest createTableRequest =
+                DDLTestUtils.getCreateTableRequest(tableName, "attr_0", ScalarAttributeType.S, null,
+                        null);
+        phoenixDBClientV2.createTable(createTableRequest);
+        dynamoDbClient.createTable(createTableRequest);
+
+        PutItemRequest putItemRequest =
+                PutItemRequest.builder().tableName(tableName).item(getItem1()).build();
+        phoenixDBClientV2.putItem(putItemRequest);
+        dynamoDbClient.putItem(putItemRequest);
+
+        ScanRequest.Builder sr = ScanRequest.builder().tableName(tableName);
+        sr.attributesToGet(Arrays.asList("attr_0", "title"));
+        sr.projectionExpression("attr_0, title, Reviews");
+
+        try {
+            phoenixDBClientV2.scan(sr.build());
+            Assert.fail("Expected ValidationException for both "
+                    + "AttributesToGet and ProjectionExpression");
+        } catch (DynamoDbException e) {
+            Assert.assertEquals("Expected 400 status code for Phoenix", 400, e.statusCode());
+        }
+
+        try {
+            dynamoDbClient.scan(sr.build());
+            Assert.fail("Expected ValidationException for both "
+                    + "AttributesToGet and ProjectionExpression");
+        } catch (DynamoDbException e) {
+            Assert.assertEquals("Expected 400 status code for DynamoDB", 400, e.statusCode());
+        }
     }
 }
