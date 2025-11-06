@@ -340,6 +340,15 @@ You can specify any AWS region as Phoenix REST service doesn't enforce region-sp
 - `us-west-2`
 - `eu-west-1`
 
+### 4. HTTP Connection Timeout
+For long-running operations (like complex DDL operations), you may need to configure the HTTP connection idle timeout.
+The default is 30 seconds (similar to `jetty.http.idleTimeout`).
+
+**Configuration Property:**
+```
+phoenix.ddb.rest.http.idle.timeout=30000  # 30 seconds
+```
+
 ## Testing Your Connection
 
 You can test your connection by running a simple operation like `ListTables`:

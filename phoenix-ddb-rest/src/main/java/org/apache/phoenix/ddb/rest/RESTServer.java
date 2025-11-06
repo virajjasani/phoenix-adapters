@@ -235,6 +235,10 @@ public class RESTServer {
             serverConnector.setAcceptQueueSize(acceptQueueSize);
         }
 
+        int httpIdleTimeout = servlet.getConfiguration()
+                .getInt(Constants.REST_HTTP_IDLE_TIMEOUT, Constants.DEFAULT_HTTP_IDLE_TIMEOUT);
+        serverConnector.setIdleTimeout(httpIdleTimeout);
+
         serverConnector.setPort(servicePort);
         serverConnector.setHost(host);
 

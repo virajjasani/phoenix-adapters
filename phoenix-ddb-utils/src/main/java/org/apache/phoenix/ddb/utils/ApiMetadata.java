@@ -18,9 +18,6 @@
 
 package org.apache.phoenix.ddb.utils;
 
-import java.util.Arrays;
-import java.util.List;
-
 /**
  * Request and Response parameters for various APIs.
  */

@@ -52,6 +52,8 @@ public final class Constants {
             "phoenix.ddb.rest.task.queue.size";
     public static final String REST_THREAD_POOL_THREAD_IDLE_TIMEOUT =
             "phoenix.ddb.rest.thread.idle.timeout";
+    public static final String REST_HTTP_IDLE_TIMEOUT = "phoenix.ddb.rest.http.idle.timeout";
+    public static final int DEFAULT_HTTP_IDLE_TIMEOUT = 30000;
 
     public static final String PHOENIX_DDB_ZK_QUORUM = "phoenix.ddb.zk.quorum";
     public static boolean REST_HTTP_ALLOW_OPTIONS_METHOD_DEFAULT = true;
