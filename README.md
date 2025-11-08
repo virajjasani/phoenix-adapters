@@ -2,6 +2,67 @@
 
 Phoenix-Adapters provides adapters for various NoSQL databases (e.g., DynamoDB) backed by **Apache Phoenix** (on HBase) as the persistent store.
 
+
+## 📖 Overview
+It can be challenging for applications/services to maintain different codebases for different substrates/cloud providers if they use the substrate-native NoSQL databases.
+
+This is where Phoenix-Adapters comes in. It allows developers to write new services (or port their existing services with minimal code changes) using familiar NoSQL semantics while leveraging the scalability, fault-tolerance and predictable performance of *Apache Phoenix/HBase*.
+
+## 🧩 Supported Database Adapters
+
+### DynamoDB
+How to use Phoenix-Adapters to port their DynamoDB based service to Apache Phoenix?
+
+- A **RESTful API Server** that accepts JSON payloads similar to DynamoDB.
+
+By using REST Service, client applications already using any AWS SDKs to connect with DynamoDB
+does not need to perform any code change. The client application only needs to update the REST
+endpoint.
+
+![Alt text](src/images/phoenix_dynamodb_rest.jpeg)
+
+#### Supported DynamoDB APIs
+- **DDL**:
+    - CreateTable
+    - DeleteTable
+    - DescribeTable
+    - ListTables
+    - UpdateTable
+    - UpdateTimeToLive
+    - DescribeTimeToLive
+- **DQL**:
+    - Query
+    - Scan
+    - BatchGetItem
+    - GetItem
+- **DML**:
+    - PutItem
+    - UpdateItem
+    - BatchWriteItem
+    - DeleteItem
+- **Change Stream**:
+    - ListStreams
+    - DescribeStreams
+    - GetShardIterator
+    - GetRecords
+
+### Connecting with AWS SDK
+
+The Phoenix DynamoDB REST service is fully compatible with AWS SDKs. You can connect to it by simply configuring the endpoint URL to point to your Phoenix REST service instead of the standard DynamoDB endpoint.
+
+📖 **For detailed examples and configuration instructions, see the [Phoenix DynamoDB REST Service README](phoenix-ddb-rest/README.md)**
+
+### How to bring up REST Server in dev env?
+
+1. Bring up HBase cluster locally. Refer to https://hbase.apache.org/book.html#quickstart
+2. Bring up Phoenix system tables using sqlline (bin/sqlline.py). Refer to https://phoenix.apache.org/installation.html.
+3. Clone phoenix-adapters repo.
+4. Build the project with: `mvn clean install -DskipTests`
+5. Start the REST Server with: `bin/phoenix-adapters rest start -p <port> -z <zk-quorum>`
+   e.g. `bin/phoenix-adapters rest start -p 8842 -z localhost:2181` to start the server at
+   port 8842 with zk-quorum localhost:2181.
+   Alternative to `-z <zk-quorum>` is env variable `ZOO_KEEPER_QUORUM`.
+
 ### Building Distribution Tarball
 
 To build a distribution tarball that includes all components:
@@ -96,67 +157,3 @@ Logs are stored in the following locations:
 - Main log: `$PHOENIX_ADAPTERS_LOG_DIR/rest.log`
 - GC log: `$PHOENIX_ADAPTERS_LOG_DIR/gc.log`
 - Heap dumps: `$PHOENIX_ADAPTERS_LOG_DIR/` (on OutOfMemoryError)
-
-
-## 📖 Overview
-It can be challenging for applications/services to maintain different codebases for different substrates/cloud providers if they use the substrate-native NoSQL databases.
-
-This is where Phoenix-Adapters comes in. It allows developers to write new services (or port their existing services with minimal code changes) using familiar NoSQL semantics while leveraging the scalability, fault-tolerance and predictable performance of *Apache Phoenix/HBase*.
-
-Salesforce Phoenix, the combined solution of Apache HBase and Apache Phoenix, supported with significant additional tooling for meeting **Salesforce System of Record** requirements, is a horizontally scalable relational but non-transactional datastore, operating in both 1P and Hyperforce.
-
-## 🧩 Supported Database Adapters
-
-### DynamoDB
-How to use Phoenix-Adapters to port their DynamoDB based service to Apache Phoenix?
-
-- A **RESTful API Server** that accepts JSON payloads similar to DynamoDB.
-
-By using REST Service, client applications already using any AWS SDKs to connect with DynamoDB
-does not need to perform any code change. The client application only needs to update the REST
-endpoint.
-
-![Alt text](src/images/phoenix_dynamodb_rest.jpeg)
-
-#### Supported DynamoDB APIs
-- **DDL**:
-  - CreateTable
-  - DeleteTable
-  - DescribeTable
-  - ListTables
-  - UpdateTable
-  - UpdateTimeToLive
-  - DescribeTimeToLive
-- **DQL**:
-  - Query
-  - Scan
-  - BatchGetItem
-  - GetItem
-- **DML**:
-  - PutItem
-  - UpdateItem
-  - BatchWriteItem
-  - DeleteItem
-- **Change Stream**:
-  - ListStreams
-  - DescribeStreams
-  - GetShardIterator
-  - GetRecords
-
-### Connecting with AWS SDK
-
-The Phoenix DynamoDB REST service is fully compatible with AWS SDKs. You can connect to it by simply configuring the endpoint URL to point to your Phoenix REST service instead of the standard DynamoDB endpoint.
-
-📖 **For detailed examples and configuration instructions, see the [Phoenix DynamoDB REST Service README](phoenix-ddb-rest/README.md)**
-
-### How to bring up REST Server in dev env?
-
-1. Bring up HBase cluster locally. Refer to https://hbase.apache.org/book.html#quickstart
-2. Bring up Phoenix system tables using sqlline (bin/sqlline.py). Refer to https://phoenix.apache.org/installation.html.
-3. Clone phoenix-adapters repo.
-4. Build the project with: `mvn clean install -DskipTests`
-5. Start the REST Server with: `bin/phoenix-adapters rest start -p <port> -z <zk-quorum>`
-   e.g. `bin/phoenix-adapters rest start -p 8842 -z localhost:2181` to start the server at
-   port 8842 with zk-quorum localhost:2181.
-   Alternative to `-z <zk-quorum>` is env variable `ZOO_KEEPER_QUORUM`.
-
