@@ -162,5 +162,5 @@ The Phoenix DynamoDB REST service is fully compatible with AWS SDKs. You can con
    port 8842 with zk-quorum localhost:2181.
    Alternative to `-z <zk-quorum>` is env variable `ZOO_KEEPER_QUORUM`.
 4. Optional step: To confirm the server is started and functional,
-   run class `TestWithLocalRestService` by adjusting the endpoint.
+   run class `org.apache.phoenix.ddb.TestWithLocalRestService` by adjusting the endpoint.
 
