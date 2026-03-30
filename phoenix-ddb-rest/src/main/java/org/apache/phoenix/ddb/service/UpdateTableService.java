@@ -64,7 +64,7 @@ public class UpdateTableService {
                     final String finalIndexName = PhoenixUtils.getInternalIndexName(tableName, indexName);
                     String ddl = String.format(DROP_INDEX_SQL, finalIndexName,
                             PhoenixUtils.getFullTableName(tableName, true));
-                    LOGGER.debug("DDL for Disable Index: {}", ddl);
+                    LOGGER.info("DDL for Disable Index: {}", ddl);
                     indexDDLs.add(ddl);
                 } else if (indexUpdate.containsKey(ApiMetadata.CREATE)) {
                     Map<String, Object> createIndexUpdate
@@ -76,7 +76,7 @@ public class UpdateTableService {
                     List<Map<String, Object>> keySchema
                             = (List<Map<String, Object>>) createIndexUpdate.get(ApiMetadata.KEY_SCHEMA);
                     CreateTableService.addIndexDDL(tableName, keySchema, attrDefs, indexDDLs, indexName, true);
-                    LOGGER.debug("DDL for Create Index: {}", indexDDLs);
+                    LOGGER.info("DDL for Create Index: {}", indexDDLs);
                     indexDDLs.addAll(ddl);
                 } else {
                     throw new ValidationException("Only Create and Delete index is supported in UpdateTable API.");
@@ -122,7 +122,7 @@ public class UpdateTableService {
 
         cdcDDLs.add(String.format(ALTER_MERGE_SQL,
                 PhoenixUtils.getFullTableName(table.getTableName().getString(), true)));
-        LOGGER.debug("DDLs for Update CDC: {} ", cdcDDLs);
+        LOGGER.info("DDLs for Update CDC: {} ", cdcDDLs);
         return cdcDDLs;
     }
 }

@@ -41,7 +41,7 @@ public class DeleteTableService {
                 TableDescriptorUtils.getTableDescription(tableName, connectionUrl,
                         "TableDescription");
         String deleteTableDDL = "DROP TABLE " + PhoenixUtils.getFullTableName(tableName, true) + " CASCADE";
-        LOGGER.debug("Delete Table Query: {}", deleteTableDDL);
+        LOGGER.info("Delete Table DDL: {}", deleteTableDDL);
 
         try (Connection connection = ConnectionUtil.getConnection(connectionUrl)) {
             connection.createStatement().execute(deleteTableDDL);

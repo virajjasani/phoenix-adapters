@@ -36,7 +36,7 @@ public class TTLService {
         } else {
             alterStmt = String.format(ALTER_TTL_STMT, fullTableName, HConstants.FOREVER);
         }
-        LOGGER.debug("SQL for UpdateTimeToLive: {}", alterStmt);
+        LOGGER.info("DDL for UpdateTimeToLive: {}", alterStmt);
         try (Connection connection = ConnectionUtil.getConnection(connectionUrl)) {
             connection.createStatement().execute(alterStmt);
         } catch (SQLException e) {

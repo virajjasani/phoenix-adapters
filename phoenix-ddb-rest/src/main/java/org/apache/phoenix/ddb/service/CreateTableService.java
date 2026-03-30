@@ -340,14 +340,14 @@ public class CreateTableService {
         try {
             PhoenixConnection phoenixConnection = connection.unwrap(PhoenixConnection.class);
             tableExists = checkTableExistence(phoenixConnection, tableName);
-            LOGGER.debug("Create Table Query: {}", createTableDDL);
+            LOGGER.info("Create Table DDL: {}", createTableDDL);
             connection.createStatement().execute(createTableDDL);
             for (String createIndexDDL : createIndexDDLs) {
-                LOGGER.debug("Create Index Query: {}", createIndexDDL);
+                LOGGER.info("Create Index DDL: {}", createIndexDDL);
                 connection.createStatement().execute(createIndexDDL);
             }
             for (String ddl : createCdcDDLs) {
-                LOGGER.debug("CDC DDL: {}", ddl);
+                LOGGER.info("Create CDC DDL: {}", ddl);
                 connection.createStatement().execute(ddl);
             }
         } catch (SQLException e) {
