@@ -18,7 +18,6 @@
 package org.apache.phoenix.ddb;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.phoenix.ddb.rest.RESTServer;
 import org.apache.phoenix.ddb.utils.AsyncIndexManager;
@@ -83,7 +82,7 @@ public class UpdateTable2IT {
     public static void initialize() throws Exception {
         tmpDir = System.getProperty("java.io.tmpdir");
         LocalDynamoDbTestBase.localDynamoDb().start();
-        Configuration conf = HBaseConfiguration.create();
+        Configuration conf = TestUtils.getConfigForMiniCluster();
         utility = new HBaseTestingUtility(conf);
         setUpConfigForMiniCluster(conf);
 
@@ -199,6 +198,8 @@ public class UpdateTable2IT {
         dynamoDbClient.putItem(putRequest4);
         dynamoDbClient.putItem(putRequest5);
         dynamoDbClient.putItem(putRequest6);
+
+        TestUtils.waitForEventualConsistentIndex();
 
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
         qr.indexName(indexName);

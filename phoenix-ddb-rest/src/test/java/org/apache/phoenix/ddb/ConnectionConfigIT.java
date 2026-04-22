@@ -31,7 +31,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.phoenix.ddb.ConnectionUtil;
 import org.apache.phoenix.ddb.rest.RESTServer;
@@ -57,7 +56,7 @@ public class ConnectionConfigIT {
     @BeforeClass
     public static void initialize() throws Exception {
         tmpDir = System.getProperty("java.io.tmpdir");
-        Configuration conf = HBaseConfiguration.create();
+        Configuration conf = TestUtils.getConfigForMiniCluster();
         utility = new HBaseTestingUtility(conf);
         setUpConfigForMiniCluster(conf);
         utility.startMiniCluster();

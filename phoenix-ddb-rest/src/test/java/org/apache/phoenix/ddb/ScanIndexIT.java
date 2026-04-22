@@ -40,7 +40,6 @@ import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.phoenix.ddb.rest.RESTServer;
 import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
@@ -70,7 +69,7 @@ public class ScanIndexIT {
     public static void initialize() throws Exception {
         tmpDir = System.getProperty("java.io.tmpdir");
         LocalDynamoDbTestBase.localDynamoDb().start();
-        Configuration conf = HBaseConfiguration.create();
+        Configuration conf = TestUtils.getConfigForMiniCluster();
         utility = new HBaseTestingUtility(conf);
         setUpConfigForMiniCluster(conf);
 
@@ -138,6 +137,8 @@ public class ScanIndexIT {
         dynamoDbClient.putItem(putItemRequest3);
         dynamoDbClient.putItem(putItemRequest4);
 
+        TestUtils.waitForEventualConsistentIndex();
+
         ScanRequest.Builder sr = ScanRequest.builder().tableName(tableName);
         sr.indexName(indexName);
         sr.filterExpression("#0 BETWEEN :v1 AND :v2");
@@ -196,6 +197,8 @@ public class ScanIndexIT {
         dynamoDbClient.putItem(putItemRequest3);
         dynamoDbClient.putItem(putItemRequest4);
 
+        TestUtils.waitForEventualConsistentIndex();
+
         ScanRequest.Builder sr = ScanRequest.builder().tableName(tableName);
         sr.indexName(indexName);
         sr.select("COUNT");
@@ -246,6 +249,8 @@ public class ScanIndexIT {
         phoenixDBClientV2.putItem(putItemRequest1);
         dynamoDbClient.putItem(putItemRequest1);
 
+        TestUtils.waitForEventualConsistentIndex();
+
         ScanRequest.Builder sr = ScanRequest.builder().tableName(tableName);
         sr.indexName(indexName);
         sr.select("ALL_ATTRIBUTES");
@@ -295,6 +300,8 @@ public class ScanIndexIT {
         dynamoDbClient.putItem(putItemRequest2);
         dynamoDbClient.putItem(putItemRequest3);
         dynamoDbClient.putItem(putItemRequest4);
+
+        TestUtils.waitForEventualConsistentIndex();
 
         ScanRequest.Builder sr = ScanRequest.builder().tableName(tableName);
         sr.indexName(indexName);
@@ -349,6 +356,8 @@ public class ScanIndexIT {
         dynamoDbClient.putItem(putItemRequest2);
         dynamoDbClient.putItem(putItemRequest3);
         dynamoDbClient.putItem(putItemRequest4);
+
+        TestUtils.waitForEventualConsistentIndex();
 
         ScanRequest.Builder sr = ScanRequest.builder().tableName(tableName);
         sr.indexName(indexName);
@@ -405,6 +414,8 @@ public class ScanIndexIT {
         dynamoDbClient.putItem(putItemRequest2);
         dynamoDbClient.putItem(putItemRequest3);
         dynamoDbClient.putItem(putItemRequest4);
+
+        TestUtils.waitForEventualConsistentIndex();
 
         ScanRequest.Builder sr = ScanRequest.builder().tableName(tableName);
         sr.indexName(indexName);
@@ -486,6 +497,7 @@ public class ScanIndexIT {
 
         ScanRequest.Builder sr = ScanRequest.builder()
                 .tableName(tableName).indexName(indexName).limit(2);
+        TestUtils.waitForEventualConsistentIndex();
         TestUtils.compareScanOutputs(sr, phoenixDBClientV2, dynamoDbClient,
                 "pk", null, ScalarAttributeType.S, null);
         sr.exclusiveStartKey(null);
@@ -520,6 +532,7 @@ public class ScanIndexIT {
             dynamoDbClient.putItem(req);
         }
 
+        TestUtils.waitForEventualConsistentIndex();
         ScanRequest.Builder sr = ScanRequest.builder()
                 .tableName(tableName).indexName(indexName).limit(2);
         TestUtils.compareScanOutputs(sr, phoenixDBClientV2, dynamoDbClient,

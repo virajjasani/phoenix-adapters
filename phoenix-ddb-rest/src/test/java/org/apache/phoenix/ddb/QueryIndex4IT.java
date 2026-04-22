@@ -25,11 +25,11 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.phoenix.ddb.rest.RESTServer;
 import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
 import org.apache.phoenix.jdbc.PhoenixDriver;
+import org.apache.phoenix.jdbc.PhoenixTestDriver;
 import org.apache.phoenix.util.PhoenixRuntime;
 import org.apache.phoenix.util.ServerUtil;
 import org.junit.AfterClass;
@@ -68,13 +68,14 @@ public class QueryIndex4IT {
     public static void initialize() throws Exception {
         tmpDir = System.getProperty("java.io.tmpdir");
         LocalDynamoDbTestBase.localDynamoDb().start();
-        Configuration conf = HBaseConfiguration.create();
+        Configuration conf = TestUtils.getConfigForMiniCluster();
         utility = new HBaseTestingUtility(conf);
         setUpConfigForMiniCluster(conf);
 
         utility.startMiniCluster();
         String zkQuorum = "localhost:" + utility.getZkCluster().getClientPort();
         url = PhoenixRuntime.JDBC_PROTOCOL + PhoenixRuntime.JDBC_PROTOCOL_SEPARATOR + zkQuorum;
+        DriverManager.registerDriver(new PhoenixTestDriver());
 
         restServer = new RESTServer(utility.getConfiguration());
         restServer.run();
@@ -83,6 +84,7 @@ public class QueryIndex4IT {
         dynamoDbClient = LocalDynamoDbTestBase.localDynamoDb().createV2Client();
 
         createTableAndInsertData();
+        TestUtils.waitForEventualConsistentIndex();
     }
 
     private static void createTableAndInsertData() {

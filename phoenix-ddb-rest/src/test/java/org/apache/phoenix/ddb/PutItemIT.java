@@ -46,13 +46,13 @@ import software.amazon.awssdk.services.dynamodb.model.ReturnValuesOnConditionChe
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.phoenix.ddb.bson.BsonDocumentToDdbAttributes;
 import org.apache.phoenix.ddb.rest.RESTServer;
 import org.apache.phoenix.ddb.utils.PhoenixUtils;
 import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
 import org.apache.phoenix.jdbc.PhoenixDriver;
+import org.apache.phoenix.jdbc.PhoenixTestDriver;
 import org.apache.phoenix.util.PhoenixRuntime;
 import org.apache.phoenix.util.ServerUtil;
 
@@ -78,11 +78,12 @@ public class PutItemIT {
     public static void initialize() throws Exception {
         tmpDir = System.getProperty("java.io.tmpdir");
         LocalDynamoDbTestBase.localDynamoDb().start();
-        Configuration conf = HBaseConfiguration.create();
+        Configuration conf = TestUtils.getConfigForMiniCluster();
         utility = new HBaseTestingUtility(conf);
         setUpConfigForMiniCluster(conf);
 
         utility.startMiniCluster();
+        DriverManager.registerDriver(new PhoenixTestDriver());
         String zkQuorum = "localhost:" + utility.getZkCluster().getClientPort();
         url = PhoenixRuntime.JDBC_PROTOCOL + PhoenixRuntime.JDBC_PROTOCOL_SEPARATOR + zkQuorum;
 
@@ -248,6 +249,7 @@ public class PutItemIT {
             //TODO: uncomment when we have utility to compare sets
             //Assert.assertEquals(dynamoItem, phoenixItem);
 
+            TestUtils.waitForEventualConsistentIndex();
             // check index row (Title, attr_0, attr1, COL)
             rs = connection.createStatement().executeQuery(
                     "SELECT * FROM " + PhoenixUtils.getFullTableName(
@@ -291,6 +293,7 @@ public class PutItemIT {
         phoenixDBClientV2.putItem(getPutItemRequestForIndexSortingTest(tableName, "val8", "0"));
         phoenixDBClientV2.putItem(getPutItemRequestForIndexSortingTest(tableName, "val9", "0.123"));
 
+        TestUtils.waitForEventualConsistentIndex();
         // check index rows are sorted
         try (Connection connection = DriverManager.getConnection(url)) {
             ResultSet rs = connection.createStatement().executeQuery(

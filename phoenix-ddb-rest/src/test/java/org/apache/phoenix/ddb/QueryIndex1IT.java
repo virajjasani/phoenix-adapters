@@ -22,6 +22,7 @@ import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.phoenix.jdbc.PhoenixTestDriver;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -39,7 +40,6 @@ import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.phoenix.ddb.rest.RESTServer;
 import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
@@ -72,13 +72,14 @@ public class QueryIndex1IT {
     public static void initialize() throws Exception {
         tmpDir = System.getProperty("java.io.tmpdir");
         LocalDynamoDbTestBase.localDynamoDb().start();
-        Configuration conf = HBaseConfiguration.create();
+        Configuration conf = TestUtils.getConfigForMiniCluster();
         utility = new HBaseTestingUtility(conf);
         setUpConfigForMiniCluster(conf);
 
         utility.startMiniCluster();
         String zkQuorum = "localhost:" + utility.getZkCluster().getClientPort();
         url = PhoenixRuntime.JDBC_PROTOCOL + PhoenixRuntime.JDBC_PROTOCOL_SEPARATOR + zkQuorum;
+        DriverManager.registerDriver(new PhoenixTestDriver());
 
         restServer = new RESTServer(utility.getConfiguration());
         restServer.run();
@@ -143,6 +144,7 @@ public class QueryIndex1IT {
         Map<String, AttributeValue> exprAttrVal = new HashMap<>();
         exprAttrVal.put(":v0", AttributeValue.builder().s("101.01").build());
         qr.expressionAttributeValues(exprAttrVal);
+        TestUtils.waitForEventualConsistentIndex();
 
         // query result
         QueryResponse phoenixResult = phoenixDBClientV2.query(qr.build());
@@ -196,6 +198,7 @@ public class QueryIndex1IT {
         Map<String, AttributeValue> exprAttrVal = new HashMap<>();
         exprAttrVal.put(":v0", AttributeValue.builder().s("101.01").build());
         qr.expressionAttributeValues(exprAttrVal);
+        TestUtils.waitForEventualConsistentIndex();
 
         // query result
         QueryResponse phoenixResult = phoenixDBClientV2.query(qr.build());
@@ -250,6 +253,7 @@ public class QueryIndex1IT {
         exprAttrVal.put(":v0", AttributeValue.builder().s("101.01").build());
         exprAttrVal.put(":v1", AttributeValue.builder().n("2.1").build());
         qr.expressionAttributeValues(exprAttrVal);
+        TestUtils.waitForEventualConsistentIndex();
 
         // query result
         QueryResponse phoenixResult = phoenixDBClientV2.query(qr.build());
@@ -307,6 +311,7 @@ public class QueryIndex1IT {
         exprAttrVal.put(":v0", AttributeValue.builder().s("101.01").build());
         exprAttrVal.put(":v1", AttributeValue.builder().n("2.1").build());
         qr.expressionAttributeValues(exprAttrVal);
+        TestUtils.waitForEventualConsistentIndex();
 
         // query result
         QueryResponse phoenixResult = phoenixDBClientV2.query(qr.build());
@@ -350,6 +355,7 @@ public class QueryIndex1IT {
         dynamoDbClient.putItem(putItemRequest2);
         dynamoDbClient.putItem(putItemRequest3);
         dynamoDbClient.putItem(putItemRequest4);
+        TestUtils.waitForEventualConsistentIndex();
 
         //query request using index
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
@@ -418,6 +424,7 @@ public class QueryIndex1IT {
         exprAttrVal.put(":v0", AttributeValue.builder().s("foo").build());
         qr.expressionAttributeValues(exprAttrVal);
         qr.select("COUNT");
+        TestUtils.waitForEventualConsistentIndex();
 
         // query result with count only
         QueryResponse phoenixResult = phoenixDBClientV2.query(qr.build());
@@ -460,6 +467,7 @@ public class QueryIndex1IT {
         dynamoDbClient.putItem(putItemRequest3);
         dynamoDbClient.putItem(putItemRequest4);
 
+        TestUtils.waitForEventualConsistentIndex();
         //query request using index with COUNT and limit for pagination
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
         qr.indexName(indexName);
@@ -512,6 +520,7 @@ public class QueryIndex1IT {
         PutItemRequest putItemRequest1 = PutItemRequest.builder().tableName(tableName).item(getItem1()).build();
         phoenixDBClientV2.putItem(putItemRequest1);
         dynamoDbClient.putItem(putItemRequest1);
+        TestUtils.waitForEventualConsistentIndex();
 
         //query request using index with ALL_ATTRIBUTES (no projectionExpression)
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
@@ -598,6 +607,7 @@ public class QueryIndex1IT {
         phoenixDBClientV2.putItem(putItemRequest2);
         dynamoDbClient.putItem(putItemRequest1);
         dynamoDbClient.putItem(putItemRequest2);
+        TestUtils.waitForEventualConsistentIndex();
 
         //query request using index with sort key condition before partition key
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
@@ -647,6 +657,7 @@ public class QueryIndex1IT {
         phoenixDBClientV2.putItem(putItemRequest2);
         dynamoDbClient.putItem(putItemRequest1);
         dynamoDbClient.putItem(putItemRequest2);
+        TestUtils.waitForEventualConsistentIndex();
 
         //query request using index with begins_with before partition key
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);

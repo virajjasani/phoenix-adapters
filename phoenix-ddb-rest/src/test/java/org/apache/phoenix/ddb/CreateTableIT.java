@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.phoenix.ddb.utils.PhoenixUtils;
+import org.apache.phoenix.jdbc.PhoenixTestDriver;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -61,7 +62,6 @@ import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 import software.amazon.awssdk.services.dynamodb.model.TableDescription;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.phoenix.ddb.rest.RESTServer;
 import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
@@ -100,14 +100,14 @@ public class CreateTableIT {
         tmpDir = System.getProperty("java.io.tmpdir");
         LocalDynamoDbTestBase.localDynamoDb().start();
         validateRestServerInitFailure();
-        Configuration conf = HBaseConfiguration.create();
+        Configuration conf = TestUtils.getConfigForMiniCluster();
         utility = new HBaseTestingUtility(conf);
         setUpConfigForMiniCluster(conf);
 
         utility.startMiniCluster();
         String zkQuorum = "localhost:" + utility.getZkCluster().getClientPort();
         url = PhoenixRuntime.JDBC_PROTOCOL + PhoenixRuntime.JDBC_PROTOCOL_SEPARATOR + zkQuorum;
-
+        DriverManager.registerDriver(new PhoenixTestDriver());
         restServer = new RESTServer(utility.getConfiguration());
         restServer.run();
 
@@ -172,7 +172,7 @@ public class CreateTableIT {
         TableDescription tableDescription1 = CreateTableResponse1.tableDescription();
         TableDescription tableDescription2 = CreateTableResponse2.tableDescription();
         DDLTestUtils.assertTableDescriptions(tableDescription1, tableDescription2);
-        TestUtils.validateTableProps(url, tableName, true);
+        TestUtils.validateTableProps(url, tableName, false);
         TestUtils.validateTableProps(url, tableName + "_IDX1_" + tableName, true);
         TestUtils.validateTableProps(url, tableName + "_IDX2_" + tableName, true);
     }
@@ -341,7 +341,7 @@ public class CreateTableIT {
         dynamoDbClient.createTable(request);
         phoenixDBClientV2.createTable(request);
 
-        Thread.sleep(6000);
+        Thread.sleep(16000);
         try {
             dynamoDbClient.createTable(request);
             Assert.fail("Expected ResourceInUseException from DynamoDB");

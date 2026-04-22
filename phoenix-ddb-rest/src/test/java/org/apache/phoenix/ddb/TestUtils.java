@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.bson.BsonDocument;
 import org.junit.Assert;
 import org.slf4j.Logger;
@@ -182,6 +183,24 @@ public class TestUtils {
                 useIndex, tablePKCols, indexPKCols, effectiveLimit, tableName, indexName, countOnly
         );
         return ScanService.buildQuery(connection, request, config);
+    }
+
+    public static void waitForEventualConsistentIndex() {
+        try {
+            Thread.sleep(15000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static Configuration getConfigForMiniCluster() {
+        Configuration conf = HBaseConfiguration.create();
+        conf.set("phoenix.server.page.size.ms", Integer.toString(-1));
+        conf.set("phoenix.index.cdc.consumer.retry.pause.ms", Integer.toString(100));
+        conf.set("phoenix.index.cdc.consumer.timestamp.buffer.ms", Integer.toString(1000));
+        conf.set("phoenix.index.cdc.consumer.batch.size", Integer.toString(1000));
+        return conf;
     }
 
     /**

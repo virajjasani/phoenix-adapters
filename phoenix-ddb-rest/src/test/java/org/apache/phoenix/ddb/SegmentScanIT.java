@@ -57,7 +57,7 @@ public abstract class SegmentScanIT extends BaseSegmentScanIT {
         this.filterNum = useFilter ? random.nextInt(15) + 1 : 0;
     }
 
-    @Test(timeout = 600000)
+    @Test(timeout = 900000)
     public void testSegmentScan() throws Exception {
         final String tableName = testName.getMethodName().replaceAll("[\\[\\]]", "_")
                 + "_" + generateRandomString(7);

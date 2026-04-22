@@ -43,7 +43,6 @@ import software.amazon.awssdk.services.dynamodb.model.UpdateItemResponse;
 import software.amazon.awssdk.services.dynamodb.streams.DynamoDbStreamsClient;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.phoenix.coprocessor.PhoenixMasterObserver;
 import org.apache.phoenix.ddb.rest.RESTServer;
@@ -77,7 +76,7 @@ public class MiscIT {
     public static void initialize() throws Exception {
         tmpDir = System.getProperty("java.io.tmpdir");
         LocalDynamoDbTestBase.localDynamoDb().start();
-        Configuration conf = HBaseConfiguration.create();
+        Configuration conf = TestUtils.getConfigForMiniCluster();
         utility = new HBaseTestingUtility(conf);
         Map<String, String> props = Maps.newHashMapWithExpectedSize(1);
         props.put("hbase.coprocessor.master.classes", PhoenixMasterObserver.class.getName());
@@ -115,19 +114,19 @@ public class MiscIT {
         System.setProperty("java.io.tmpdir", tmpDir);
     }
 
-    @Test
+    @Test(timeout = 240000)
     public void testMixWorkflows1() throws Exception {
         Misc1Util.test1(dynamoDbClient, phoenixDBClientV2, dynamoDbStreamsClient,
                 phoenixDBStreamsClientV2);
     }
 
-    @Test
+    @Test(timeout = 120000)
     public void testMixWorkflows2() throws Exception {
         Misc1Util.test2(dynamoDbClient, phoenixDBClientV2, dynamoDbStreamsClient,
                 phoenixDBStreamsClientV2);
     }
 
-    @Test
+    @Test(timeout = 600000)
     public void testMixWorkflows4() throws Exception {
         Misc1Util.test3(dynamoDbClient, phoenixDBClientV2, dynamoDbStreamsClient,
                 phoenixDBStreamsClientV2);

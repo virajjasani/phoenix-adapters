@@ -42,11 +42,11 @@ import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.phoenix.ddb.rest.RESTServer;
 import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
 import org.apache.phoenix.jdbc.PhoenixDriver;
+import org.apache.phoenix.jdbc.PhoenixTestDriver;
 import org.apache.phoenix.util.PhoenixRuntime;
 import org.apache.phoenix.util.ServerUtil;
 
@@ -77,13 +77,14 @@ public class QueryIndex3IT {
     public static void initialize() throws Exception {
         tmpDir = System.getProperty("java.io.tmpdir");
         LocalDynamoDbTestBase.localDynamoDb().start();
-        Configuration conf = HBaseConfiguration.create();
+        Configuration conf = TestUtils.getConfigForMiniCluster();
         utility = new HBaseTestingUtility(conf);
         setUpConfigForMiniCluster(conf);
 
         utility.startMiniCluster();
         String zkQuorum = "localhost:" + utility.getZkCluster().getClientPort();
         url = PhoenixRuntime.JDBC_PROTOCOL + PhoenixRuntime.JDBC_PROTOCOL_SEPARATOR + zkQuorum;
+        DriverManager.registerDriver(new PhoenixTestDriver());
 
         restServer = new RESTServer(utility.getConfiguration());
         restServer.run();
@@ -142,6 +143,8 @@ public class QueryIndex3IT {
         dynamoDbClient.putItem(putItemRequest2);
         dynamoDbClient.putItem(putItemRequest3);
         dynamoDbClient.putItem(putItemRequest4);
+
+        TestUtils.waitForEventualConsistentIndex();
 
         //query request using index with KeyConditions
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
@@ -208,6 +211,8 @@ public class QueryIndex3IT {
         dynamoDbClient.putItem(putItemRequest3);
         dynamoDbClient.putItem(putItemRequest4);
 
+        TestUtils.waitForEventualConsistentIndex();
+
         //query request using index and filter with KeyConditions
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
         qr.indexName(indexName);
@@ -265,6 +270,8 @@ public class QueryIndex3IT {
         dynamoDbClient.putItem(putItemRequest1);
         dynamoDbClient.putItem(putItemRequest2);
         dynamoDbClient.putItem(putItemRequest3);
+
+        TestUtils.waitForEventualConsistentIndex();
 
         // Query with index using KeyConditions and QueryFilter with OR operator
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
@@ -324,6 +331,8 @@ public class QueryIndex3IT {
         dynamoDbClient.putItem(putItemRequest2);
         dynamoDbClient.putItem(putItemRequest3);
         dynamoDbClient.putItem(putItemRequest4);
+
+        TestUtils.waitForEventualConsistentIndex();
 
         //query request using index and filter with KeyConditions
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
@@ -385,6 +394,8 @@ public class QueryIndex3IT {
         dynamoDbClient.putItem(putItemRequest3);
         dynamoDbClient.putItem(putItemRequest4);
 
+        TestUtils.waitForEventualConsistentIndex();
+
         //query request using index and filter with KeyConditions
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
         qr.indexName(indexName);
@@ -444,6 +455,8 @@ public class QueryIndex3IT {
         dynamoDbClient.putItem(putItemRequest3);
         dynamoDbClient.putItem(putItemRequest4);
 
+        TestUtils.waitForEventualConsistentIndex();
+
         //query request using index and filter with KeyConditions
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
         qr.indexName(indexName);
@@ -502,6 +515,8 @@ public class QueryIndex3IT {
         dynamoDbClient.putItem(putItemRequest2);
         dynamoDbClient.putItem(putItemRequest3);
         dynamoDbClient.putItem(putItemRequest4);
+
+        TestUtils.waitForEventualConsistentIndex();
 
         //query request using index and filter with KeyConditions
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);

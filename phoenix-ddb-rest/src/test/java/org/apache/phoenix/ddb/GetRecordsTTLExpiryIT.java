@@ -54,7 +54,6 @@ import software.amazon.awssdk.services.dynamodb.model.UpdateTimeToLiveRequest;
 import software.amazon.awssdk.services.dynamodb.streams.DynamoDbStreamsClient;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.phoenix.coprocessor.PhoenixMasterObserver;
@@ -98,7 +97,7 @@ public class GetRecordsTTLExpiryIT extends GetRecordsBaseTest  {
     public static void initialize() throws Exception {
         tmpDir = System.getProperty("java.io.tmpdir");
         LocalDynamoDbTestBase.localDynamoDb().start();
-        Configuration conf = HBaseConfiguration.create();
+        Configuration conf = TestUtils.getConfigForMiniCluster();
         utility = new HBaseTestingUtility(conf);
         Map<String, String> props = Maps.newHashMapWithExpectedSize(1);
         props.put(QueryServices.TASK_HANDLING_INTERVAL_MS_ATTRIB,

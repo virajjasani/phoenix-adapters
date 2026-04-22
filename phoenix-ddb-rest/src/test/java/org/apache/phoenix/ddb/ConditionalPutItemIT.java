@@ -18,7 +18,6 @@
 package org.apache.phoenix.ddb;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.phoenix.ddb.bson.BsonDocumentToDdbAttributes;
@@ -26,6 +25,7 @@ import org.apache.phoenix.ddb.rest.RESTServer;
 import org.apache.phoenix.ddb.utils.PhoenixUtils;
 import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
 import org.apache.phoenix.jdbc.PhoenixDriver;
+import org.apache.phoenix.jdbc.PhoenixTestDriver;
 import org.apache.phoenix.util.PhoenixRuntime;
 import org.apache.phoenix.util.ServerUtil;
 
@@ -82,11 +82,12 @@ public class ConditionalPutItemIT {
     public static void initialize() throws Exception {
         tmpDir = System.getProperty("java.io.tmpdir");
         LocalDynamoDbTestBase.localDynamoDb().start();
-        Configuration conf = HBaseConfiguration.create();
+        Configuration conf = TestUtils.getConfigForMiniCluster();
         utility = new HBaseTestingUtility(conf);
         setUpConfigForMiniCluster(conf);
 
         utility.startMiniCluster();
+        DriverManager.registerDriver(new PhoenixTestDriver());
         String zkQuorum = "localhost:" + utility.getZkCluster().getClientPort();
         url = PhoenixRuntime.JDBC_PROTOCOL + PhoenixRuntime.JDBC_PROTOCOL_SEPARATOR + zkQuorum;
 
@@ -257,6 +258,7 @@ public class ConditionalPutItemIT {
                     BsonDocumentToDdbAttributes.getFullItem(rowBsonDoc);
             Assert.assertEquals(phoenixItem, dynamoItem);
 
+            TestUtils.waitForEventualConsistentIndex();
             //check no update to index row [123, val1, (val1, 123)]
             rs = connection.createStatement().executeQuery(
                     "SELECT * FROM " + PhoenixUtils.getFullTableName(
@@ -623,6 +625,7 @@ public class ConditionalPutItemIT {
                     BsonDocumentToDdbAttributes.getFullItem((BsonDocument) rs.getObject(2));
             Assert.assertEquals(phoenixItem, item2);
 
+            TestUtils.waitForEventualConsistentIndex();
             // check index row is updated (Id2, attr_0, COL)
             rs = connection.createStatement().executeQuery(
                     "SELECT * FROM " + PhoenixUtils.getFullTableName(

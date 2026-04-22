@@ -6,6 +6,7 @@ import org.apache.phoenix.ddb.service.exceptions.ValidationException;
 import org.apache.phoenix.ddb.utils.ApiMetadata;
 import org.apache.phoenix.ddb.utils.PhoenixUtils;
 import org.apache.phoenix.ddb.service.utils.TableDescriptorUtils;
+import org.apache.phoenix.exception.SQLExceptionCode;
 import org.apache.phoenix.jdbc.PhoenixConnection;
 import org.apache.phoenix.query.QueryServices;
 import org.apache.phoenix.schema.PIndexState;
@@ -42,7 +43,16 @@ public class UpdateTableService {
                 PhoenixConnection pconn = connection.unwrap(PhoenixConnection.class);
                 PTable table = pconn.getTableNoCache(pconn.getTenantId(), PhoenixUtils.getFullTableName(tableName, false));
                 for (String ddl : getCdcDdlsToExecute(table, request)) {
-                    connection.createStatement().execute(ddl);
+                    try {
+                        connection.createStatement().execute(ddl);
+                    } catch (SQLException e) {
+                        // TODO : remove this if condition once "CREATE CDC IF NOT EXISTS" no longer
+                        // throws CDC_ALREADY_ENABLED. The error code CDC_ALREADY_ENABLED should be
+                        // thrown only if "IF NOT EXISTS" is not used with "CREATE CDC".
+                        if (SQLExceptionCode.CDC_ALREADY_ENABLED.getErrorCode() != e.getErrorCode()) {
+                            throw new PhoenixServiceException(e);
+                        }
+                    }
                 }
             } catch (SQLException e) {
                 throw new PhoenixServiceException(e);

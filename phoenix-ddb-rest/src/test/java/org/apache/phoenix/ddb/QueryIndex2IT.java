@@ -44,11 +44,11 @@ import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.phoenix.ddb.rest.RESTServer;
 import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
 import org.apache.phoenix.jdbc.PhoenixDriver;
+import org.apache.phoenix.jdbc.PhoenixTestDriver;
 import org.apache.phoenix.util.PhoenixRuntime;
 import org.apache.phoenix.util.ServerUtil;
 
@@ -78,13 +78,14 @@ public class QueryIndex2IT {
     public static void initialize() throws Exception {
         tmpDir = System.getProperty("java.io.tmpdir");
         LocalDynamoDbTestBase.localDynamoDb().start();
-        Configuration conf = HBaseConfiguration.create();
+        Configuration conf = TestUtils.getConfigForMiniCluster();
         utility = new HBaseTestingUtility(conf);
         setUpConfigForMiniCluster(conf);
 
         utility.startMiniCluster();
         String zkQuorum = "localhost:" + utility.getZkCluster().getClientPort();
         url = PhoenixRuntime.JDBC_PROTOCOL + PhoenixRuntime.JDBC_PROTOCOL_SEPARATOR + zkQuorum;
+        DriverManager.registerDriver(new PhoenixTestDriver());
 
         restServer = new RESTServer(utility.getConfiguration());
         restServer.run();
@@ -138,6 +139,8 @@ public class QueryIndex2IT {
         dynamoDbClient.putItem(putItemRequest2);
         dynamoDbClient.putItem(putItemRequest3);
         dynamoDbClient.putItem(putItemRequest4);
+
+        TestUtils.waitForEventualConsistentIndex();
 
         //query request using index
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
@@ -198,6 +201,8 @@ public class QueryIndex2IT {
         dynamoDbClient.putItem(putItemRequest3);
         dynamoDbClient.putItem(putItemRequest4);
 
+        TestUtils.waitForEventualConsistentIndex();
+
         //query request using index and filter
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
         qr.indexName(indexName);
@@ -251,6 +256,8 @@ public class QueryIndex2IT {
         dynamoDbClient.putItem(putItemRequest2);
         dynamoDbClient.putItem(putItemRequest3);
         dynamoDbClient.putItem(putItemRequest4);
+
+        TestUtils.waitForEventualConsistentIndex();
 
         //query request using index and filter
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
@@ -306,6 +313,8 @@ public class QueryIndex2IT {
         dynamoDbClient.putItem(putItemRequest3);
         dynamoDbClient.putItem(putItemRequest4);
 
+        TestUtils.waitForEventualConsistentIndex();
+
         //query request using index and filter
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
         qr.indexName(indexName);
@@ -358,6 +367,8 @@ public class QueryIndex2IT {
         dynamoDbClient.putItem(putItemRequest3);
         dynamoDbClient.putItem(putItemRequest4);
 
+        TestUtils.waitForEventualConsistentIndex();
+
         //query request using index and filter
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
         qr.indexName(indexName);
@@ -409,6 +420,8 @@ public class QueryIndex2IT {
         dynamoDbClient.putItem(putItemRequest2);
         dynamoDbClient.putItem(putItemRequest3);
         dynamoDbClient.putItem(putItemRequest4);
+
+        TestUtils.waitForEventualConsistentIndex();
 
         //query request using index and filter
         QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName);
@@ -518,6 +531,8 @@ public class QueryIndex2IT {
         dynamoDbClient.putItem(putItemRequest2);
         dynamoDbClient.putItem(putItemRequest3);
         dynamoDbClient.putItem(putItemRequest4);
+
+        TestUtils.waitForEventualConsistentIndex();
 
         // Test 1: begins_with with String attribute using FilterExpression
         QueryRequest.Builder qr1 = QueryRequest.builder().tableName(tableName);
@@ -831,6 +846,8 @@ public class QueryIndex2IT {
 
         putItemsForQueryWithContainsFilter(tableName);
 
+        TestUtils.waitForEventualConsistentIndex();
+
         // Test 1: contains() with String attribute - substring search
         QueryRequest.Builder qr1 = QueryRequest.builder().tableName(tableName);
         qr1.indexName(indexName);
@@ -1046,6 +1063,8 @@ public class QueryIndex2IT {
 
         putItemsForQueryWithSizeFilter(tableName);
 
+        TestUtils.waitForEventualConsistentIndex();
+
         // Test 1: size() with String attribute - find strings longer than 5 characters
         QueryRequest.Builder qr1 = QueryRequest.builder().tableName(tableName);
         qr1.indexName(indexName);
@@ -1116,6 +1135,8 @@ public class QueryIndex2IT {
         dynamoDbClient.createTable(createTableRequest);
 
         putItemsForQueryWithAttributeTypeFilter(tableName);
+
+        TestUtils.waitForEventualConsistentIndex();
 
         // Test 1: attribute_type() for String attribute - find items with String titles
         QueryRequest.Builder qr1 = QueryRequest.builder().tableName(tableName);
@@ -1462,6 +1483,8 @@ public class QueryIndex2IT {
         dynamoDbClient.createTable(createTableRequest);
 
         insertItems(tableName);
+
+        TestUtils.waitForEventualConsistentIndex();
 
         QueryRequest.Builder qr1 = QueryRequest.builder().tableName(tableName).indexName(indexName);
         qr1.keyConditionExpression("category = :cat");

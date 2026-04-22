@@ -42,11 +42,11 @@ import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.phoenix.ddb.rest.RESTServer;
 import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
 import org.apache.phoenix.jdbc.PhoenixDriver;
+import org.apache.phoenix.jdbc.PhoenixTestDriver;
 import org.apache.phoenix.util.PhoenixRuntime;
 import org.apache.phoenix.util.ServerUtil;
 
@@ -77,7 +77,7 @@ public class ScanIndex2IT {
     public static void initialize() throws Exception {
         tmpDir = System.getProperty("java.io.tmpdir");
         LocalDynamoDbTestBase.localDynamoDb().start();
-        Configuration conf = HBaseConfiguration.create();
+        Configuration conf = TestUtils.getConfigForMiniCluster();
         utility = new HBaseTestingUtility(conf);
         setUpConfigForMiniCluster(conf);
 
@@ -138,6 +138,8 @@ public class ScanIndex2IT {
         dynamoDbClient.putItem(putItemRequest2);
         dynamoDbClient.putItem(putItemRequest3);
 
+        TestUtils.waitForEventualConsistentIndex();
+
         // Scan with index using ScanFilter with AND operator
         ScanRequest.Builder sr = ScanRequest.builder().tableName(tableName);
         sr.indexName(indexName);
@@ -194,6 +196,8 @@ public class ScanIndex2IT {
         dynamoDbClient.putItem(putItemRequest2);
         dynamoDbClient.putItem(putItemRequest3);
 
+        TestUtils.waitForEventualConsistentIndex();
+
         // Scan with index using ScanFilter with OR operator
         ScanRequest.Builder sr = ScanRequest.builder().tableName(tableName);
         sr.indexName(indexName);
@@ -234,6 +238,8 @@ public class ScanIndex2IT {
                         ScalarAttributeType.S, "attr_1", ScalarAttributeType.N);
         phoenixDBClientV2.createTable(createTableRequest);
         dynamoDbClient.createTable(createTableRequest);
+
+        TestUtils.waitForEventualConsistentIndex();
 
         // Scan request with both ScanFilter and FilterExpression - should fail
         ScanRequest.Builder sr = ScanRequest.builder().tableName(tableName);

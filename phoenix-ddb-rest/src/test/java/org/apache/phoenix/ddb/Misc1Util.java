@@ -122,7 +122,7 @@ public class Misc1Util {
 
         dynamoDbClient.createTable(objectsTableRequest);
         phoenixDBClientV2.createTable(objectsTableRequest);
-
+        Thread.sleep(61000);
         UpdateTimeToLiveRequest enableTtlRequest =
                 UpdateTimeToLiveRequest.builder().tableName(objectsTableName)
                         .timeToLiveSpecification(
@@ -849,6 +849,7 @@ public class Misc1Util {
         dynamoDbClient.createTable(table2Request);
         phoenixDBClientV2.createTable(table2Request);
 
+        Thread.sleep(61000);
         int totalItems = 10000;
         int numPartitions = 13;
 
@@ -867,6 +868,8 @@ public class Misc1Util {
 
         batchDeleteItems(dynamoDbClient, phoenixDBClientV2, table1Name, table1ItemsToDelete);
         batchDeleteItems(dynamoDbClient, phoenixDBClientV2, table2Name, table2ItemsToDelete);
+
+        TestUtils.waitForEventualConsistentIndex();
 
         for (int partitionId = 0; partitionId < numPartitions; partitionId++) {
             String pkValueTable1 = "pk_" + partitionId + "_t1";

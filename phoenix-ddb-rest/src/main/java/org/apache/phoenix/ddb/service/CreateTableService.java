@@ -313,11 +313,11 @@ public class CreateTableService {
         cols.append(", COL BSON CONSTRAINT pk PRIMARY KEY (").append(pkCols).append(")");
 
         List<String> createCdcDDLs = getCdcDDL(request);
+        List<String> createIndexDDLs = getIndexDDLs(request);
         String createTableDDL =
                 "CREATE TABLE IF NOT EXISTS " + PhoenixUtils.getFullTableName(tableName, true)
                         + " (" + cols + ") " + TableOptionsConfig.getTableOptions(
-                        createCdcDDLs.isEmpty());
-        List<String> createIndexDDLs = getIndexDDLs(request);
+                        createCdcDDLs.isEmpty() && createIndexDDLs.isEmpty());
 
         try (Connection connection = ConnectionUtil.getConnection(connectionUrl)) {
             connection.setAutoCommit(true);
@@ -342,13 +342,22 @@ public class CreateTableService {
             tableExists = checkTableExistence(phoenixConnection, tableName);
             LOGGER.info("Create Table DDL: {}", createTableDDL);
             connection.createStatement().execute(createTableDDL);
+            for (String ddl : createCdcDDLs) {
+                LOGGER.info("Create CDC DDL: {}", ddl);
+                try {
+                    connection.createStatement().execute(ddl);
+                } catch (SQLException e) {
+                    // TODO : remove this if condition once "CREATE CDC IF NOT EXISTS" no longer
+                    // throws CDC_ALREADY_ENABLED. The error code CDC_ALREADY_ENABLED should be
+                    // thrown only if "IF NOT EXISTS" is not used with "CREATE CDC".
+                    if (SQLExceptionCode.CDC_ALREADY_ENABLED.getErrorCode() != e.getErrorCode()) {
+                        throw new PhoenixServiceException(e);
+                    }
+                }
+            }
             for (String createIndexDDL : createIndexDDLs) {
                 LOGGER.info("Create Index DDL: {}", createIndexDDL);
                 connection.createStatement().execute(createIndexDDL);
-            }
-            for (String ddl : createCdcDDLs) {
-                LOGGER.info("Create CDC DDL: {}", ddl);
-                connection.createStatement().execute(ddl);
             }
         } catch (SQLException e) {
             LOGGER.error("Error with table creation", e);
@@ -377,7 +386,7 @@ public class CreateTableService {
             if (table != null) {
                 long tableTimestamp = table.getTimeStamp();
                 long elapsedMillis = EnvironmentEdgeManager.currentTime() - tableTimestamp;
-                return elapsedMillis > 5000;
+                return elapsedMillis > 15000;
             }
         } catch (TableNotFoundException e) {
             // ignore

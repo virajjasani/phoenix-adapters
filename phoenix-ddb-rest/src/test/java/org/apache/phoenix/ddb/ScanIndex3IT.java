@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.phoenix.ddb.rest.RESTServer;
 import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
@@ -73,7 +72,7 @@ public class ScanIndex3IT {
     public static void initialize() throws Exception {
         tmpDir = System.getProperty("java.io.tmpdir");
         LocalDynamoDbTestBase.localDynamoDb().start();
-        Configuration conf = HBaseConfiguration.create();
+        Configuration conf = TestUtils.getConfigForMiniCluster();
         utility = new HBaseTestingUtility(conf);
         setUpConfigForMiniCluster(conf);
 
@@ -89,6 +88,8 @@ public class ScanIndex3IT {
         dynamoDbClient = LocalDynamoDbTestBase.localDynamoDb().createV2Client();
 
         createTableAndInsertData();
+        TestUtils.waitForEventualConsistentIndex();
+        TestUtils.waitForEventualConsistentIndex();
     }
 
     private static void executeBatchWrite(String tableName, List<WriteRequest> batch) {

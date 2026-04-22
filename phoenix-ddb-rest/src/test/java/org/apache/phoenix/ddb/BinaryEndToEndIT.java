@@ -18,7 +18,6 @@
 package org.apache.phoenix.ddb;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.phoenix.coprocessor.PhoenixMasterObserver;
@@ -36,7 +35,9 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.SdkBytes;
@@ -103,15 +104,18 @@ public class BinaryEndToEndIT {
     private static String tmpDir;
     private static RESTServer restServer = null;
 
-    private static String TABLE_NAME = "Binary.PK_Test-Table";
-    private static String INDEX_NAME = "Binary.PK_Test-Index";
+    private String tableName;
+    private String indexName;
     private static Random random = new Random(42);
+
+    @Rule
+    public TestName testName = new TestName();
 
     @BeforeClass
     public static void initialize() throws Exception {
         tmpDir = System.getProperty("java.io.tmpdir");
         LocalDynamoDbTestBase.localDynamoDb().start();
-        Configuration conf = HBaseConfiguration.create();
+        Configuration conf = TestUtils.getConfigForMiniCluster();
         utility = new HBaseTestingUtility(conf);
         Map<String, String> props = Maps.newHashMapWithExpectedSize(1);
         props.put(QueryServices.TASK_HANDLING_INTERVAL_MS_ATTRIB,
@@ -154,9 +158,11 @@ public class BinaryEndToEndIT {
 
     @Before
     public void createTableAndIndex() {
-        CreateTableRequest request = CreateTableRequest.builder().tableName(TABLE_NAME)
+        tableName = "Binary.PK_Test-Table_" + testName.getMethodName();
+        indexName = "Binary.PK_Test-Index_" + testName.getMethodName();
+        CreateTableRequest request = CreateTableRequest.builder().tableName(tableName)
                 .billingMode(BillingMode.PAY_PER_REQUEST).globalSecondaryIndexes(Arrays.asList(
-                        GlobalSecondaryIndex.builder().indexName(INDEX_NAME).keySchema(
+                        GlobalSecondaryIndex.builder().indexName(indexName).keySchema(
                                         Arrays.asList(KeySchemaElement.builder()
                                                         .attributeName("index_hk").keyType(
                                                                 KeyType.HASH)
@@ -191,7 +197,7 @@ public class BinaryEndToEndIT {
 
     @After
     public void deleteTable() {
-        DeleteTableRequest request = DeleteTableRequest.builder().tableName(TABLE_NAME).build();
+        DeleteTableRequest request = DeleteTableRequest.builder().tableName(tableName).build();
         phoenixDBClientV2.deleteTable(request);
         dynamoDbClient.deleteTable(request);
     }
@@ -199,36 +205,36 @@ public class BinaryEndToEndIT {
     @Test
     public void putThenGetItem() {
         Map<String, AttributeValue> item = getItem(1);
-        PutItemRequest pir = PutItemRequest.builder().tableName(TABLE_NAME).item(item).build();
+        PutItemRequest pir = PutItemRequest.builder().tableName(tableName).item(item).build();
         dynamoDbClient.putItem(pir);
         phoenixDBClientV2.putItem(pir);
         Map<String, AttributeValue> key = getKey(item);
-        GetItemRequest gir = GetItemRequest.builder().tableName(TABLE_NAME).key(key).build();
+        GetItemRequest gir = GetItemRequest.builder().tableName(tableName).key(key).build();
         Assert.assertEquals(dynamoDbClient.getItem(gir).item(), phoenixDBClientV2.getItem(gir).item());
     }
 
     @Test
     public void putThenDeleteItem() {
         Map<String, AttributeValue> item = getItem(1);
-        PutItemRequest pir = PutItemRequest.builder().tableName(TABLE_NAME).item(item).build();
+        PutItemRequest pir = PutItemRequest.builder().tableName(tableName).item(item).build();
         dynamoDbClient.putItem(pir);
         phoenixDBClientV2.putItem(pir);
         Map<String, AttributeValue> key = getKey(item);
-        DeleteItemRequest del = DeleteItemRequest.builder().tableName(TABLE_NAME).key(key).build();
+        DeleteItemRequest del = DeleteItemRequest.builder().tableName(tableName).key(key).build();
         dynamoDbClient.deleteItem(del);
         phoenixDBClientV2.deleteItem(del);
-        GetItemRequest gir = GetItemRequest.builder().tableName(TABLE_NAME).key(key).build();
+        GetItemRequest gir = GetItemRequest.builder().tableName(tableName).key(key).build();
         Assert.assertEquals(dynamoDbClient.getItem(gir).item(), phoenixDBClientV2.getItem(gir).item());
     }
 
     @Test
     public void getNonExistentItem() {
         Map<String, AttributeValue> item = getItem(1);
-        PutItemRequest pir = PutItemRequest.builder().tableName(TABLE_NAME).item(item).build();
+        PutItemRequest pir = PutItemRequest.builder().tableName(tableName).item(item).build();
         dynamoDbClient.putItem(pir);
         phoenixDBClientV2.putItem(pir);
         Map<String, AttributeValue> key = getKey(getItem(2));
-        GetItemRequest gir = GetItemRequest.builder().tableName(TABLE_NAME).key(key).build();
+        GetItemRequest gir = GetItemRequest.builder().tableName(tableName).key(key).build();
         Assert.assertEquals(dynamoDbClient.getItem(gir).item(), phoenixDBClientV2.getItem(gir).item());
     }
 
@@ -239,7 +245,7 @@ public class BinaryEndToEndIT {
         exprAttrNames.put("#1", "hk");
         exprAttrNames.put("#2", "sk");
         PutItemRequest pir = PutItemRequest.builder()
-                .tableName(TABLE_NAME)
+                .tableName(tableName)
                 .item(item)
                 .expressionAttributeNames(exprAttrNames)
                 .conditionExpression("attribute_not_exists(#1) AND attribute_not_exists(#2)")
@@ -247,14 +253,14 @@ public class BinaryEndToEndIT {
         dynamoDbClient.putItem(pir);
         phoenixDBClientV2.putItem(pir);
         Map<String, AttributeValue> key = getKey(item);
-        GetItemRequest gir = GetItemRequest.builder().tableName(TABLE_NAME).key(key).build();
+        GetItemRequest gir = GetItemRequest.builder().tableName(tableName).key(key).build();
         Assert.assertEquals(dynamoDbClient.getItem(gir).item(), phoenixDBClientV2.getItem(gir).item());
     }
 
     @Test
     public void putWithConditionThatFails() {
         Map<String, AttributeValue> item = getItem(1);
-        PutItemRequest pir = PutItemRequest.builder().tableName(TABLE_NAME).item(item).build();
+        PutItemRequest pir = PutItemRequest.builder().tableName(tableName).item(item).build();
         dynamoDbClient.putItem(pir);
         phoenixDBClientV2.putItem(pir);
 
@@ -264,7 +270,7 @@ public class BinaryEndToEndIT {
         Map<String, AttributeValue> exprAttrVals = new HashMap<>();
         exprAttrVals.put(":v1", item.get("index_sk"));
         pir = PutItemRequest.builder()
-                .tableName(TABLE_NAME)
+                .tableName(tableName)
                 .item(item)
                 .expressionAttributeNames(exprAttrNames)
                 .expressionAttributeValues(exprAttrVals)
@@ -278,14 +284,14 @@ public class BinaryEndToEndIT {
         } catch (ConditionalCheckFailedException expected) {}
 
         Map<String, AttributeValue> key = getKey(item);
-        GetItemRequest gir = GetItemRequest.builder().tableName(TABLE_NAME).key(key).build();
+        GetItemRequest gir = GetItemRequest.builder().tableName(tableName).key(key).build();
         Assert.assertEquals(dynamoDbClient.getItem(gir).item(), phoenixDBClientV2.getItem(gir).item());
     }
 
     @Test
     public void deleteWithConditionThatSucceeds() {
         Map<String, AttributeValue> item = getItem(1);
-        PutItemRequest pir = PutItemRequest.builder().tableName(TABLE_NAME).item(item).build();
+        PutItemRequest pir = PutItemRequest.builder().tableName(tableName).item(item).build();
         dynamoDbClient.putItem(pir);
         phoenixDBClientV2.putItem(pir);
 
@@ -295,7 +301,7 @@ public class BinaryEndToEndIT {
         Map<String, AttributeValue> exprAttrVals = new HashMap<>();
         exprAttrVals.put(":v1", item.get("index_hk"));
         DeleteItemRequest del = DeleteItemRequest.builder()
-                .tableName(TABLE_NAME)
+                .tableName(tableName)
                 .key(key)
                 .expressionAttributeNames(exprAttrNames)
                 .expressionAttributeValues(exprAttrVals)
@@ -304,14 +310,14 @@ public class BinaryEndToEndIT {
         dynamoDbClient.deleteItem(del);
         phoenixDBClientV2.deleteItem(del);
 
-        GetItemRequest gir = GetItemRequest.builder().tableName(TABLE_NAME).key(key).build();
+        GetItemRequest gir = GetItemRequest.builder().tableName(tableName).key(key).build();
         Assert.assertEquals(dynamoDbClient.getItem(gir).item(), phoenixDBClientV2.getItem(gir).item());
     }
 
     @Test
     public void deleteWithConditionThatFails() {
         Map<String, AttributeValue> item = getItem(1);
-        PutItemRequest pir = PutItemRequest.builder().tableName(TABLE_NAME).item(item).build();
+        PutItemRequest pir = PutItemRequest.builder().tableName(tableName).item(item).build();
         dynamoDbClient.putItem(pir);
         phoenixDBClientV2.putItem(pir);
 
@@ -322,7 +328,7 @@ public class BinaryEndToEndIT {
         byte[] index_sk_val = new byte[]{0, 0, 0};
         exprAttrVals.put(":v1", AttributeValue.builder().b(SdkBytes.fromByteArray(index_sk_val)).build());
         DeleteItemRequest del = DeleteItemRequest.builder()
-                .tableName(TABLE_NAME)
+                .tableName(tableName)
                 .key(key)
                 .expressionAttributeNames(exprAttrNames)
                 .expressionAttributeValues(exprAttrVals)
@@ -335,30 +341,30 @@ public class BinaryEndToEndIT {
             phoenixDBClientV2.deleteItem(del);
         } catch (ConditionalCheckFailedException expected) {}
 
-        GetItemRequest gir = GetItemRequest.builder().tableName(TABLE_NAME).key(key).build();
+        GetItemRequest gir = GetItemRequest.builder().tableName(tableName).key(key).build();
         Assert.assertEquals(dynamoDbClient.getItem(gir).item(), phoenixDBClientV2.getItem(gir).item());
     }
 
     @Test
     public void deleteNonExistentItem() {
         Map<String, AttributeValue> item = getItem(1);
-        PutItemRequest pir = PutItemRequest.builder().tableName(TABLE_NAME).item(item).build();
+        PutItemRequest pir = PutItemRequest.builder().tableName(tableName).item(item).build();
         dynamoDbClient.putItem(pir);
         phoenixDBClientV2.putItem(pir);
 
         Map<String, AttributeValue> key = getKey(getItem(2));
-        DeleteItemRequest del = DeleteItemRequest.builder().tableName(TABLE_NAME).key(key).build();
+        DeleteItemRequest del = DeleteItemRequest.builder().tableName(tableName).key(key).build();
         dynamoDbClient.deleteItem(del);
         phoenixDBClientV2.deleteItem(del);
 
-        GetItemRequest gir = GetItemRequest.builder().tableName(TABLE_NAME).key(getKey(item)).build();
+        GetItemRequest gir = GetItemRequest.builder().tableName(tableName).key(getKey(item)).build();
         Assert.assertEquals(dynamoDbClient.getItem(gir).item(), phoenixDBClientV2.getItem(gir).item());
     }
 
     @Test
-    public void putThenUpdateItemAndScanIndex() throws SQLException {
+    public void putThenUpdateItemAndScanIndex() throws SQLException, InterruptedException {
         Map<String, AttributeValue> item = getItem(1);
-        PutItemRequest pir = PutItemRequest.builder().tableName(TABLE_NAME).item(item).build();
+        PutItemRequest pir = PutItemRequest.builder().tableName(tableName).item(item).build();
         dynamoDbClient.putItem(pir);
         phoenixDBClientV2.putItem(pir);
 
@@ -370,7 +376,7 @@ public class BinaryEndToEndIT {
         exprAttrVal.put(":v1", AttributeValue.builder().b(SdkBytes.fromByteArray(new byte[] {0, 0})).build());
         exprAttrVal.put(":v2", AttributeValue.builder().b(SdkBytes.fromByteArray(new byte[] {1, 1})).build());
         UpdateItemRequest uir = UpdateItemRequest.builder()
-                .tableName(TABLE_NAME)
+                .tableName(tableName)
                 .key(key)
                 .expressionAttributeNames(exprAttrNames)
                 .expressionAttributeValues(exprAttrVal)
@@ -380,10 +386,11 @@ public class BinaryEndToEndIT {
         dynamoDbClient.updateItem(uir);
         phoenixDBClientV2.updateItem(uir);
 
-        GetItemRequest gir = GetItemRequest.builder().tableName(TABLE_NAME).key(getKey(item)).build();
+        GetItemRequest gir = GetItemRequest.builder().tableName(tableName).key(getKey(item)).build();
         Assert.assertEquals(dynamoDbClient.getItem(gir).item(), phoenixDBClientV2.getItem(gir).item());
 
-        ScanRequest sr = ScanRequest.builder().tableName(TABLE_NAME).indexName(INDEX_NAME).build();
+        ScanRequest sr = ScanRequest.builder().tableName(tableName).indexName(indexName).build();
+        Thread.sleep(20000);
         Assert.assertEquals(dynamoDbClient.scan(sr).items(), phoenixDBClientV2.scan(sr).items());
         TestUtils.validateIndexUsed(sr, url, "FULL SCAN ");
     }
@@ -391,7 +398,7 @@ public class BinaryEndToEndIT {
     @Test
     public void updateWithConditionThatSucceeds() {
         Map<String, AttributeValue> item = getItem(1);
-        PutItemRequest pir = PutItemRequest.builder().tableName(TABLE_NAME).item(item).build();
+        PutItemRequest pir = PutItemRequest.builder().tableName(tableName).item(item).build();
         dynamoDbClient.putItem(pir);
         phoenixDBClientV2.putItem(pir);
 
@@ -405,7 +412,7 @@ public class BinaryEndToEndIT {
         exprAttrVal.put(":v2", AttributeValue.builder().b(SdkBytes.fromByteArray(new byte[] {1, 1})).build());
         exprAttrVal.put(":v3", AttributeValue.builder().n("3").build());
         UpdateItemRequest uir = UpdateItemRequest.builder()
-                .tableName(TABLE_NAME)
+                .tableName(tableName)
                 .key(key)
                 .expressionAttributeNames(exprAttrNames)
                 .expressionAttributeValues(exprAttrVal)
@@ -416,14 +423,14 @@ public class BinaryEndToEndIT {
         dynamoDbClient.updateItem(uir);
         phoenixDBClientV2.updateItem(uir);
 
-        GetItemRequest gir = GetItemRequest.builder().tableName(TABLE_NAME).key(getKey(item)).build();
+        GetItemRequest gir = GetItemRequest.builder().tableName(tableName).key(getKey(item)).build();
         Assert.assertEquals(dynamoDbClient.getItem(gir).item(), phoenixDBClientV2.getItem(gir).item());
     }
 
     @Test
     public void updateWithConditionThatFails() {
         Map<String, AttributeValue> item = getItem(1);
-        PutItemRequest pir = PutItemRequest.builder().tableName(TABLE_NAME).item(item).build();
+        PutItemRequest pir = PutItemRequest.builder().tableName(tableName).item(item).build();
         dynamoDbClient.putItem(pir);
         phoenixDBClientV2.putItem(pir);
 
@@ -437,7 +444,7 @@ public class BinaryEndToEndIT {
         exprAttrVal.put(":v2", AttributeValue.builder().b(SdkBytes.fromByteArray(new byte[] {1, 1})).build());
         exprAttrVal.put(":v3", AttributeValue.builder().n("0").build());
         UpdateItemRequest uir = UpdateItemRequest.builder()
-                .tableName(TABLE_NAME)
+                .tableName(tableName)
                 .key(key)
                 .expressionAttributeNames(exprAttrNames)
                 .expressionAttributeValues(exprAttrVal)
@@ -452,18 +459,18 @@ public class BinaryEndToEndIT {
             phoenixDBClientV2.updateItem(uir);
         } catch (ConditionalCheckFailedException expected) {}
 
-        GetItemRequest gir = GetItemRequest.builder().tableName(TABLE_NAME).key(getKey(item)).build();
+        GetItemRequest gir = GetItemRequest.builder().tableName(tableName).key(getKey(item)).build();
         Assert.assertEquals(dynamoDbClient.getItem(gir).item(), phoenixDBClientV2.getItem(gir).item());
     }
 
     @Test
-    public void batchWriteItems() throws SQLException {
+    public void batchWriteItems() throws SQLException, InterruptedException {
         Map<String, AttributeValue> item1 = getItem(1);
-        PutItemRequest pir1 = PutItemRequest.builder().tableName(TABLE_NAME).item(item1).build();
+        PutItemRequest pir1 = PutItemRequest.builder().tableName(tableName).item(item1).build();
         dynamoDbClient.putItem(pir1);
         phoenixDBClientV2.putItem(pir1);
         Map<String, AttributeValue> item2 = getItem(2);
-        PutItemRequest pir2 = PutItemRequest.builder().tableName(TABLE_NAME).item(item2).build();
+        PutItemRequest pir2 = PutItemRequest.builder().tableName(tableName).item(item2).build();
         dynamoDbClient.putItem(pir2);
         phoenixDBClientV2.putItem(pir2);
 
@@ -477,15 +484,16 @@ public class BinaryEndToEndIT {
         writeReqs.add(WriteRequest.builder().deleteRequest(
                 DeleteRequest.builder().key(getKey(item2)).build()).build());
         Map<String, List<WriteRequest>> requestItems = new HashMap<>();
-        requestItems.put(TABLE_NAME, writeReqs);
+        requestItems.put(tableName, writeReqs);
         BatchWriteItemRequest bwir = BatchWriteItemRequest.builder().requestItems(requestItems).build();
         dynamoDbClient.batchWriteItem(bwir);
         phoenixDBClientV2.batchWriteItem(bwir);
 
-        ScanRequest sr = ScanRequest.builder().tableName(TABLE_NAME).build();
+        ScanRequest sr = ScanRequest.builder().tableName(tableName).build();
         Assert.assertEquals(dynamoDbClient.scan(sr).items().size(), phoenixDBClientV2.scan(sr).items().size());
 
-        sr = ScanRequest.builder().tableName(TABLE_NAME).indexName(INDEX_NAME).build();
+        sr = ScanRequest.builder().tableName(tableName).indexName(indexName).build();
+        Thread.sleep(20000);
         Assert.assertEquals(dynamoDbClient.scan(sr).items().size(), phoenixDBClientV2.scan(sr).items().size());
         TestUtils.validateIndexUsed(sr, url, "FULL SCAN ");
     }
@@ -523,7 +531,7 @@ public class BinaryEndToEndIT {
         item.put("environment", AttributeValue.builder().s("development").build());
 
         // Insert initial item
-        PutItemRequest initialPir = PutItemRequest.builder().tableName(TABLE_NAME).item(item).build();
+        PutItemRequest initialPir = PutItemRequest.builder().tableName(tableName).item(item).build();
         dynamoDbClient.putItem(initialPir);
         phoenixDBClientV2.putItem(initialPir);
 
@@ -544,7 +552,7 @@ public class BinaryEndToEndIT {
         putExprAttrVals.put(":activeStatus", AttributeValue.builder().s("active").build());
 
         PutItemRequest conditionalPut = PutItemRequest.builder()
-                .tableName(TABLE_NAME)
+                .tableName(tableName)
                 .item(newItem)
                 .expressionAttributeNames(putExprAttrNames)
                 .expressionAttributeValues(putExprAttrVals)
@@ -609,7 +617,7 @@ public class BinaryEndToEndIT {
         updateExprAttrVals.put(":activeStatus", AttributeValue.builder().s("active").build());
 
         UpdateItemRequest complexUpdate = UpdateItemRequest.builder()
-                .tableName(TABLE_NAME)
+                .tableName(tableName)
                 .key(key)
                 .expressionAttributeNames(updateExprAttrNames)
                 .expressionAttributeValues(updateExprAttrVals)
@@ -626,7 +634,7 @@ public class BinaryEndToEndIT {
         phoenixDBClientV2.updateItem(complexUpdate);
 
         // Verify the update worked
-        GetItemRequest gir = GetItemRequest.builder().tableName(TABLE_NAME).key(key).build();
+        GetItemRequest gir = GetItemRequest.builder().tableName(tableName).key(key).build();
         Map<String, AttributeValue> dynamoResult = dynamoDbClient.getItem(gir).item();
         Map<String, AttributeValue> phoenixResult = phoenixDBClientV2.getItem(gir).item();
         Assert.assertEquals("Results should match after complex update", dynamoResult, phoenixResult);
@@ -651,7 +659,7 @@ public class BinaryEndToEndIT {
         deleteExprAttrVals.put(":recentTime", AttributeValue.builder().n(String.valueOf(System.currentTimeMillis() - 60000)).build()); // 1 minute ago
 
         DeleteItemRequest complexDelete = DeleteItemRequest.builder()
-                .tableName(TABLE_NAME)
+                .tableName(tableName)
                 .key(key)
                 .expressionAttributeNames(deleteExprAttrNames)
                 .expressionAttributeValues(deleteExprAttrVals)
@@ -665,7 +673,7 @@ public class BinaryEndToEndIT {
         phoenixDBClientV2.deleteItem(complexDelete);
 
         // Verify the item was deleted
-        GetItemRequest finalGir = GetItemRequest.builder().tableName(TABLE_NAME).key(key).build();
+        GetItemRequest finalGir = GetItemRequest.builder().tableName(tableName).key(key).build();
         Assert.assertEquals("Item should be deleted from both systems",
                 dynamoDbClient.getItem(finalGir).item(),
                 phoenixDBClientV2.getItem(finalGir).item());
@@ -683,7 +691,7 @@ public class BinaryEndToEndIT {
             Map<String, AttributeValue> item = getItem(i);
             item.put("hk", AttributeValue.builder().b(SdkBytes.fromByteArray(hk)).build());
             items.add(item);
-            PutItemRequest pir = PutItemRequest.builder().tableName(TABLE_NAME).item(item).build();
+            PutItemRequest pir = PutItemRequest.builder().tableName(tableName).item(item).build();
             dynamoDbClient.putItem(pir);
             phoenixDBClientV2.putItem(pir);
         }
@@ -703,13 +711,13 @@ public class BinaryEndToEndIT {
         exprVals.put(":hk", AttributeValue.builder().b(SdkBytes.fromByteArray(hk)).build());
         exprVals.put(":startSk", AttributeValue.builder().b(SdkBytes.fromByteArray(startSk)).build());
         exprVals.put(":endSk", AttributeValue.builder().b(SdkBytes.fromByteArray(endSk)).build());
-        QueryRequest.Builder qr = QueryRequest.builder().tableName(TABLE_NAME)
+        QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName)
                 .keyConditionExpression("hk = :hk AND sk BETWEEN :startSk AND :endSk")
                 .projectionExpression("payload")
                 .limit(2)
                 .expressionAttributeValues(exprVals);
         TestUtils.compareQueryOutputs(qr, phoenixDBClientV2, dynamoDbClient);
-        qr = QueryRequest.builder().tableName(TABLE_NAME)
+        qr = QueryRequest.builder().tableName(tableName)
                 .keyConditionExpression("hk = :hk AND sk BETWEEN :startSk AND :endSk")
                 .projectionExpression("payload")
                 .limit(2)
@@ -719,16 +727,16 @@ public class BinaryEndToEndIT {
     }
 
     @Test
-    public void queryIndexForwardWithPagination() {
+    public void queryIndexForwardWithPagination() throws InterruptedException {
         queryIndexWithPagination(true);
     }
 
     @Test
-    public void queryIndexBackwardWithPagination() {
+    public void queryIndexBackwardWithPagination() throws InterruptedException {
         queryIndexWithPagination(false);
     }
 
-    private void queryIndexWithPagination(boolean scanIndexForward) {
+    private void queryIndexWithPagination(boolean scanIndexForward) throws InterruptedException {
         //insert items with same index_hk, different index_sk
         byte[] index_hk = new byte[15];
         random.nextBytes(index_hk);
@@ -737,7 +745,7 @@ public class BinaryEndToEndIT {
             Map<String, AttributeValue> item = getItem(i);
             item.put("index_hk", AttributeValue.builder().b(SdkBytes.fromByteArray(index_hk)).build());
             items.add(item);
-            PutItemRequest pir = PutItemRequest.builder().tableName(TABLE_NAME).item(item).build();
+            PutItemRequest pir = PutItemRequest.builder().tableName(tableName).item(item).build();
             dynamoDbClient.putItem(pir);
             phoenixDBClientV2.putItem(pir);
         }
@@ -757,17 +765,18 @@ public class BinaryEndToEndIT {
         exprVals.put(":indexHk", AttributeValue.builder().b(SdkBytes.fromByteArray(index_hk)).build());
         exprVals.put(":startIndexSk", AttributeValue.builder().b(SdkBytes.fromByteArray(startSk)).build());
         exprVals.put(":endIndexSk", AttributeValue.builder().b(SdkBytes.fromByteArray(endSk)).build());
-        QueryRequest.Builder qr = QueryRequest.builder().tableName(TABLE_NAME).indexName(INDEX_NAME)
+        QueryRequest.Builder qr = QueryRequest.builder().tableName(tableName).indexName(indexName)
                 .keyConditionExpression("index_hk = :indexHk AND index_sk BETWEEN :startIndexSk AND :endIndexSk")
                 .projectionExpression("payload")
                 .limit(3)
                 .expressionAttributeValues(exprVals)
                 .scanIndexForward(scanIndexForward);
+        Thread.sleep(20000);
         TestUtils.compareQueryOutputs(qr, phoenixDBClientV2, dynamoDbClient);
     }
 
     @Test
-    public void queryIndexWithEqualsSortKeyAndPagination() {
+    public void queryIndexWithEqualsSortKeyAndPagination() throws InterruptedException {
         // Common GSI key values (like Phoenix test: GSI_HK and GSI_SK are the same for all rows)
         byte[] gsiHk = new byte[]{0x00, 0x00, 0x00, 0x0A};  // GSI hash key
         byte[] gsiSk = "1".getBytes();                       // GSI sort key = "1"
@@ -803,12 +812,12 @@ public class BinaryEndToEndIT {
         item3.put("data", AttributeValue.builder().s("row3").build());
 
         // Insert all rows
-        dynamoDbClient.putItem(PutItemRequest.builder().tableName(TABLE_NAME).item(item1).build());
-        phoenixDBClientV2.putItem(PutItemRequest.builder().tableName(TABLE_NAME).item(item1).build());
-        dynamoDbClient.putItem(PutItemRequest.builder().tableName(TABLE_NAME).item(item2).build());
-        phoenixDBClientV2.putItem(PutItemRequest.builder().tableName(TABLE_NAME).item(item2).build());
-        dynamoDbClient.putItem(PutItemRequest.builder().tableName(TABLE_NAME).item(item3).build());
-        phoenixDBClientV2.putItem(PutItemRequest.builder().tableName(TABLE_NAME).item(item3).build());
+        dynamoDbClient.putItem(PutItemRequest.builder().tableName(tableName).item(item1).build());
+        phoenixDBClientV2.putItem(PutItemRequest.builder().tableName(tableName).item(item1).build());
+        dynamoDbClient.putItem(PutItemRequest.builder().tableName(tableName).item(item2).build());
+        phoenixDBClientV2.putItem(PutItemRequest.builder().tableName(tableName).item(item2).build());
+        dynamoDbClient.putItem(PutItemRequest.builder().tableName(tableName).item(item3).build());
+        phoenixDBClientV2.putItem(PutItemRequest.builder().tableName(tableName).item(item3).build());
 
         // Query GSI with index_hk = gsiHk AND index_sk = gsiSk (EQUALS on sort key)
         Map<String, AttributeValue> exprVals = new HashMap<>();
@@ -816,12 +825,13 @@ public class BinaryEndToEndIT {
         exprVals.put(":indexSk", AttributeValue.builder().b(SdkBytes.fromByteArray(gsiSk)).build());
 
         QueryRequest.Builder qr = QueryRequest.builder()
-                .tableName(TABLE_NAME)
-                .indexName(INDEX_NAME)
+                .tableName(tableName)
+                .indexName(indexName)
                 .keyConditionExpression("index_hk = :indexHk AND index_sk = :indexSk")
                 .limit(1)
                 .expressionAttributeValues(exprVals);
 
+        Thread.sleep(20000);
         TestUtils.compareQueryOutputs(qr, phoenixDBClientV2, dynamoDbClient);
     }
 
@@ -831,14 +841,14 @@ public class BinaryEndToEndIT {
         for (int i = 0; i < 100; i++) {
             Map<String, AttributeValue> item = getItem(i);
             items.add(item);
-            PutItemRequest pir = PutItemRequest.builder().tableName(TABLE_NAME).item(item).build();
+            PutItemRequest pir = PutItemRequest.builder().tableName(tableName).item(item).build();
             dynamoDbClient.putItem(pir);
             phoenixDBClientV2.putItem(pir);
         }
         Map<String, AttributeValue> exprAttrValues = new HashMap<>();
         exprAttrValues.put(":val", items.get(45).get("index_hk"));
         ScanRequest.Builder sr = ScanRequest.builder()
-                .tableName(TABLE_NAME)
+                .tableName(tableName)
                 .limit(7)
                 .projectionExpression("index_sk")
                 .filterExpression("index_hk > :val")
@@ -864,25 +874,26 @@ public class BinaryEndToEndIT {
     }
 
     @Test
-    public void scanIndexWithFilterProjectionAndPagination() {
+    public void scanIndexWithFilterProjectionAndPagination() throws InterruptedException {
         List<Map<String, AttributeValue>> items = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
             Map<String, AttributeValue> item = getItem(i);
             items.add(item);
-            PutItemRequest pir = PutItemRequest.builder().tableName(TABLE_NAME).item(item).build();
+            PutItemRequest pir = PutItemRequest.builder().tableName(tableName).item(item).build();
             dynamoDbClient.putItem(pir);
             phoenixDBClientV2.putItem(pir);
         }
         Map<String, AttributeValue> exprAttrValues = new HashMap<>();
         exprAttrValues.put(":val", items.get(78).get("index_sk"));
         ScanRequest.Builder sr = ScanRequest.builder()
-                .tableName(TABLE_NAME)
-                .indexName(INDEX_NAME)
+                .tableName(tableName)
+                .indexName(indexName)
                 .limit(7)
                 .projectionExpression("sk")
                 .filterExpression("index_sk < :val")
                 .expressionAttributeValues(exprAttrValues);
         List<Map<String, AttributeValue>> phoenixResult = new ArrayList<>();
+        Thread.sleep(20000);
         ScanResponse phoenixResponse;
         do {
             phoenixResponse = phoenixDBClientV2.scan(sr.build());
@@ -908,16 +919,16 @@ public class BinaryEndToEndIT {
         for (int i = 0; i < 20; i++) {
             Map<String, AttributeValue> item = getItem(i);
             keys.add(getKey(item));
-            PutItemRequest pir = PutItemRequest.builder().tableName(TABLE_NAME).item(item).build();
+            PutItemRequest pir = PutItemRequest.builder().tableName(tableName).item(item).build();
             dynamoDbClient.putItem(pir);
             phoenixDBClientV2.putItem(pir);
         }
         KeysAndAttributes keysAndAttr = KeysAndAttributes.builder().keys(keys.subList(11, 19)).projectionExpression("payload").build();
         Map<String, KeysAndAttributes> requestItems = new HashMap<>();
-        requestItems.put(TABLE_NAME, keysAndAttr);
+        requestItems.put(tableName, keysAndAttr);
         BatchGetItemRequest bgir = BatchGetItemRequest.builder().requestItems(requestItems).build();
-        List<Map<String, AttributeValue>> ddbItems = dynamoDbClient.batchGetItem(bgir).responses().get(TABLE_NAME);
-        List<Map<String, AttributeValue>> phoenixItems = phoenixDBClientV2.batchGetItem(bgir).responses().get(TABLE_NAME);
+        List<Map<String, AttributeValue>> ddbItems = dynamoDbClient.batchGetItem(bgir).responses().get(tableName);
+        List<Map<String, AttributeValue>> phoenixItems = phoenixDBClientV2.batchGetItem(bgir).responses().get(tableName);
         Assert.assertEquals(ddbItems.size(), phoenixItems.size());
         for (Map<String, AttributeValue> item : ddbItems) {
             Assert.assertTrue(phoenixItems.contains(item));

@@ -51,11 +51,11 @@ import software.amazon.awssdk.services.dynamodb.model.ReturnConsumedCapacity;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.phoenix.ddb.rest.RESTServer;
 import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
 import org.apache.phoenix.jdbc.PhoenixDriver;
+import org.apache.phoenix.jdbc.PhoenixTestDriver;
 import org.apache.phoenix.util.PhoenixRuntime;
 import org.apache.phoenix.util.ServerUtil;
 
@@ -81,11 +81,12 @@ public class GetItemIT {
     public static void initialize() throws Exception {
         tmpDir = System.getProperty("java.io.tmpdir");
         LocalDynamoDbTestBase.localDynamoDb().start();
-        Configuration conf = HBaseConfiguration.create();
+        Configuration conf = TestUtils.getConfigForMiniCluster();
         utility = new HBaseTestingUtility(conf);
         setUpConfigForMiniCluster(conf);
 
         utility.startMiniCluster();
+        DriverManager.registerDriver(new PhoenixTestDriver());
         String zkQuorum = "localhost:" + utility.getZkCluster().getClientPort();
         url = PhoenixRuntime.JDBC_PROTOCOL + PhoenixRuntime.JDBC_PROTOCOL_SEPARATOR + zkQuorum;
 
@@ -369,6 +370,8 @@ public class GetItemIT {
         getItemResponse1 = dynamoDbClient.getItem(getItemRequest);
         getItemResponse2 = phoenixDBClientV2.getItem(getItemRequest);
         Assert.assertEquals(getItemResponse2.item(), getItemResponse1.item());
+
+        TestUtils.waitForEventualConsistentIndex();
 
         QueryRequest.Builder qr = QueryRequest.builder().tableName("Tablex2048hfg.shLinux");
         qr.indexName("outstanding_tasks");

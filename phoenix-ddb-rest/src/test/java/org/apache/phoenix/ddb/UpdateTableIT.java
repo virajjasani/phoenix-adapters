@@ -18,7 +18,6 @@
 package org.apache.phoenix.ddb;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.phoenix.ddb.rest.RESTServer;
 import org.apache.phoenix.ddb.utils.AsyncIndexManager;
@@ -26,6 +25,7 @@ import org.apache.phoenix.ddb.utils.PhoenixUtils;
 import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
 import org.apache.phoenix.jdbc.PhoenixConnection;
 import org.apache.phoenix.jdbc.PhoenixDriver;
+import org.apache.phoenix.jdbc.PhoenixTestDriver;
 import org.apache.phoenix.schema.PIndexState;
 import org.apache.phoenix.schema.PTable;
 import org.apache.phoenix.util.PhoenixRuntime;
@@ -87,11 +87,12 @@ public class UpdateTableIT {
     public static void initialize() throws Exception {
         tmpDir = System.getProperty("java.io.tmpdir");
         LocalDynamoDbTestBase.localDynamoDb().start();
-        Configuration conf = HBaseConfiguration.create();
+        Configuration conf = TestUtils.getConfigForMiniCluster();
         utility = new HBaseTestingUtility(conf);
         setUpConfigForMiniCluster(conf);
 
         utility.startMiniCluster();
+        DriverManager.registerDriver(new PhoenixTestDriver());
         String zkQuorum = "localhost:" + utility.getZkCluster().getClientPort();
         url = PhoenixRuntime.JDBC_PROTOCOL + PhoenixRuntime.JDBC_PROTOCOL_SEPARATOR + zkQuorum;
 
@@ -231,9 +232,11 @@ public class UpdateTableIT {
         //change index state
         try (Connection connection = DriverManager.getConnection(url)) {
             AsyncIndexManager.activateIndexesForBuilding(connection, 0);
-            PTable pTable =
-                    connection.unwrap(PhoenixConnection.class).getTableNoCache(PhoenixUtils.getFullTableName(tableName, false));
-            Assert.assertEquals(PIndexState.BUILDING, pTable.getIndexes().get(0).getIndexState());
+            PTable indexPTable =
+                    connection.unwrap(PhoenixConnection.class).getTableNoCache(
+                            PhoenixUtils.getFullTableName(
+                                    PhoenixUtils.getInternalIndexName(tableName, indexName), false));
+            Assert.assertEquals(PIndexState.BUILDING, indexPTable.getIndexState());
         }
         describeTableResponse = phoenixDBClientV2.describeTable(describeTableRequest);
         Assert.assertEquals("CREATING",

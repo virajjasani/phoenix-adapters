@@ -18,7 +18,6 @@
 package org.apache.phoenix.ddb;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.phoenix.ddb.rest.RESTServer;
 import org.apache.phoenix.end2end.ServerMetadataCacheTestImpl;
@@ -35,6 +34,7 @@ import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.rules.TestName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
@@ -76,13 +76,11 @@ public class MappedTableIT {
     private static String tmpDir;
     private static RESTServer restServer = null;
 
-    private static final String TABLE_NAME = "TEST_MAPPED_TABLE_NAME";
-
     @BeforeClass
     public static void initialize() throws Exception {
         tmpDir = System.getProperty("java.io.tmpdir");
         LocalDynamoDbTestBase.localDynamoDb().start();
-        Configuration conf = HBaseConfiguration.create();
+        Configuration conf = TestUtils.getConfigForMiniCluster();
         utility = new HBaseTestingUtility(conf);
         setUpConfigForMiniCluster(conf);
 
@@ -283,10 +281,16 @@ public class MappedTableIT {
     @Rule
     public ExpectedException exception = ExpectedException.none();
 
+    @Rule
+    public final TestName testName = new TestName();
+
+    private String currentTableName;
+
     @Before
     public void createTable() {
-        mappedTable = ddbPhoenixEnhancedClient.table(TABLE_NAME, TABLE_SCHEMA);
-        mappedShortTable = ddbPhoenixEnhancedClient.table(TABLE_NAME, SHORT_TABLE_SCHEMA);
+        currentTableName = testName.getMethodName();
+        mappedTable = ddbPhoenixEnhancedClient.table(currentTableName, TABLE_SCHEMA);
+        mappedShortTable = ddbPhoenixEnhancedClient.table(currentTableName, SHORT_TABLE_SCHEMA);
         mappedTable.createTable(r -> r.globalSecondaryIndices(
                 EnhancedGlobalSecondaryIndex.builder()
                         .indexName("gsi_1")
@@ -297,7 +301,7 @@ public class MappedTableIT {
     @After
     public void deleteTable() {
         phoenixDBClientV2.deleteTable(DeleteTableRequest.builder()
-                .tableName(TABLE_NAME)
+                .tableName(currentTableName)
                 .build());
     }
 

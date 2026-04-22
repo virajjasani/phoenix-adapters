@@ -130,6 +130,8 @@ public class IndexSegmentScanIT extends BaseSegmentScanIT {
         dynamoDbClient.createTable(createTableRequest);
 
         insertItemsAndSplitIndex(tableName, indexName, TOTAL_ITEMS, SPLIT_FREQUENCY, 200);
+        TestUtils.waitForEventualConsistentIndex();
+        TestUtils.waitForEventualConsistentIndex();
 
         Random random = new Random();
 
