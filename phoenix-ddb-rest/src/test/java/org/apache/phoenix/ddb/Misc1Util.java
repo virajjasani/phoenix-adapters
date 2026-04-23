@@ -870,6 +870,7 @@ public class Misc1Util {
         batchDeleteItems(dynamoDbClient, phoenixDBClientV2, table2Name, table2ItemsToDelete);
 
         TestUtils.waitForEventualConsistentIndex();
+        TestUtils.waitForEventualConsistentIndex();
 
         for (int partitionId = 0; partitionId < numPartitions; partitionId++) {
             String pkValueTable1 = "pk_" + partitionId + "_t1";
